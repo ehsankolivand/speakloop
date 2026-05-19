@@ -1,0 +1,55 @@
+# speakloop Q&A file schema — v1
+#
+# This is the schema the user authors at ~/.speakloop/qa.yaml.
+# The starter file shipped in-repo at src/speakloop/content/starter.yaml
+# conforms to this schema and is copied on first run if no user file
+# exists. See data-model.md §1 and §2 for field semantics.
+
+schema_version: 1
+
+# A list of one or more Question entries.
+questions:
+
+  - # REQUIRED. Stable, file-unique kebab-case identifier (<=40 chars).
+    # Appears in report filenames as `qXX` after normalization.
+    id: kotlin-coroutines-basics
+
+    # REQUIRED. The interview question itself, spoken aloud verbatim
+    # (1..1000 chars).
+    question: |
+      Explain how Kotlin coroutines differ from threads, and when you
+      would choose one over the other.
+
+    # REQUIRED. The ideal answer, spoken aloud verbatim (1..4000 chars).
+    ideal_answer: |
+      Coroutines are a structured-concurrency primitive that run on a
+      shared pool of threads. Unlike OS threads, they are cheap to
+      create — hundreds of thousands can coexist — and they suspend
+      cooperatively rather than blocking. You pick a coroutine when
+      you have I/O-bound or cooperative work; a thread when you have
+      CPU-bound work that genuinely needs parallel execution.
+
+    # OPTIONAL. Free-form tags. v1 ignores them; future versions filter.
+    tags: [behavioral, kotlin, concurrency]
+
+    # OPTIONAL. easy | medium | hard. v1 does not branch on this.
+    difficulty: medium
+
+    # OPTIONAL. Override the default TTS voice for this question.
+    # Must match a Kokoro voice identifier. Default is the engine
+    # default if omitted.
+    voice_override: bm_george
+
+  - id: system-design-rate-limiter
+    question: |
+      Design a per-user rate limiter for a public REST API.
+    ideal_answer: |
+      Start with the requirement: how many requests per user per
+      window, and is the window fixed or sliding? The simplest
+      sufficient design is a token bucket per user, stored in an
+      in-memory keyed cache with a write-through to Redis for
+      multi-instance correctness. Each request decrements the user's
+      bucket; refill at a fixed rate. Edge cases: bursty traffic
+      handled by bucket depth; cache eviction handled by Redis TTL.
+    tags: [system-design]
+    difficulty: hard

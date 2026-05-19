@@ -1,0 +1,69 @@
+[project]
+name = "speakloop"
+version = "0.1.0"
+description = "Local English interview-practice CLI (TTS + ASR + LLM, offline, Apple Silicon)."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12,<3.13"
+authors = [{ name = "speakloop" }]
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.7",
+    "pyyaml>=6.0",
+    "sounddevice>=0.4",
+    "soundfile>=0.12",
+    "huggingface_hub>=0.24",
+    "python-frontmatter>=1.1",
+    "numpy>=1.26",
+    "kokoro-mlx>=0.1.2",
+    "readchar>=4.2.2",
+    "parakeet-mlx>=0.5.1",
+    "mlx-lm>=0.31.3",
+]
+
+[project.scripts]
+speakloop = "speakloop.cli.main:app"
+
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/speakloop"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+    "ruff>=0.6",
+]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["tests/fixtures"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501", "B008"]  # B008: typer.Option/Argument as defaults is idiomatic typer.
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B005", "SIM105", "SIM108", "B007"]
+"src/speakloop/cli/practice.py" = ["B904"]  # typer.Exit re-raises don't need from
+"src/speakloop/cli/trends.py" = ["B904"]
+"src/speakloop/metrics/pauses.py" = ["B905"]  # zip(words, words[1:]) is intentional
+"src/speakloop/trends/reader.py" = ["SIM102"]
+"src/speakloop/audio/recorder.py" = ["SIM108"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "unit: fast in-process tests with mocked engines",
+    "contract: contract / protocol shape tests",
+    "integration: end-to-end with stubs, no live model",
+    "slow: long-running; opt-in",
+]
+addopts = "-ra"

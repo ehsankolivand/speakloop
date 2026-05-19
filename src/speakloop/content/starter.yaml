@@ -1,0 +1,43 @@
+schema_version: 1
+questions:
+  - id: kotlin-coroutines-basics
+    question: |
+      Explain how Kotlin coroutines differ from threads, and when you would
+      choose one over the other in a high-load Android service.
+    ideal_answer: |
+      Coroutines are a structured-concurrency primitive that runs on a
+      shared pool of threads. Unlike OS threads, they are cheap to create
+      and suspend cooperatively rather than blocking. You pick a coroutine
+      for I/O-bound or cooperative work, and a thread when you have
+      CPU-bound work that genuinely needs parallel execution.
+    tags: [behavioral, kotlin, concurrency]
+    difficulty: medium
+
+  - id: system-design-rate-limiter
+    question: |
+      Design a per-user rate limiter for a public REST API at a fintech
+      company. Walk me through the data structures, the failure modes,
+      and how you would roll it out without locking out paying customers.
+    ideal_answer: |
+      The simplest sufficient design is a token bucket per user, stored in
+      an in-memory keyed cache with a write-through to Redis for
+      multi-instance correctness. Each request decrements the user's
+      bucket; refill at a fixed rate. Edge cases: bursty traffic handled
+      by bucket depth; cache eviction handled by Redis TTL. Roll out
+      behind a feature flag scoped to a small percentage of users first,
+      and only enforce after a week of dry-run logging.
+    tags: [system-design, fintech]
+    difficulty: hard
+
+  - id: tell-me-about-yourself
+    question: |
+      Tell me about yourself.
+    ideal_answer: |
+      I am a senior Android engineer with around ten years of experience,
+      most recently building order-execution flows for a fintech exchange.
+      My strengths are in Kotlin, concurrency, and turning ambiguous
+      product requirements into reliable mobile systems. Right now I am
+      looking for a role that lets me lead a small Android team while
+      still spending most of my time in code reviews and architecture.
+    tags: [behavioral]
+    difficulty: easy

@@ -1,0 +1,6 @@
+schema_version: 1
+questions:
+  - id: broken
+    question: |
+      Missing colon below
+    ideal_answer "this line has no colon and breaks the parser"

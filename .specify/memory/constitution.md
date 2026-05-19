@@ -216,7 +216,7 @@ requires the amendment process in **Governance**.
 - **Language**: Python 3.11+ (3.12 recommended).
 - **Package manager**: `uv`. No `pip install`-driven workflows in docs or
   scripts.
-- **Model storage**: Under `~/.speak/models/` (or the XDG-compliant equivalent on
+- **Model storage**: Under `~/.speakloop/models/` (or the XDG-compliant equivalent on
   systems where XDG is configured).
 - **User configuration**: YAML. No TOML, JSON, or `.env` for user-facing config.
 - **UI surface**: CLI only in v1, rendered with `rich`. No GUI framework

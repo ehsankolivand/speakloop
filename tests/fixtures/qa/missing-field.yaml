@@ -1,0 +1,7 @@
+schema_version: 1
+questions:
+  - id: no-ideal-answer
+    question: |
+      What is a binary tree?
+    # ideal_answer deliberately omitted
+    difficulty: easy

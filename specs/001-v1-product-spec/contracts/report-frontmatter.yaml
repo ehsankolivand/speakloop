@@ -1,0 +1,87 @@
+# speakloop session-report frontmatter schema — v1
+#
+# Every session report under data/sessions/ begins with a YAML
+# frontmatter block conforming to this schema, delimited by `---`
+# above and below. See data-model.md §7 for the full report layout
+# (frontmatter + body).
+#
+# The frontmatter is the trends dashboard's only stable input;
+# breaking changes here require a schema_version bump and a migration
+# (Constitution Development Guidelines, "Stable report schema").
+
+# REQUIRED. Currently 1. Bumps require the trends reader to handle
+# both the old and new versions (data-model.md §"Schema versioning").
+schema_version: 1
+
+# REQUIRED. Filename-stem identifier, formed as
+# `<YYYY-MM-DD>-<question_id>[-N]` where -N is the 2..K
+# disambiguation suffix when multiple sessions hit the same date for
+# the same question (FR-017).
+session_id: 2026-05-18-kotlin-coroutines-basics
+
+# REQUIRED. ISO 8601 datetime including timezone offset; local time
+# at session start.
+started_at: 2026-05-18T19:14:02-07:00
+
+# REQUIRED. Echo of the Question.id at session time.
+question_id: kotlin-coroutines-basics
+
+# REQUIRED. Echo of the Question.question text at session time, so
+# the report is self-contained if the Q&A file is later edited.
+# Multi-line block scalar (|) preserves newlines.
+question: |
+  Explain how Kotlin coroutines differ from threads, and when you
+  would choose one over the other.
+
+# REQUIRED. Always length 3. Fields per data-model.md §4 and §5.
+attempts:
+
+  - ordinal: 1
+    time_budget_seconds: 240
+    actual_duration_seconds: 213.4
+    metrics:
+      words_total: 412
+      speech_rate_wpm: 115.9
+      filler_words_count: 18
+      filler_density_per_100_words: 4.4
+      pauses_count: 21
+      mean_pause_ms: 740
+      self_corrections_count: 3
+
+  - ordinal: 2
+    time_budget_seconds: 180
+    actual_duration_seconds: 178.2
+    metrics:
+      words_total: 368
+      speech_rate_wpm: 123.9
+      filler_words_count: 11
+      filler_density_per_100_words: 3.0
+      pauses_count: 14
+      mean_pause_ms: 510
+      self_corrections_count: 2
+
+  - ordinal: 3
+    time_budget_seconds: 120
+    actual_duration_seconds: 120.0
+    metrics:
+      words_total: 276
+      speech_rate_wpm: 138.0
+      filler_words_count: 6
+      filler_density_per_100_words: 2.2
+      pauses_count: 9
+      mean_pause_ms: 410
+      self_corrections_count: 1
+
+# REQUIRED in Phase C reports; MUST be the empty list [] in Phase B
+# interim reports. The trends dashboard ranks across this field.
+grammar_patterns:
+  - label: missing articles before singular count nouns
+    occurrence_count: 7
+  - label: subject-verb agreement on collective nouns
+    occurrence_count: 3
+
+# REQUIRED. One of "A", "B", "C" — which phase wrote this report.
+# Phase A never writes reports; this field exists so the trends
+# reader can distinguish Phase-B interim reports (no grammar
+# patterns) from full Phase-C reports.
+generated_by_phase: C

@@ -1,0 +1,1 @@
+Um so coroutines in Kotlin are basically lightweight threads. You know they suspend cooperatively instead of blocking. I mean they run on a dispatcher and you can have like hundreds of thousands of them at once.

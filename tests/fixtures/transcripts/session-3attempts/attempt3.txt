@@ -1,0 +1,1 @@
+Coroutines are lightweight threads. A coroutine run on a dispatcher. The compiler generate suspend functions. The team work on the new feature. I depend on this library. He listen to the music.

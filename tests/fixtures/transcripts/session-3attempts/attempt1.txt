@@ -1,0 +1,1 @@
+Um so a coroutine is basically uh a lightweight thread you know that runs on dispatcher. The dispatcher dispatches work to the the thread pool. I mean a coroutine suspend cooperatively, sorry, suspends cooperatively. He write a function that take a continuation. The architect want clean structure. My friend brother work at Google.

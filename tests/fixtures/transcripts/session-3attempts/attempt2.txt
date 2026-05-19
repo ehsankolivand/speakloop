@@ -1,0 +1,1 @@
+Coroutine is suspendable computation. It run on a dispatcher. Actually no it runs on a shared pool of threads. The system handle thousands of coroutines. The user click a button and the request go to the server. I am studying about coroutines for two weeks.

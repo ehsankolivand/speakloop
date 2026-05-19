@@ -1,0 +1,17 @@
+schema_version: 1
+questions:
+  - id: kotlin-coroutines-basics
+    question: |
+      Explain how Kotlin coroutines differ from threads.
+    ideal_answer: |
+      Coroutines are lightweight, cooperatively-scheduled computations
+      that run on a shared thread pool.
+    tags: [kotlin, concurrency]
+    difficulty: medium
+  - id: system-design-rate-limiter
+    question: |
+      Design a per-user rate limiter for a public REST API.
+    ideal_answer: |
+      Use a token bucket per user with Redis-backed write-through.
+    tags: [system-design]
+    difficulty: hard
