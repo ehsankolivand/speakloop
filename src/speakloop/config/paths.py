@@ -66,12 +66,62 @@ def sessions_dir() -> Path:
 
 
 def qa_file_path() -> Path:
+    """The personal-override question file location (the `--qa-file` / env / home path).
+
+    Unchanged semantics (004): an explicit `--qa-file` or SPEAKLOOP_QA_FILE wins,
+    else the home override `~/.speakloop/qa.yaml`. This is the OVERRIDE location only;
+    the in-repo default lives at `default_qa_file()` and the precedence chain that
+    combines them is `resolve_qa_file()`.
+    """
     if _qa_file_override is not None:
         return _qa_file_override
     raw = os.environ.get("SPEAKLOOP_QA_FILE", "").strip()
     if raw:
         return Path(raw).expanduser()
     return _speakloop_home() / "qa.yaml"
+
+
+def _explicit_qa_override() -> Path | None:
+    """The explicit `--qa-file` / SPEAKLOOP_QA_FILE override, if one was supplied."""
+    if _qa_file_override is not None:
+        return _qa_file_override
+    raw = os.environ.get("SPEAKLOOP_QA_FILE", "").strip()
+    if raw:
+        return Path(raw).expanduser()
+    return None
+
+
+def default_qa_file() -> Path:
+    """The in-repo default question file: ``<cwd>/content/questions.yaml`` (004).
+
+    CWD-relative, matching ``sessions_dir()``'s convention and the constitution's
+    ``git clone`` + ``uv run`` model. Pure: does not check existence.
+    """
+    return Path.cwd() / "content" / "questions.yaml"
+
+
+def resolve_qa_file() -> Path | None:
+    """Active question file by precedence, or None if none is found/readable (004).
+
+    Order (first match wins):
+      1. an explicit ``--qa-file`` / SPEAKLOOP_QA_FILE override (used as given — a
+         missing explicit path is the loader's error to surface, not silently
+         skipped);
+      2. the personal home override ``~/.speakloop/qa.yaml`` if it exists (opt-in by
+         presence — wins over the in-repo default);
+      3. the in-repo default ``content/questions.yaml`` if it exists;
+      4. otherwise None, so the caller can emit an actionable message (FR-006).
+    """
+    explicit = _explicit_qa_override()
+    if explicit is not None:
+        return explicit
+    home_override = _speakloop_home() / "qa.yaml"
+    if home_override.exists():
+        return home_override
+    default = default_qa_file()
+    if default.exists():
+        return default
+    return None
 
 
 def tts_cache_dir() -> Path:

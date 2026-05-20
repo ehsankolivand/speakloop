@@ -89,16 +89,23 @@ def tmp_qa_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def starter_question_id() -> str:
-    """The first question id in the shipped starter.yaml.
+def default_questions_text() -> str:
+    """Text of the in-repo default question file (repo-root content/questions.yaml).
 
-    Robust to edits of `starter.yaml`: tests that drive the listen flow off the
-    shipped starter (which `_ensure_starter_qa` copies into a fresh qa.yaml) pick
-    a real id at runtime instead of hardcoding one.
+    Resolved relative to this file so it is cwd-independent. 004 relocated the
+    shipped questions here from the old packaged starter.yaml.
     """
-    from importlib import resources
+    repo_root = Path(__file__).resolve().parent.parent
+    return (repo_root / "content" / "questions.yaml").read_text(encoding="utf-8")
 
+
+@pytest.fixture
+def starter_question_id(default_questions_text: str) -> str:
+    """The first question id in the in-repo default content/questions.yaml.
+
+    Robust to edits of the question set: tests that drive the listen flow pick a
+    real id at runtime instead of hardcoding one.
+    """
     import yaml
 
-    text = resources.files("speakloop.content").joinpath("starter.yaml").read_text(encoding="utf-8")
-    return yaml.safe_load(text)["questions"][0]["id"]
+    return yaml.safe_load(default_questions_text)["questions"][0]["id"]

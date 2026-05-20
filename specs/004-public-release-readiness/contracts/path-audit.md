@@ -32,8 +32,9 @@ def find_leaks(repo_root: Path) -> list[str]:
 
 ## Test assertions
 1. `find_leaks(repo_root) == []` on the current tree (FR-010, SC-B).
-2. Positive self-test: a synthetic string `"/Users/concreteuser/x"` is detected
-   (guards against a no-op gate, SC-B).
+2. Positive self-test: a synthetic string with a concrete login (e.g. `/Users/`
+   followed by a real-looking name and a slash) is detected (guards against a no-op
+   gate, SC-B).
 3. Negative self-test: `"~/.speakloop/qa.yaml"` and `"/Users/<name>/x"` are NOT detected
    (FR-009 — no false positives).
 4. Wall-clock budget: `find_leaks(repo_root)` completes in < 2 s (FR-011, SC-G).

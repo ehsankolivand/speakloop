@@ -13,8 +13,13 @@ from speakloop.installer.validator import ValidationResult
 pytestmark = pytest.mark.integration
 
 
-def test_listen_only_flow(monkeypatch, tmp_path, wav_fixture, starter_question_id):
+def test_listen_only_flow(
+    monkeypatch, tmp_path, wav_fixture, starter_question_id, default_questions_text
+):
     qa_file = tmp_path / "qa.yaml"
+    # 004: the first-run auto-copy is gone; pre-populate the explicit override file
+    # from the in-repo default so resolution finds the question set.
+    qa_file.write_text(default_questions_text, encoding="utf-8")
     cache_dir = tmp_path / "cache"
     sessions_dir = tmp_path / "data" / "sessions"
     sessions_dir.mkdir(parents=True)
@@ -68,4 +73,3 @@ def test_listen_only_flow(monkeypatch, tmp_path, wav_fixture, starter_question_i
     assert result.exit_code == 0, result.stdout
     assert len(play_calls) >= 2
     assert list(sessions_dir.iterdir()) == []
-    assert qa_file.exists()

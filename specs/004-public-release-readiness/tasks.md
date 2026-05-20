@@ -29,8 +29,8 @@ Single project: `src/speakloop/`, `tests/`, plus repo-root `content/`, `README.m
 
 **Purpose**: Put the migrated default question file and license in place.
 
-- [ ] T001 [P] Migrate the question set verbatim from `src/speakloop/content/starter.yaml` to new repo-root file `content/questions.yaml`, preserving `schema_version: 1`, all four questions, and byte-for-byte field fidelity (FR-004)
-- [ ] T002 [P] Verify `LICENSE` at repo root is MIT and matches the constitution's mandated license; no edit expected (FR-025 / SC-E)
+- [X] T001 [P] Migrate the question set verbatim from `src/speakloop/content/starter.yaml` to new repo-root file `content/questions.yaml`, preserving `schema_version: 1`, all four questions, and byte-for-byte field fidelity (FR-004)
+- [X] T002 [P] Verify `LICENSE` at repo root is MIT and matches the constitution's mandated license; no edit expected (FR-025 / SC-E)
 
 ---
 
@@ -41,11 +41,11 @@ US4 (load override) build on, plus keeping the existing suite green after the mo
 
 **⚠️ CRITICAL**: US1 and US4 cannot be completed until this phase is done.
 
-- [ ] T003 Add `default_qa_file()` (returns `<cwd>/content/questions.yaml`) and `resolve_qa_file() -> Path | None` (precedence: `--qa-file` override → `~/.speakloop/qa.yaml` if it exists → `content/questions.yaml` if it exists → `None`) to `src/speakloop/config/paths.py`; preserve `qa_file_path()` / `set_qa_file_path()` semantics for the override path (FR-002, FR-003; contracts/question-resolution.md)
-- [ ] T004 In `src/speakloop/cli/practice.py`, replace `_ensure_starter_qa` (the copy-on-first-run) with a new helper `_resolve_qa_file(console) -> Path` that calls `paths.resolve_qa_file()` (name mirrors `paths.resolve_qa_file()`); on `None`, it prints one English message naming both `content/questions.yaml` and `~/.speakloop/qa.yaml` and `raise typer.Exit(1)` (FR-006); update the call site in `run()` accordingly and remove the auto-copy and the `importlib.resources` starter read
-- [ ] T005 In `src/speakloop/cli/main.py`, update the `--qa-file` help text to state the new default `content/questions.yaml` and the `~/.speakloop/qa.yaml` override (depends on T003)
-- [ ] T006 Remove the now-unused packaged resource `src/speakloop/content/starter.yaml` (single source of truth = `content/questions.yaml`) (depends on T001, T004)
-- [ ] T007 Update tests coupled to the packaged `starter.yaml` and/or the removed first-run auto-copy so the suite stays green (FR-005; documented migration) (depends on T001, T006):
+- [X] T003 Add `default_qa_file()` (returns `<cwd>/content/questions.yaml`) and `resolve_qa_file() -> Path | None` (precedence: `--qa-file` override → `~/.speakloop/qa.yaml` if it exists → `content/questions.yaml` if it exists → `None`) to `src/speakloop/config/paths.py`; preserve `qa_file_path()` / `set_qa_file_path()` semantics for the override path (FR-002, FR-003; contracts/question-resolution.md)
+- [X] T004 In `src/speakloop/cli/practice.py`, replace `_ensure_starter_qa` (the copy-on-first-run) with a new helper `_resolve_qa_file(console) -> Path` that calls `paths.resolve_qa_file()` (name mirrors `paths.resolve_qa_file()`); on `None`, it prints one English message naming both `content/questions.yaml` and `~/.speakloop/qa.yaml` and `raise typer.Exit(1)` (FR-006); update the call site in `run()` accordingly and remove the auto-copy and the `importlib.resources` starter read
+- [X] T005 In `src/speakloop/cli/main.py`, update the `--qa-file` help text to state the new default `content/questions.yaml` and the `~/.speakloop/qa.yaml` override (depends on T003)
+- [X] T006 Remove the now-unused packaged resource `src/speakloop/content/starter.yaml` (single source of truth = `content/questions.yaml`) (depends on T001, T004)
+- [X] T007 Update tests coupled to the packaged `starter.yaml` and/or the removed first-run auto-copy so the suite stays green (FR-005; documented migration) (depends on T001, T006):
   - `tests/conftest.py` — point the first-question fixture (`starter_question_id`) read at repo-root `content/questions.yaml` instead of the packaged resource.
   - `tests/integration/repro_gate_test.py` — same resource-read migration.
   - `tests/integration/test_offline_after_install.py` — same resource-read migration.
@@ -64,11 +64,11 @@ machine, finds the questions in-repo, and reaches a saved session report.
 locate `content/questions.yaml`, and run one session to a completed report — without
 reading source.
 
-- [ ] T008 [US1] Rewrite `README.md` opening: value proposition (who/why before tech, FR-013), supported platforms + v1 status (macOS Apple Silicon, Python 3.12; FR-014), install steps (`git clone` → `uv sync`; FR-015), and an end-to-end quickstart from clone to first completed report (FR-015, mirrors quickstart.md); plain Markdown only (FR-012)
-- [ ] T009 [US1] Add the annotated generic session-report example to `README.md` showing a top-level `asr:` provenance block, ≥1 grammar pattern, and the `top_priority` line — no real recording/name/maintainer data (FR-016, FR-017) (depends on T008)
-- [ ] T010 [US1] Add to `README.md`: where reports are saved (`data/sessions/`) and where questions live (`content/questions.yaml`), plus contributor links to the constitution and `specs/` (FR-018, FR-019) (depends on T008)
-- [ ] T011 [P] [US1] Update `src/speakloop/content/CLAUDE.md`, `src/speakloop/config/CLAUDE.md`, and the top-level `CLAUDE.md` module-map row to state `content/questions.yaml` as the default and `~/.speakloop/qa.yaml` as the override (drop "copied to ~/.speakloop/qa.yaml on first run") (FR-026)
-- [ ] T012 [US1] Add an integration test in `tests/integration/test_default_questions_inrepo.py` asserting that, with no `--qa-file` and no `~/.speakloop/qa.yaml`, the practice flow resolves and loads `content/questions.yaml` (acceptance scenarios 1–2)
+- [X] T008 [US1] Rewrite `README.md` opening: value proposition (who/why before tech, FR-013), supported platforms + v1 status (macOS Apple Silicon, Python 3.12; FR-014), install steps (`git clone` → `uv sync`; FR-015), and an end-to-end quickstart from clone to first completed report (FR-015, mirrors quickstart.md); plain Markdown only (FR-012)
+- [X] T009 [US1] Add the annotated generic session-report example to `README.md` showing a top-level `asr:` provenance block, ≥1 grammar pattern, and the `top_priority` line — no real recording/name/maintainer data (FR-016, FR-017) (depends on T008)
+- [X] T010 [US1] Add to `README.md`: where reports are saved (`data/sessions/`) and where questions live (`content/questions.yaml`), plus contributor links to the constitution and `specs/` (FR-018, FR-019) (depends on T008)
+- [X] T011 [P] [US1] Update `src/speakloop/content/CLAUDE.md`, `src/speakloop/config/CLAUDE.md`, and the top-level `CLAUDE.md` module-map row to state `content/questions.yaml` as the default and `~/.speakloop/qa.yaml` as the override (drop "copied to ~/.speakloop/qa.yaml on first run") (FR-026)
+- [X] T012 [US1] Add an integration test in `tests/integration/test_default_questions_inrepo.py` asserting that, with no `--qa-file` and no `~/.speakloop/qa.yaml`, the practice flow resolves and loads `content/questions.yaml` (acceptance scenarios 1–2)
 
 **Checkpoint**: US1 is independently demoable — clone → README → finished report. MVP complete.
 
@@ -82,8 +82,8 @@ cause, and applies the fix (or learns it is a known v1 limitation).
 **Independent Test**: For each documented failure mode, confirm its entry names the
 cause and gives either a concrete local fix or an explicit "known v1 limitation".
 
-- [ ] T013 [US2] Add a "Known limitations" section to `README.md`, placed *before* troubleshooting: states v1; accented technical jargon can be misheard despite biasing; LLM feedback can fail and degrade to fluency-only; audio replay exists while full pronunciation feedback does not (FR-021) (depends on T008)
-- [ ] T014 [US2] Add a "Troubleshooting" section to `README.md` with scannable entries (prominent symptom · one-line cause · single short-paragraph fix), covering at minimum: model-download failure (resume + proxy/network-restricted note); LLM feedback degraded to fluency-only (names the `phase_c_error` report field and what each cause means); misheard technical terms (per-session `initial_prompt` biasing + how to add domain terms; known v1 limitation); `silero-vad` version conflict (why pinned + recover via `uv sync` to the pinned version); macOS microphone permission on first run; recording-loop hang at final attempt (interim Ctrl-C abort workaround + explicit "known, deferred" note); and the existing-user transition — symptom "I want to switch from my existing `~/.speakloop/qa.yaml` to the new in-repo `content/questions.yaml`", cause "the home-dir file takes precedence (override) over the in-repo default per the resolution order", fix "delete or rename `~/.speakloop/qa.yaml` and the in-repo default takes effect" (surfaces the transition path the new resolution model creates; extends beyond the FR-023 minimum set). Every entry ends in a local fix or an explicit known-v1-limitation statement (FR-022, FR-023, FR-024; research.md R7) (depends on T013)
+- [X] T013 [US2] Add a "Known limitations" section to `README.md`, placed *before* troubleshooting: states v1; accented technical jargon can be misheard despite biasing; LLM feedback can fail and degrade to fluency-only; audio replay exists while full pronunciation feedback does not (FR-021) (depends on T008)
+- [X] T014 [US2] Add a "Troubleshooting" section to `README.md` with scannable entries (prominent symptom · one-line cause · single short-paragraph fix), covering at minimum: model-download failure (resume + proxy/network-restricted note); LLM feedback degraded to fluency-only (names the `phase_c_error` report field and what each cause means); misheard technical terms (per-session `initial_prompt` biasing + how to add domain terms; known v1 limitation); `silero-vad` version conflict (why pinned + recover via `uv sync` to the pinned version); macOS microphone permission on first run; recording-loop hang at final attempt (interim Ctrl-C abort workaround + explicit "known, deferred" note); and the existing-user transition — symptom "I want to switch from my existing `~/.speakloop/qa.yaml` to the new in-repo `content/questions.yaml`", cause "the home-dir file takes precedence (override) over the in-repo default per the resolution order", fix "delete or rename `~/.speakloop/qa.yaml` and the in-repo default takes effect" (surfaces the transition path the new resolution model creates; extends beyond the FR-023 minimum set). Every entry ends in a local fix or an explicit known-v1-limitation statement (FR-022, FR-023, FR-024; research.md R7) (depends on T013)
 
 **Checkpoint**: Every spec-named failure mode has a scannable, honest entry.
 
@@ -98,9 +98,9 @@ tracked content, so the portability guarantee holds over time.
 concrete `/Users/<concrete>/` leak → audit fails; remove it → passes. (Independent of
 the question-relocation work; needs only the repo.)
 
-- [ ] T015 [P] [US3] Implement the path-portability audit in `tests/integration/test_path_portability_audit.py`: a `find_leaks(repo_root) -> list["path:line"]` helper that enumerates tracked files via `git ls-files -z`, scans decodable text for the leak patterns `(/Users/|/home/)[A-Za-z0-9._-]+/` and `[A-Za-z]:\\Users\\[A-Za-z0-9._-]+\\`, excludes portable `~/…` and angle-bracket placeholders and its own module file, returns sorted results; stdlib + git only — **also satisfies FR-028 (no new dependency) by construction** (FR-007, FR-008, FR-009, FR-028; contracts/path-audit.md)
-- [ ] T016 [US3] In the same test module, add assertions: `find_leaks(repo_root) == []` on the current tree (FR-010, SC-B); a positive self-test that a synthetic `"/Users/concreteuser/x"` is detected; negative self-tests that `"~/.speakloop/qa.yaml"` and `"/Users/<name>/x"` are NOT detected (FR-009); and a wall-clock assertion that `find_leaks(repo_root)` completes in under 2 s (FR-011, SC-G) (depends on T015)
-- [ ] T017 [US3] Run the audit; remove any machine-specific absolute-path leak it reports so it passes on the current tree (research.md R6 expects zero; this task confirms or remediates) (depends on T015)
+- [X] T015 [P] [US3] Implement the path-portability audit in `tests/integration/test_path_portability_audit.py`: a `find_leaks(repo_root) -> list["path:line"]` helper that enumerates tracked files via `git ls-files -z`, scans decodable text for the leak patterns `(/Users/|/home/)[A-Za-z0-9._-]+/` and `[A-Za-z]:\\Users\\[A-Za-z0-9._-]+\\`, excludes portable `~/…` and angle-bracket placeholders and its own module file, returns sorted results; stdlib + git only — **also satisfies FR-028 (no new dependency) by construction** (FR-007, FR-008, FR-009, FR-028; contracts/path-audit.md)
+- [X] T016 [US3] In the same test module, add assertions: `find_leaks(repo_root) == []` on the current tree (FR-010, SC-B); a positive self-test that a synthetic concrete-login path (a `/Users/` prefix plus a real-looking name) is detected; negative self-tests that `"~/.speakloop/qa.yaml"` and `"/Users/<name>/x"` are NOT detected (FR-009); and a wall-clock assertion that `find_leaks(repo_root)` completes in under 2 s (FR-011, SC-G) (depends on T015)
+- [X] T017 [US3] Run the audit; remove any machine-specific absolute-path leak it reports so it passes on the current tree (research.md R6 expects zero; this task confirms or remediates) (depends on T015)
 
 **Checkpoint**: `uv run pytest tests/integration/test_path_portability_audit.py` passes deterministically in < 2 s and fails on injected leaks.
 
@@ -114,8 +114,8 @@ and it is used in preference to the in-repo default, without modifying tracked f
 **Independent Test**: With a personal file at `~/.speakloop/qa.yaml`, run a session and
 confirm the personal questions load; remove it and confirm fallback to the in-repo default.
 
-- [ ] T018 [US4] Document the override in `README.md`: state the `~/.speakloop/qa.yaml` location, the `--qa-file PATH` flag, and the precedence (override wins over the in-repo default) (FR-003 documentation; acceptance scenario 3) (depends on T010)
-- [ ] T019 [P] [US4] Add an integration test in `tests/integration/test_qa_override_precedence.py`: when `~/.speakloop/qa.yaml` exists it is loaded over `content/questions.yaml`; when absent, resolution falls back to `content/questions.yaml` (acceptance scenarios 1–2; edge case "both exist → override wins")
+- [X] T018 [US4] Document the override in `README.md`: state the `~/.speakloop/qa.yaml` location, the `--qa-file PATH` flag, and the precedence (override wins over the in-repo default) (FR-003 documentation; acceptance scenario 3) (depends on T010)
+- [X] T019 [P] [US4] Add an integration test in `tests/integration/test_qa_override_precedence.py`: when `~/.speakloop/qa.yaml` exists it is loaded over `content/questions.yaml`; when absent, resolution falls back to `content/questions.yaml` (acceptance scenarios 1–2; edge case "both exist → override wins")
 
 **Checkpoint**: Override precedence verified in both directions; existing users preserved.
 
@@ -125,9 +125,9 @@ confirm the personal questions load; remove it and confirm fallback to the in-re
 
 **Purpose**: Final verification across all stories.
 
-- [ ] T020 Run the full suite `uv run pytest` and confirm it is green, including the migrated question-loader tests; this is also the verification gate for FR-027 (preserve governing principles: offline-first, English-only, `schema_version` unchanged, modular boundaries, swappable engines) (FR-005, FR-027)
-- [ ] T021 Walk through `specs/004-public-release-readiness/quickstart.md` / README end-to-end and confirm a developer can answer all SC-C questions from the README alone (~5-min read, FR-020)
-- [ ] T022 [P] Run `uv run ruff check` and `uv run ruff format --check` on changed files
+- [X] T020 Run the full suite `uv run pytest` and confirm it is green, including the migrated question-loader tests; this is also the verification gate for FR-027 (preserve governing principles: offline-first, English-only, `schema_version` unchanged, modular boundaries, swappable engines) (FR-005, FR-027)
+- [X] T021 Walk through `specs/004-public-release-readiness/quickstart.md` / README end-to-end and confirm a developer can answer all SC-C questions from the README alone (~5-min read, FR-020)
+- [X] T022 [P] Run `uv run ruff check` and `uv run ruff format --check` on changed files
 
 ---
 

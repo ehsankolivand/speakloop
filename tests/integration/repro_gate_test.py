@@ -59,15 +59,11 @@ def _new_pipeline_transcripts(wavs: list[Path]) -> list[str]:
     question = None
     if qa:
         question = next((q for q in qa.questions if q.id == cfg["question_id"]), None)
-    if question is None:  # fall back to the shipped starter
-        from importlib import resources
-
-        starter = yaml.safe_load(
-            resources.files("speakloop.content").joinpath("starter.yaml").read_text()
-        )
+    if question is None:  # fall back to the in-repo default question set (004)
+        default = yaml.safe_load(paths.default_qa_file().read_text())
         from speakloop.content.schema import parse as parse_qa
 
-        question = next(q for q in parse_qa(starter).questions if q.id == cfg["question_id"])
+        question = next(q for q in parse_qa(default).questions if q.id == cfg["question_id"])
 
     engine = WhisperMLXEngine()
     engine.ensure_loaded()

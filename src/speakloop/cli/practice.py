@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import sys
-from importlib import resources
 from pathlib import Path
 
 import typer
@@ -16,18 +15,26 @@ from speakloop.config import paths
 from speakloop.content import QALoadError, load
 
 
-def _ensure_starter_qa(console: Console) -> Path:
-    """Copy the starter Q&A file to the user qa_file_path on first run."""
-    target = paths.qa_file_path()
-    if target.exists():
-        return target
-    target.parent.mkdir(parents=True, exist_ok=True)
-    starter_text = (
-        resources.files("speakloop.content").joinpath("starter.yaml").read_text(encoding="utf-8")
-    )
-    target.write_text(starter_text, encoding="utf-8")
-    console.print(f"Created starter Q&A at [bold]{target}[/bold]. Edit it any time.")
-    return target
+def _resolve_qa_file(console: Console) -> Path:
+    """Resolve the active Q&A file by precedence (004), or exit 1 with guidance.
+
+    Precedence (paths.resolve_qa_file): --qa-file / SPEAKLOOP_QA_FILE → the personal
+    override ~/.speakloop/qa.yaml (if present) → the in-repo default
+    content/questions.yaml (if present). No file is auto-created on first run.
+    When nothing is found, print one actionable English message naming both the
+    in-repo default and the override location, then raise Exit(1) (FR-006).
+    """
+    resolved = paths.resolve_qa_file()
+    if resolved is None:
+        console.print(
+            "[red]No question file found.[/red] Looked for the in-repo default "
+            f"[bold]{paths.default_qa_file()}[/bold] and the personal override "
+            f"[bold]{paths.qa_file_path()}[/bold].\n"
+            "Add questions at the in-repo default, or create the override file "
+            "(see the README section on where questions live)."
+        )
+        raise typer.Exit(1)
+    return resolved
 
 
 def _pick_question(qa_file, console: Console) -> speakloop.content.Question | None:  # noqa: F821
@@ -228,7 +235,7 @@ def run(
     """Entry point for `speakloop practice`."""
     console = Console()
 
-    qa_path = _ensure_starter_qa(console)
+    qa_path = _resolve_qa_file(console)
     try:
         qa_file = load(qa_path)
     except QALoadError as e:

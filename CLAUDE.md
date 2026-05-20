@@ -57,7 +57,7 @@ imports live in exactly one file per engine (Principle V).
 | `config/`     | Filesystem paths & constants                              | [src/speakloop/config/CLAUDE.md](src/speakloop/config/CLAUDE.md) |
 | `cli/`        | `typer` app: `practice`, `doctor`, `trends`               | [src/speakloop/cli/CLAUDE.md](src/speakloop/cli/CLAUDE.md) |
 | `installer/`  | Model manifest, consent, resumable download, validation   | [src/speakloop/installer/CLAUDE.md](src/speakloop/installer/CLAUDE.md) |
-| `content/`    | Q&A YAML loader + schema                                  | [src/speakloop/content/CLAUDE.md](src/speakloop/content/CLAUDE.md) |
+| `content/`    | Q&A YAML loader + schema (default questions ship at repo-root `content/questions.yaml`; `~/.speakloop/qa.yaml` is the opt-in override) | [src/speakloop/content/CLAUDE.md](src/speakloop/content/CLAUDE.md) |
 | `tts/`        | TTS engine wrapper (Kokoro) + clip cache                  | [src/speakloop/tts/CLAUDE.md](src/speakloop/tts/CLAUDE.md) |
 | `audio/`      | Playback, recording, device probing                       | [src/speakloop/audio/CLAUDE.md](src/speakloop/audio/CLAUDE.md) |
 | `asr/`        | ASR wrapper — default Whisper-large-v3-turbo (mlx-whisper) + domain biasing + Silero VAD; Parakeet-TDT fallback via `--asr-engine` [Phase B] | [src/speakloop/asr/CLAUDE.md](src/speakloop/asr/CLAUDE.md) |

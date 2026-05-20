@@ -66,9 +66,11 @@ def _pretend_models_present(monkeypatch):
 
 
 def test_practice_listen_only_makes_no_network_connection(
-    block_network, monkeypatch, tmp_path, wav_fixture, starter_question_id
+    block_network, monkeypatch, tmp_path, wav_fixture, starter_question_id, default_questions_text
 ):
     qa_file = tmp_path / "qa.yaml"
+    # 004: no first-run auto-copy; pre-populate the explicit override file.
+    qa_file.write_text(default_questions_text, encoding="utf-8")
     monkeypatch.setenv("SPEAKLOOP_QA_FILE", str(qa_file))
     monkeypatch.setenv("SPEAKLOOP_TTS_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setenv("SPEAKLOOP_SESSIONS_DIR", str(tmp_path / "sessions"))

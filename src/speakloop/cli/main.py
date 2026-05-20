@@ -41,7 +41,13 @@ def _root(
         is_eager=True,
     ),
     qa_file: Path = typer.Option(
-        None, "--qa-file", help="Path to the Q&A YAML file (default: ~/.speakloop/qa.yaml)."
+        None,
+        "--qa-file",
+        help=(
+            "Path to a Q&A YAML file. Precedence: this flag, then the personal "
+            "override ~/.speakloop/qa.yaml (if present), then the in-repo default "
+            "content/questions.yaml."
+        ),
     ),
     models_dir: Path = typer.Option(
         None, "--models-dir", help="Path to the models directory (default: ~/.speakloop/models)."
