@@ -6,6 +6,19 @@ __pycache__/
 data/sessions/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 dist/
 build/
 interview/
+
+# editor / OS cruft
+*.swp
+*~
+Thumbs.db
+
+# credentials (safety net)
+.env
+.env.local
+*.token
+*.key
+*.pem
