@@ -33,6 +33,25 @@ class GrammarPattern:
 
 
 @dataclass
+class AsrProvenance:
+    """ASR provenance for one session (003-asr-l2-accent-accuracy, data-model §A.5).
+
+    Additive: serialized as the single top-level `asr:` key, emitted only when
+    present. `schema_version` stays 1 (FR-007/FR-008). Records the engine that
+    actually ran (so a fallback is debuggable), the model id, the exact domain
+    context (verbatim + sha256), the VAD settings (or None when disabled / when
+    the fallback engine ran no VAD), and whether a fallback occurred.
+    """
+
+    engine: str
+    model: str
+    initial_prompt: str | None = None
+    initial_prompt_sha256: str = ""
+    vad: dict | None = None
+    fell_back: bool = False
+
+
+@dataclass
 class AttemptMetrics:
     words_total: int = 0
     speech_rate_wpm: float = 0.0
@@ -68,6 +87,13 @@ class Session:
     # The single most important thing to fix next session (FR-008), chosen by the
     # most-impactful-wins rule across grammar + fluency. Rendered as the banner.
     top_priority: str | None = None
+    # --- Additive ASR provenance (003-asr-l2-accent-accuracy) -----------------
+    # Emitted as the top-level `asr:` key only when present; schema_version stays 1.
+    asr: AsrProvenance | None = None
+    # The Phase-C grammar analyzer's exception message when it raised and the
+    # session fell back to Phase B (so the failure is diagnosable from the saved
+    # report alone, not just transient console output). Emitted only when present.
+    phase_c_error: str | None = None
 
 
 class _LiteralStr(str):
@@ -149,8 +175,35 @@ def dump(session: Session) -> str:
         payload["cross_attempt_narrative"] = _LiteralStr(session.cross_attempt_narrative.strip())
     if session.top_priority:
         payload["top_priority"] = _LiteralStr(session.top_priority.strip())
+    if session.asr is not None:
+        payload["asr"] = _asr_to_dict(session.asr)
+    if session.phase_c_error:
+        payload["phase_c_error"] = _LiteralStr(session.phase_c_error.strip())
     body = yaml.dump(payload, sort_keys=False, allow_unicode=True, default_flow_style=False)
     return f"---\n{body}---\n"
+
+
+def _asr_to_dict(a: AsrProvenance) -> dict:
+    out: dict = {"engine": a.engine, "model": a.model}
+    if a.initial_prompt is not None:
+        # block scalar so the multi-line prompt renders readably in the report.
+        out["initial_prompt"] = _LiteralStr(a.initial_prompt.strip() + "\n")
+    out["initial_prompt_sha256"] = a.initial_prompt_sha256
+    out["vad"] = a.vad  # mapping or None
+    out["fell_back"] = bool(a.fell_back)
+    return out
+
+
+def _asr_from_dict(d: dict) -> AsrProvenance:
+    vad = d.get("vad")
+    return AsrProvenance(
+        engine=str(d.get("engine", "")),
+        model=str(d.get("model", "")),
+        initial_prompt=_opt_str(d.get("initial_prompt")),
+        initial_prompt_sha256=str(d.get("initial_prompt_sha256", "")),
+        vad=vad if isinstance(vad, dict) else None,
+        fell_back=bool(d.get("fell_back", False)),
+    )
 
 
 def _frontmatter_dict(text: str) -> dict:
@@ -249,4 +302,6 @@ def parse(text: str) -> Session:
         generated_by_phase=phase,
         cross_attempt_narrative=_opt_str(data.get("cross_attempt_narrative")),
         top_priority=_opt_str(data.get("top_priority")),
+        asr=_asr_from_dict(data["asr"]) if isinstance(data.get("asr"), dict) else None,
+        phase_c_error=_opt_str(data.get("phase_c_error")),
     )

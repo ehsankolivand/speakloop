@@ -13,7 +13,7 @@ from speakloop.installer.validator import ValidationResult
 pytestmark = pytest.mark.integration
 
 
-def test_listen_only_flow(monkeypatch, tmp_path, wav_fixture):
+def test_listen_only_flow(monkeypatch, tmp_path, wav_fixture, starter_question_id):
     qa_file = tmp_path / "qa.yaml"
     cache_dir = tmp_path / "cache"
     sessions_dir = tmp_path / "data" / "sessions"
@@ -61,7 +61,7 @@ def test_listen_only_flow(monkeypatch, tmp_path, wav_fixture):
     runner = CliRunner()
     result = runner.invoke(
         app,
-        ["practice", "--listen-only", "--question", "kotlin-coroutines-basics"],
+        ["practice", "--listen-only", "--question", starter_question_id],
         input="\n",
     )
 

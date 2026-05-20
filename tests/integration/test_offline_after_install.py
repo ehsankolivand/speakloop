@@ -66,7 +66,7 @@ def _pretend_models_present(monkeypatch):
 
 
 def test_practice_listen_only_makes_no_network_connection(
-    block_network, monkeypatch, tmp_path, wav_fixture
+    block_network, monkeypatch, tmp_path, wav_fixture, starter_question_id
 ):
     qa_file = tmp_path / "qa.yaml"
     monkeypatch.setenv("SPEAKLOOP_QA_FILE", str(qa_file))
@@ -94,7 +94,7 @@ def test_practice_listen_only_makes_no_network_connection(
     runner = CliRunner()
     result = runner.invoke(
         app,
-        ["practice", "--listen-only", "--question", "kotlin-coroutines-basics"],
+        ["practice", "--listen-only", "--question", starter_question_id],
         input="\n",
     )
     assert result.exit_code == 0, result.stdout

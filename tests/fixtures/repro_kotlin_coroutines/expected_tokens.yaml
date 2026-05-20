@@ -1,0 +1,15 @@
+# SC-A target tokens: each MUST transcribe correctly in >= 4 of 5 occurrences
+# on the original (noisy) kotlin-coroutines reproduction recordings. The baseline
+# (Parakeet) got 0 correct (see baseline_parakeet.json).
+question_id: kotlin-coroutines-basics
+target_tokens:
+  - threads
+  - primitive
+  - IO-bound
+  - CPU-bound
+  - coroutine
+  - shared pool
+  - mutex
+  - dispatcher
+min_correct_ratio: 0.8        # >= 4/5 (SC-A)
+min_technical_wer_reduction: 0.30   # >= 30% relative reduction vs baseline (SC-B)

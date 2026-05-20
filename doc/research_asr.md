@@ -1,7 +1,19 @@
 # Local ASR for English Interview Practice on M3 Pro 18 GB — May 2026 Decision Report
 
+> **v2 UPDATE (003-asr-l2-accent-accuracy, 2026-05-20) — default ASR engine swapped.**
+> The v1 default below (Parakeet-TDT-0.6b-v3) mis-heard Persian-L1 accented
+> technical English (e.g. "threads"→"trades", "coroutine"→"quarantine"), turning
+> ASR garble into false grammar errors. The default engine is now
+> **Whisper-large-v3-turbo via `mlx-whisper`**, paired with per-session
+> `initial_prompt` domain biasing and Silero-VAD pre-segmentation. Parakeet is
+> kept as `--asr-engine parakeet` and the automatic load-failure fallback
+> (Constitution Principle V). Full rationale, L2-ARCTIC evidence, thresholds, and
+> the migration plan live in **`doc/research_asr_l2_accent.md`** (the compass for
+> that feature). This v1 document is retained for the Parakeet rationale and the
+> fallback engine's properties.
+
 ## TL;DR
-- **Top pick: NVIDIA Parakeet-TDT-0.6b-v3 via the `parakeet-mlx` Python package (model released 2025-08-14, package v0.5.1 published 2026-02-21).** It posts ~6.32% average WER on the Open ASR Leaderboard (arXiv:2510.06961 v4, Mar 30 2026) at >3,000× server-GPU RTFx, weighs ~2.4 GB on disk with ~2 GB peak RAM in MLX, has native Apple Silicon support, returns word-level timestamps, and — being an RNN-T/TDT transducer — does not exhibit Whisper's documented hallucination-on-silence pathology.
+- **Top pick: NVIDIA Parakeet-TDT-0.6b-v3 via the `parakeet-mlx` Python package (model released 2025-08-14, package v0.5.1 published 2026-02-21).** *(v1 research — now the fallback engine; default is Whisper, see the v2 banner above.)* It posts ~6.32% average WER on the Open ASR Leaderboard (arXiv:2510.06961 v4, Mar 30 2026) at >3,000× server-GPU RTFx, weighs ~2.4 GB on disk with ~2 GB peak RAM in MLX, has native Apple Silicon support, returns word-level timestamps, and — being an RNN-T/TDT transducer — does not exhibit Whisper's documented hallucination-on-silence pathology.
 - **Strongest accuracy alternative: faster-whisper running Whisper-large-v3-turbo** (model 2024-10-01, faster-whisper actively maintained in 2026) with `vad_filter=True`, `hotwords=...` and an `initial_prompt` listing your Android/Kotlin vocabulary. Broader accent coverage from 680,000 hours of training, but CPU-only on Mac (no Metal backend in CTranslate2) and prone to silence hallucinations without VAD.
 - **Freshness note:** rankings are confident for May 2026. Parakeet v3 has held the speed-efficiency Pareto frontier since Aug 2025. Canary-Qwen 2.5B (#1 at 5.63% WER) is too memory-hungry without a native MLX port. The next likely disruptor — Cohere-Transcribe-03-2026 (5.42% WER, Apache-2.0) — has no Apple-Silicon Python path yet. Revisit in 60 days.
 
@@ -38,7 +50,7 @@
 
 ### Per-System Deep Dives
 
-#### 1. Parakeet-TDT-0.6b-v3 via `parakeet-mlx` — RECOMMENDED
+#### 1. Parakeet-TDT-0.6b-v3 via `parakeet-mlx` — RECOMMENDED (v1; now the fallback engine — see the v2 banner at the top)
 
 **What it is.** NVIDIA's 600M-parameter FastConformer-TDT (Token-and-Duration Transducer) model, released 2025-08-14 as part of the Granary multilingual dataset launch. The `parakeet-mlx` package (senstella, latest v0.5.1 published 2026-02-21 on PyPI, Apache-2.0) is a ground-up MLX reimplementation that runs the model natively on Apple Silicon GPU via Metal. Twenty-six versions shipped — actively maintained.
 

@@ -23,7 +23,9 @@ Every finding is then verified deterministically (research.md §b/§e):
 from __future__ import annotations
 
 import json
+import os
 import re
+from datetime import UTC, datetime
 
 from speakloop.asr import Transcript
 from speakloop.feedback import catalog as catalog_mod
@@ -61,8 +63,15 @@ def _build_system_prompt() -> str:
         "appear. Do NOT cite garbled or non-grammatical fragments as evidence.\n\n"
         'Return ONLY a JSON object: {"patterns": [{"label": "...", '
         '"occurrence_count": N, "explanation": "...", "evidence": [{"attempt_ordinal": '
-        '1, "quote": "...", "corrected": "..."}]}]}. '
-        "Do NOT include <think> blocks."
+        '1, "quote": "...", "corrected": "..."}]}]}.\n\n'
+        "OUTPUT FORMAT — STRICT JSON, no exceptions:\n"
+        '- Use double quotes (") for EVERY key and EVERY string value. Never use '
+        "single quotes (').\n"
+        "- Do NOT put a trailing comma before a closing } or ].\n"
+        "- Do NOT wrap the JSON in markdown code fences (no ``` and no ```json).\n"
+        "- Do NOT emit any prose, preamble, or commentary before or after the JSON.\n"
+        "- Do NOT include <think> blocks.\n"
+        "- Emit the single JSON object and nothing else."
     )
 
 
@@ -70,19 +79,96 @@ def _user_prompt(transcripts: list[Transcript]) -> str:
     parts = ["Three attempt transcripts follow.\n"]
     for i, t in enumerate(transcripts, start=1):
         parts.append(f"--- Attempt {i} ---\n{t.text.strip()}\n")
-    parts.append("\nReturn JSON only.")
+    parts.append(
+        "\nReturn STRICT JSON only: double quotes on all keys and strings, no "
+        "trailing commas, no markdown fences, no extra text."
+    )
     return "\n".join(parts)
 
 
+_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", flags=re.DOTALL | re.IGNORECASE)
+_TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
+_SINGLE_QUOTED_KEY_RE = re.compile(r"([{,]\s*)'([^'\\]*)'(\s*:)")
+_BARE_KEY_RE = re.compile(r"([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)")
+_SINGLE_QUOTED_VALUE_RE = re.compile(r"([:\[,]\s*)'((?:[^'\\]|\\.)*)'")
+# A stray junk token (1-4 alnum chars) that some reasoning models leak right
+# before a quoted key, e.g. `1,\n    a "quote": ...`. Conservative: it must sit
+# between a separator (`{`, `,`, or newline) and a *quoted key* (`"..."` then
+# `:`), so a legitimate unquoted key (`token:`) is never touched.
+_JUNK_TOKEN_BEFORE_KEY_RE = re.compile(r'([\n,{]\s*)[a-z0-9]{1,4}\s+("[^"]*"\s*:)')
+
+
+def _strip_code_fences(raw: str) -> str:
+    """Remove a surrounding markdown code fence (```json ... ``` or ``` ... ```)."""
+    m = _FENCE_RE.search(raw)
+    if m:
+        return m.group(1).strip()
+    # Fence markers without a clean closing pair: drop stray ``` lines.
+    return re.sub(r"```(?:json)?", "", raw, flags=re.IGNORECASE).strip()
+
+
+def _repair_json(s: str) -> str:
+    """Best-effort repair of the common LLM bad-JSON cases (research: Qwen emits
+    single-quoted/trailing-comma JSON). Keys are fixed before values so already
+    double-quoted keys are never touched."""
+    s = _TRAILING_COMMA_RE.sub(r"\1", s)  # drop trailing commas before } or ]
+    s = _JUNK_TOKEN_BEFORE_KEY_RE.sub(r"\1\2", s)  # `, a "key":` -> `, "key":`
+    s = _SINGLE_QUOTED_KEY_RE.sub(r'\1"\2"\3', s)  # 'key': -> "key":
+    s = _BARE_KEY_RE.sub(r'\1"\2"\3', s)  # key: -> "key":
+    s = _SINGLE_QUOTED_VALUE_RE.sub(r'\1"\2"', s)  # : 'val' / ['val' -> : "val"
+    return s
+
+
+def _loads_lenient(s: str) -> dict:
+    """Parse JSON, falling back to a repair pass (and json5 if installed). If all
+    fail, re-raise the ORIGINAL json error so phase_c_error shows the real issue."""
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError as original:
+        try:
+            return json.loads(_repair_json(s))
+        except json.JSONDecodeError:
+            pass
+        try:
+            import json5  # optional; not in the closed dep set, used only if present
+
+            return json5.loads(s)
+        except ImportError:
+            pass
+        except Exception:  # noqa: BLE001 — json5 parse failure: fall through to original
+            pass
+        raise original
+
+
 def _extract_json(raw: str) -> dict:
-    """Pull the first JSON object out of the LLM response."""
-    raw = raw.strip()
-    if raw.startswith("```"):
-        raw = re.sub(r"^```(?:json)?", "", raw).rstrip("`").strip()
+    """Pull the first JSON object out of the LLM response, tolerating markdown
+    fences and the common single-quote / trailing-comma emissions."""
+    raw = _strip_code_fences(raw.strip())
     match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
     if not match:
         raise ValueError(f"Could not extract JSON from LLM response: {raw[:200]}")
-    return json.loads(match.group(0))
+    return _loads_lenient(match.group(0))
+
+
+def _debug_dump_raw(raw: str) -> str | None:
+    """Diagnostic-only: when SPEAKLOOP_DEBUG_LLM=1, save the raw LLM output (first
+    8000 chars) under data/sessions/.debug-llm-raw/ so the operator can see what
+    the model actually wrote. 8000 chars because parse failures often happen deep
+    in the response. Never on by default; failures here are swallowed so
+    debugging never breaks a session."""
+    if os.environ.get("SPEAKLOOP_DEBUG_LLM") != "1":
+        return None
+    try:
+        from speakloop.config import paths
+
+        debug_dir = paths.sessions_dir() / ".debug-llm-raw"
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%fZ")
+        out = debug_dir / f"{stamp}.txt"
+        out.write_text(raw[:8000], encoding="utf-8")
+        return str(out)
+    except Exception:  # noqa: BLE001 — diagnostics must never break the session
+        return None
 
 
 def _first_attempt_ordinal(pattern: GrammarPattern) -> int:
@@ -194,7 +280,9 @@ def analyze(
     try:
         payload = _extract_json(raw)
     except (ValueError, json.JSONDecodeError) as e:
-        raise LLMEngineError(f"Could not parse LLM grammar response: {e}") from e
+        dump_path = _debug_dump_raw(raw)
+        suffix = f" (raw saved to {dump_path})" if dump_path else ""
+        raise LLMEngineError(f"Could not parse LLM grammar response: {e}{suffix}") from e
 
     patterns_raw = payload.get("patterns") or []
     if not isinstance(patterns_raw, list):

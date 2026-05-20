@@ -27,6 +27,10 @@ from speakloop.installer.manifest import QWEN3_8B_4BIT
 from speakloop.llm.interface import LLMEngineError
 
 _THINK_RE = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
+# A lone, unclosed ``<think>`` (no ``</think>``) — happens when generation is
+# truncated at max_tokens or the chat template ignores ``enable_thinking``.
+# Strip from the opening tag to end of text.
+_THINK_UNCLOSED_RE = re.compile(r"<think>.*\Z", flags=re.DOTALL)
 
 
 class QwenEngine:
@@ -121,5 +125,13 @@ class QwenEngine:
 
     @staticmethod
     def _strip_artefacts(text: str) -> str:
-        """Strip any ``<think>...</think>`` blocks that slip through."""
-        return _THINK_RE.sub("", text).strip()
+        """Strip ``<think>`` artefacts that slip through.
+
+        Removes closed ``<think>...</think>`` blocks first, then any lone
+        unclosed ``<think>`` (truncated generation / ignored ``enable_thinking``)
+        from the opening tag to end of text, so no ``<think>`` substring survives
+        to trip the analyzer's leakage guard.
+        """
+        text = _THINK_RE.sub("", text)
+        text = _THINK_UNCLOSED_RE.sub("", text)
+        return text.strip()

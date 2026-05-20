@@ -21,7 +21,12 @@ from pathlib import Path
 
 import soundfile as sf
 
-from speakloop.asr.interface import ASREngineError, Transcript, WordTiming
+from speakloop.asr.interface import (
+    ASREngineError,
+    Transcript,
+    TranscriptionContext,
+    WordTiming,
+)
 from speakloop.installer.manifest import PARAKEET_TDT_06B_V3
 
 
@@ -30,6 +35,11 @@ class ParakeetEngine:
 
     def __init__(self) -> None:
         self._model = None
+
+    def ensure_loaded(self) -> None:
+        """Eagerly load the model (idempotent) so engine selection can detect a
+        load failure before attempt 1. Raises ASREngineError on failure."""
+        self._load()
 
     def _load(self):  # pragma: no cover — engine-specific runtime
         if self._model is not None:
@@ -52,7 +62,17 @@ class ParakeetEngine:
             raise ASREngineError(f"Parakeet load failed from {model_path}: {e}") from e
         return self._model
 
-    def transcribe(self, wav_path: Path) -> Transcript:
+    def transcribe(
+        self,
+        wav_path: Path,
+        *,
+        context: TranscriptionContext | None = None,
+    ) -> Transcript:
+        # `context` (domain biasing / VAD toggle) is accepted for ASREngine
+        # signature compatibility but ignored: Parakeet-TDT exposes no
+        # contextual-biasing lever and does not hallucinate on silence
+        # (research_asr.md), so neither initial_prompt nor VAD applies here.
+        del context
         wav_path = Path(wav_path)
         # Read once to compute the audio duration for metric inputs; parakeet's
         # own transcribe() takes the path string and re-reads under the hood.

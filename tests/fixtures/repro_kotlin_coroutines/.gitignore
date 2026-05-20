@@ -1,0 +1,6 @@
+# Privacy by Design (Constitution Principle III) + spec FR-010: the user's own
+# voice recordings and hand transcript are NEVER committed to the public repo.
+# Only the scaffolding (expected_tokens.yaml, baseline_parakeet.json, README) is
+# tracked. Drop your local recordings here to run `pytest -m repro`.
+*.wav
+hand_transcript.txt

@@ -38,6 +38,15 @@ KOKORO_82M = Model(
     expected_size_bytes=170 * 1024 * 1024,  # ~170 MB bf16
     required_for_phase="A",
 )
+# 003-asr-l2-accent-accuracy: the new DEFAULT ASR (research_asr_l2_accent.md §B.2 —
+# L2-ARCTIC 5.4% MER, `initial_prompt` biasing lever). Parakeet stays below as the
+# `--asr-engine parakeet` opt-in + automatic load-failure fallback (Principle V).
+WHISPER_LARGE_V3_TURBO = Model(
+    name="Whisper-large-v3-turbo",
+    hf_repo_id="mlx-community/whisper-large-v3-turbo",
+    expected_size_bytes=1_613_979_758,  # measured 1.50 GiB (HF tree API, 2026-05)
+    required_for_phase="B",
+)
 PARAKEET_TDT_06B_V3 = Model(
     name="Parakeet-TDT-0.6b-v3",
     hf_repo_id="mlx-community/parakeet-tdt-0.6b-v3",
@@ -60,8 +69,15 @@ QWEN3_8B_4BIT = Model(
 
 
 PHASE_A_MODELS: list[Model] = [KOKORO_82M]
-PHASE_B_MODELS: list[Model] = [KOKORO_82M, PARAKEET_TDT_06B_V3]
-PHASE_C_MODELS: list[Model] = [KOKORO_82M, PARAKEET_TDT_06B_V3, QWEN3_8B_4BIT]
+# Whisper is the default ASR; Parakeet is downloaded too so the runtime fallback
+# (FR-009/SC-F) and `--asr-engine parakeet` always have a model present.
+PHASE_B_MODELS: list[Model] = [KOKORO_82M, WHISPER_LARGE_V3_TURBO, PARAKEET_TDT_06B_V3]
+PHASE_C_MODELS: list[Model] = [
+    KOKORO_82M,
+    WHISPER_LARGE_V3_TURBO,
+    PARAKEET_TDT_06B_V3,
+    QWEN3_8B_4BIT,
+]
 
 
 def models_for_phase(phase: Phase) -> list[Model]:

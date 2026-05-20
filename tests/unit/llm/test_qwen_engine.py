@@ -29,6 +29,48 @@ def test_strip_artefacts_handles_multiple_blocks():
     assert QwenEngine._strip_artefacts(raw) == "xy"
 
 
+# --- Unclosed <think> hardening (truncated generation / ignored enable_thinking) --
+
+
+def test_strip_artefacts_closed_block():
+    # (i) closed block — removed, surrounding text kept.
+    raw = '<think>reason here</think>{"patterns": []}'
+    assert QwenEngine._strip_artefacts(raw) == '{"patterns": []}'
+
+
+def test_strip_artefacts_unclosed_at_start():
+    # (ii) unclosed <think> at the start, no </think> → strip to end (empty).
+    raw = "<think>the model kept reasoning and never closed the tag"
+    assert QwenEngine._strip_artefacts(raw) == ""
+
+
+def test_strip_artefacts_unclosed_mid_text():
+    # (iii) valid output, then a truncated unclosed <think> → keep the prefix,
+    # drop from the lone <think> to end of text.
+    raw = '{"patterns": []}\n<think>oops, ran out of tokens mid-thought'
+    assert QwenEngine._strip_artefacts(raw) == '{"patterns": []}'
+
+
+def test_strip_artefacts_no_think_unchanged():
+    # (iv) no <think> at all → unchanged (modulo strip).
+    assert QwenEngine._strip_artefacts('{"patterns": []}') == '{"patterns": []}'
+
+
+def test_strip_artefacts_closed_then_unclosed():
+    raw = "<think>a</think>answer<think>b truncated"
+    assert QwenEngine._strip_artefacts(raw) == "answer"
+
+
+def test_strip_artefacts_leaves_no_think_substring():
+    # The whole point: nothing that would trip analyze()'s leakage guard survives.
+    for raw in (
+        "<think>x</think> ok",
+        "<think>unclosed",
+        "prefix <think>unclosed tail",
+    ):
+        assert "<think>" not in QwenEngine._strip_artefacts(raw)
+
+
 def test_engine_failure_wraps_into_llm_engine_error(monkeypatch):
     """If _load raises, the wrapper propagates the underlying exception
     (the wrapper only wraps mlx_lm generation failures into LLMEngineError

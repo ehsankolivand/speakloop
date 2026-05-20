@@ -54,7 +54,10 @@ def test_replay_loops_to_same_question_without_reload(
         def __init__(self):
             asr_constructions["n"] += 1
 
-        def transcribe(self, wav_path):
+        def ensure_loaded(self):
+            pass
+
+        def transcribe(self, wav_path, *, context=None):
             return Transcript(
                 text="He write a function. It run on dispatcher.", audio_duration_seconds=2.0
             )
@@ -82,7 +85,7 @@ def test_replay_loops_to_same_question_without_reload(
     from speakloop.feedback.grammar_analyzer import analyze
 
     # Stub everything that would touch a model or a device.
-    monkeypatch.setattr("speakloop.asr.parakeet_engine.ParakeetEngine", StubASR)
+    monkeypatch.setattr("speakloop.asr.selection.WhisperMLXEngine", StubASR)
     monkeypatch.setattr(installer, "ensure_models", lambda *a, **k: None)
     monkeypatch.setattr(
         "speakloop.cli.practice._build_grammar_analyzer",

@@ -21,7 +21,7 @@ class _StubASR:
     def __init__(self, transcripts):
         self._iter = iter(transcripts)
 
-    def transcribe(self, wav_path):
+    def transcribe(self, wav_path, *, context=None):
         return next(self._iter)
 
 

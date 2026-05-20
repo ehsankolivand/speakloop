@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from speakloop.asr.interface import ASREngineError
+from speakloop.asr.interface import ASREngineError, TranscriptionContext
 from speakloop.asr.parakeet_engine import ParakeetEngine
 from speakloop.installer.manifest import PARAKEET_TDT_06B_V3
 
@@ -101,3 +101,43 @@ def test_unreadable_wav_raises(monkeypatch, tmp_path):
     engine = ParakeetEngine()
     with pytest.raises(ASREngineError):
         engine.transcribe(tmp_path / "does-not-exist.wav")
+
+
+def test_context_is_accepted_and_ignored(monkeypatch, wav_fixture, tmp_path):
+    """Passing a TranscriptionContext does not change Parakeet output (T008/FR-002)."""
+    sentence = _FakeSentence(
+        text="hello world",
+        tokens=[_FakeToken("hello", 0.0, 0.5), _FakeToken("world", 0.6, 1.0)],
+    )
+    _install_fake_parakeet(
+        monkeypatch, _FakeResult(text="hello world", sentences=[sentence]), tmp_path
+    )
+    engine = ParakeetEngine()
+    wav = wav_fixture("attempt-short.wav")
+    baseline = engine.transcribe(wav)
+    ctx = TranscriptionContext(
+        initial_prompt="coroutines threads mutex", initial_prompt_sha256="deadbeef", use_vad=True
+    )
+    biased = engine.transcribe(wav, context=ctx)
+    assert biased.text == baseline.text
+    assert [w.word for w in biased.words] == [w.word for w in baseline.words]
+
+
+def test_ensure_loaded_is_idempotent(monkeypatch, tmp_path):
+    calls = {"n": 0}
+
+    def _counting_load(_path):
+        calls["n"] += 1
+        return _FakeModel(_FakeResult(text="", sentences=[]))
+
+    models_dir = tmp_path / "models"
+    (models_dir / PARAKEET_TDT_06B_V3.hf_repo_id.replace("/", "__")).mkdir(parents=True)
+    monkeypatch.setenv("SPEAKLOOP_MODELS_DIR", str(models_dir))
+    fake_mod = types.ModuleType("parakeet_mlx")
+    fake_mod.from_pretrained = _counting_load
+    monkeypatch.setitem(sys.modules, "parakeet_mlx", fake_mod)
+
+    engine = ParakeetEngine()
+    engine.ensure_loaded()
+    engine.ensure_loaded()
+    assert calls["n"] == 1  # loaded once, memoised

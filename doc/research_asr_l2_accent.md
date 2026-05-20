@@ -1,5 +1,13 @@
 # speakloop v2 Research Brief — ASR Accuracy on Persian-L1 English and a Phoneme/Prosody-Aware Feedback Architecture
 
+> **AS-BUILT NOTE (003-asr-l2-accent-accuracy, shipped).** This is the research
+> compass; two proposals below were intentionally narrowed by the spec and did
+> NOT ship: (1) `schema_version` STAYS **1** — ASR provenance is an additive
+> top-level `asr:` key, not a v2 bump; (2) the conditional **DeepFilterNet
+> denoiser is deferred / out of scope** (no `asr/denoise.py`). As built, domain
+> biasing also mines the question's *ideal answer* (not just the prompt). See
+> `specs/003-asr-l2-accent-accuracy/spec.md` for the authoritative scope.
+
 ## A. Executive Summary
 
 **ASR recommendation.** Replace Parakeet-TDT-0.6b-v3 (the speakloop v1 ASR) with **Whisper-large-v3-turbo via `mlx-whisper`**, kept behind speakloop's existing `ASREngine` Protocol so Parakeet remains as a fallback. The single hardest piece of evidence: in the only published controlled study on L2-ARCTIC accented English that we located, Whisper-large-v3 achieves a mean Match Error Rate of 5.4% across 24 non-native speakers from six L1 backgrounds (Arabic, Chinese, Hindi, Korean, Spanish, Vietnamese) — approaching human accuracy (Goodwin & Lee, arXiv:2503.06924, Mar 2025). Parakeet-TDT has *not* been benchmarked on L2-ARCTIC in any source we located; its strengths (1.69% WER on LibriSpeech test-clean and 3.70% on test-other at RTFx 3380, per NVIDIA's `nvidia/parakeet-tdt-0.6b-v2` HF model card) are on clean, native-English audio. The specific symptoms speakloop is seeing — "coroutines → coroutine permittive", "shared → shaded", "threads → threats" — are consistent with the transducer behaviour of Parakeet on out-of-distribution accents, where the duration head over-commits and downstream substitutions cascade. Whisper's encoder–decoder + `initial_prompt` biasing gives a direct, offline lever to inject technical vocabulary ("coroutines, threads, mutex, async, asyncio, Kubernetes…") that Parakeet does not expose. The latency cost is small on an M3 Pro 18 GB: per llimllib.notes (10-run hyperfine benchmark, Jan 09 2026), `mlx_whisper` with `whisper-large-v3-turbo` transcribed a 1 h MLK speech in **13.135 s ± 0.280 s versus 26.704 s ± 0.625 s for whisper.cpp — a 2.03 ± 0.06× speed-up**, i.e. ≈270× real-time, well inside the 5 s per-attempt budget for the 30–60 s utterances speakloop produces. Pair the engine swap with **Silero VAD pre-segmentation** and a conditional **DeepFilterNet** denoiser (skip when SNR is already high — over-enhancement reduces WER) and an `initial_prompt` containing the interview-domain lexicon plus the literal sentence "The following is technical English spoken with a Persian accent."

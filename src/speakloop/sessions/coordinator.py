@@ -25,7 +25,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from speakloop.asr import ASREngine, Transcript
+from speakloop.asr import ASREngine, Transcript, TranscriptionContext
 from speakloop.audio import recorder
 from speakloop.config import paths
 from speakloop.content import Question
@@ -128,6 +128,7 @@ def _do_attempt(
     early_exit_event: threading.Event,
     console: Console,
     scratch_dir: Path,
+    context: TranscriptionContext | None = None,
 ) -> tuple[float, Transcript]:
     budget = timer.time_budget_for(ordinal)
     console.print(
@@ -181,7 +182,7 @@ def _do_attempt(
         f"[green]✓ Attempt {ordinal}[/green] recorded — "
         f"{duration:.1f}s captured. [dim]Transcribing…[/dim]"
     )
-    transcript = asr_engine.transcribe(wav_path)
+    transcript = asr_engine.transcribe(wav_path, context=context)
     # Override the engine-reported duration with the wall-clock recording duration.
     transcript = Transcript(
         text=transcript.text,
@@ -217,6 +218,19 @@ def _build_attempts(
     return attempts
 
 
+def _vad_settings_for(engine_name: str, context: TranscriptionContext) -> dict | None:
+    """VAD settings to record in provenance, or None when no VAD ran.
+
+    Only the Whisper path runs VAD (Parakeet does not hallucinate on silence), and
+    only when the context requested it. Records the exact tunables that ran (FR-007).
+    """
+    if engine_name == "whisper" and context.use_vad:
+        from speakloop.asr import vad
+
+        return vad.vad_settings()
+    return None
+
+
 def run_session(
     question: Question,
     *,
@@ -229,6 +243,9 @@ def run_session(
     sessions_dir: Path | None = None,
     scratch_dir: Path | None = None,
     now=datetime.now,
+    asr_engine_name: str | None = None,
+    asr_model_id: str | None = None,
+    asr_fell_back: bool = False,
 ) -> SessionResult:
     """Run a full session for one Question; return the report path + Session.
 
@@ -260,6 +277,12 @@ def run_session(
     if record_fn is None:
         record_fn = recorder.record
 
+    # Per-session domain biasing (FR-003/FR-004): build once, inject into every
+    # transcription. Engines that can't use it (Parakeet) ignore it.
+    from speakloop.asr import domain_context
+
+    context = domain_context.build_context(question)
+
     early_exit_event = threading.Event()
     transcripts: list[Transcript] = []
     try:
@@ -274,6 +297,7 @@ def run_session(
                 early_exit_event=early_exit_event,
                 console=console,
                 scratch_dir=scratch_dir,
+                context=context,
             )
             transcripts.append(transcript)
     except AbortedError:
@@ -289,14 +313,32 @@ def run_session(
 
     grammar_patterns: list[frontmatter.GrammarPattern] = []
     phase: str = "B"
+    phase_c_error: str | None = None
     if grammar_analyzer is not None:
         try:
             grammar_patterns = grammar_analyzer(transcripts)
             phase = "C"
         except Exception as e:
+            # Persist the failure into the report (phase_c_error) so it is
+            # diagnosable from the saved file alone, not just transient console.
+            phase_c_error = f"{type(e).__name__}: {e}"
             console.print(
                 f"[yellow]Grammar analyzer failed: {e}. Falling back to Phase-B interim report.[/yellow]"
             )
+
+    # ASR provenance (FR-007), recorded additively only when the caller names the
+    # engine that ran (the CLI / engine selection supplies engine_name + model_id
+    # + fell_back). Legacy callers omit these → asr stays None → report unchanged.
+    asr_provenance = None
+    if asr_engine_name is not None:
+        asr_provenance = frontmatter.AsrProvenance(
+            engine=asr_engine_name,
+            model=asr_model_id or "",
+            initial_prompt=context.initial_prompt,
+            initial_prompt_sha256=context.initial_prompt_sha256,
+            vad=_vad_settings_for(asr_engine_name, context),
+            fell_back=asr_fell_back,
+        )
 
     date_str = started_at.date().isoformat()
     report_path = markdown_writer.next_available_path(sessions_dir, date_str, question.id)
@@ -312,6 +354,8 @@ def run_session(
         # for every phase: a Phase-B report still carries fluency-only guidance.
         cross_attempt_narrative=narrative.build_narrative(attempts, grammar_patterns),
         top_priority=narrative.select_top_priority(grammar_patterns, attempts),
+        asr=asr_provenance,
+        phase_c_error=phase_c_error,
     )
     body = report_builder.build(session)
     markdown_writer.write_atomic(report_path, body)

@@ -87,15 +87,27 @@ def _pattern_card(p: frontmatter.GrammarPattern) -> str:
     return "\n".join(lines)
 
 
+def _phase_c_error_note(session: frontmatter.Session) -> str:
+    """A diagnostic note when the Phase-C analyzer raised and we fell back."""
+    if not session.phase_c_error:
+        return ""
+    return (
+        "\n\n> ⚠️ **Phase C analysis failed; this report fell back to Phase B.**\n>\n"
+        f"> `{session.phase_c_error.strip()}`\n>\n"
+        "> No grammar patterns were produced for this session. Re-run once the "
+        "analyzer issue is resolved."
+    )
+
+
 def _grammar_section(session: frontmatter.Session) -> str:
     patterns = sorted(session.grammar_patterns, key=_rank_key)
     if patterns:
         parts = ["## Grammar patterns"]
         parts.extend("\n" + _pattern_card(p) for p in patterns)
-        return "\n".join(parts)
+        return "\n".join(parts) + _phase_c_error_note(session)
     # No patterns: distinguish "LLM ran, found nothing" from "Phase C not enabled".
     placeholder = NO_PATTERNS_LINE if session.generated_by_phase == "C" else PHASE_B_PLACEHOLDER
-    return f"## Grammar patterns\n\n{placeholder}"
+    return f"## Grammar patterns\n\n{placeholder}{_phase_c_error_note(session)}"
 
 
 def _top_priority_section(session: frontmatter.Session) -> str | None:

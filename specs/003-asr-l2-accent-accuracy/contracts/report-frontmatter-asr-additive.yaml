@@ -1,0 +1,46 @@
+# Contract: the additive `asr:` frontmatter block (003-asr-l2-accent-accuracy).
+#
+# schema_version STAYS 1. This is one new top-level key, emitted by
+# feedback/frontmatter.dump ONLY when session.asr is present (same pattern as the
+# 002 additive keys cross_attempt_narrative / top_priority). v1 readers and the
+# trends reader/aggregator ignore unknown keys — verified against the current
+# code — so old and new reports both parse (FR-007, FR-008; Principle IX).
+#
+# Shown here as the block that appears INSIDE an existing report's `---` YAML
+# frontmatter, alongside (not replacing) schema_version/session_id/attempts/etc.
+
+# ---- success path (Whisper default) ----------------------------------------
+asr:
+  engine: whisper                                   # str: engine that ran
+  model: mlx-community/whisper-large-v3-turbo        # str: model id
+  initial_prompt: |                                  # str|absent: verbatim domain context
+    The following is technical English spoken with a Persian accent.
+    Domain: Kotlin coroutines, threads, dispatcher, IO-bound, CPU-bound, mutex, shared pool.
+    Common terms: coroutines, async, await, semaphore, deadlock, race condition,
+    dependency injection, Jetpack Compose, MVI, clean architecture.
+  initial_prompt_sha256: a1b2c3d4e5f6...             # str: sha256 of initial_prompt
+  vad:                                               # mapping|null: tunables that ran
+    engine: silero
+    speech_threshold: 0.5
+    min_speech_ms: 250
+    min_silence_ms: 100
+    merge_gap_ms: 300
+    speech_pad_ms: 30
+  fell_back: false                                   # bool
+
+# ---- fallback path (Whisper failed to load -> Parakeet) ---------------------
+# asr:
+#   engine: parakeet
+#   model: mlx-community/parakeet-tdt-0.6b-v3
+#   initial_prompt: |                                # still recorded (built per session)
+#     The following is technical English spoken with a Persian accent. ...
+#   initial_prompt_sha256: a1b2c3d4e5f6...
+#   vad: null                                        # Parakeet runs no VAD
+#   fell_back: true
+
+# ---- compatibility notes ----------------------------------------------------
+# - When session.asr is None (e.g. Phase-B history, or a path that never set it),
+#   the `asr:` key is OMITTED entirely; the report is byte-identical to v1.
+# - Required-for-trends keys are untouched: schema_version: 1, attempts,
+#   grammar_patterns, generated_by_phase, started_at, session_id, question_id.
+# - No field here is read by trends/reader.py or trends/aggregator.py.

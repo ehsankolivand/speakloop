@@ -15,7 +15,7 @@ pytestmark = pytest.mark.integration
 
 
 class _Asr:
-    def transcribe(self, wav_path):
+    def transcribe(self, wav_path, *, context=None):
         return Transcript(text="x", audio_duration_seconds=1.0)
 
 

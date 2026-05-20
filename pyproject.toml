@@ -19,6 +19,14 @@ dependencies = [
     "readchar>=4.2.2",
     "parakeet-mlx>=0.5.1",
     "mlx-lm>=0.31.3",
+    # 003-asr-l2-accent-accuracy: default ASR (Whisper) + VAD. Lower-bound pins;
+    # uv.lock holds the exact resolved versions (the repo's existing pin pattern).
+    # Engine packages are imported function-local inside asr/ wrapper files only
+    # (Constitution Principle V + VIII), so they never load at `--help` time.
+    "mlx-whisper>=0.4.2",
+    "silero-vad>=5.1",
+    "onnxruntime>=1.20",
+    "torchaudio<2.9",
 ]
 
 [project.scripts]
@@ -65,5 +73,7 @@ markers = [
     "contract: contract / protocol shape tests",
     "integration: end-to-end with stubs, no live model",
     "slow: long-running; opt-in",
+    "repro: local-only acceptance gate against the user's own recordings; skips when audio is absent (FR-010)",
+    "live_asr: thin smoke test exercising the REAL silero-vad + torchaudio audio I/O; skips when the deps are absent (catches transitive-dep breakage)",
 ]
 addopts = "-ra"

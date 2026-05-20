@@ -1,17 +1,25 @@
 <!-- SPECKIT START -->
-Active feature: 002-post-session-debrief — educational LLM grammar feedback
-  (Persian-L1 catalog) + in-terminal interactive debrief (rich render + TTS
-  read-aloud + replay menu) closing the practice loop.
+Active feature: 003-asr-l2-accent-accuracy — faithful transcripts on Persian-L1
+  accented technical English. Default ASR swaps to Whisper-large-v3-turbo
+  (mlx-whisper); Parakeet-TDT kept as `--asr-engine parakeet` flag + automatic
+  fallback. Adds per-session domain biasing (initial_prompt) + Silero-VAD
+  pre-segmentation; provenance recorded as an additive `asr:` frontmatter key
+  (schema_version stays 1).
 
-Plan: specs/002-post-session-debrief/plan.md
-Spec: specs/002-post-session-debrief/spec.md
-Research (catalog format · impact ranking · rich.live vs rich.markdown):
-  specs/002-post-session-debrief/research.md
-Data model (additive frontmatter; schema_version stays 1):
-  specs/002-post-session-debrief/data-model.md
-Contracts: specs/002-post-session-debrief/contracts/
-New module: src/speakloop/debrief/ (render + audio + menu).
-Catalog/ranking derive from doc/research_methodology.md §1.1/§1.3.
+Plan: specs/003-asr-l2-accent-accuracy/plan.md
+Spec: specs/003-asr-l2-accent-accuracy/spec.md
+Research (domain mining · VAD thresholds · cross-session model memoization):
+  specs/003-asr-l2-accent-accuracy/research.md
+Data model (additive asr provenance; TranscriptionContext; SpeechRegion):
+  specs/003-asr-l2-accent-accuracy/data-model.md
+Contracts: specs/003-asr-l2-accent-accuracy/contracts/
+Work stays inside src/speakloop/asr/ (new: whisper_mlx_engine, vad,
+  domain_context, selection, seed_lexicon); compass is doc/research_asr_l2_accent.md.
+
+Prior feature: 002-post-session-debrief — educational LLM grammar feedback
+  (Persian-L1 catalog) + in-terminal interactive debrief.
+  Plan: specs/002-post-session-debrief/plan.md · Spec: specs/002-post-session-debrief/spec.md
+  New module: src/speakloop/debrief/ (render + audio + menu).
 
 Base feature: speakloop v1 — local English interview-practice CLI.
   Plan: specs/001-v1-product-spec/plan.md · Spec: specs/001-v1-product-spec/spec.md
@@ -30,7 +38,7 @@ each phase is a complete working system per Principle XII.
 
 # speakloop — top-level map
 
-Twelve fine-grained modules under `src/speakloop/`, single responsibility each,
+Thirteen fine-grained modules under `src/speakloop/`, single responsibility each,
 each with its own `CLAUDE.md` (Constitution Principles IV, XI). Engine-specific
 imports live in exactly one file per engine (Principle V).
 
@@ -44,9 +52,10 @@ imports live in exactly one file per engine (Principle V).
 | `content/`    | Q&A YAML loader + schema                                  | [src/speakloop/content/CLAUDE.md](src/speakloop/content/CLAUDE.md) |
 | `tts/`        | TTS engine wrapper (Kokoro) + clip cache                  | [src/speakloop/tts/CLAUDE.md](src/speakloop/tts/CLAUDE.md) |
 | `audio/`      | Playback, recording, device probing                       | [src/speakloop/audio/CLAUDE.md](src/speakloop/audio/CLAUDE.md) |
-| `asr/`        | ASR engine wrapper (Parakeet-TDT-0.6b-v3) [Phase B]       | [src/speakloop/asr/CLAUDE.md](src/speakloop/asr/CLAUDE.md) |
+| `asr/`        | ASR wrapper — default Whisper-large-v3-turbo (mlx-whisper) + domain biasing + Silero VAD; Parakeet-TDT fallback via `--asr-engine` [Phase B] | [src/speakloop/asr/CLAUDE.md](src/speakloop/asr/CLAUDE.md) |
 | `metrics/`    | Fluency metrics                                            | [src/speakloop/metrics/CLAUDE.md](src/speakloop/metrics/CLAUDE.md) |
 | `llm/`        | LLM engine wrapper (Qwen3-8B MLX 4-bit) [Phase C]         | [src/speakloop/llm/CLAUDE.md](src/speakloop/llm/CLAUDE.md) |
 | `feedback/`   | Frontmatter, atomic writer, report builder, grammar analyzer | [src/speakloop/feedback/CLAUDE.md](src/speakloop/feedback/CLAUDE.md) |
+| `debrief/`    | Post-session interactive debrief (render + audio + menu) [Phase C] | [src/speakloop/debrief/CLAUDE.md](src/speakloop/debrief/CLAUDE.md) |
 | `sessions/`   | 4/3/2 coordinator, timer, signal handling                 | [src/speakloop/sessions/CLAUDE.md](src/speakloop/sessions/CLAUDE.md) |
 | `trends/`     | Cross-session dashboard [Phase C]                         | [src/speakloop/trends/CLAUDE.md](src/speakloop/trends/CLAUDE.md) |

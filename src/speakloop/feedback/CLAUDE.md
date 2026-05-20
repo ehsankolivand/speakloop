@@ -8,8 +8,11 @@ Session-report assembly (Markdown + YAML frontmatter).
   `contracts/report-frontmatter.yaml`. `schema_version` stays **1**; the debrief
   feature added the additive fields `GrammarPattern.explanation` /
   `.impact_rank` / `.catalog_id`, per-evidence `corrected`, and top-level
-  `Session.cross_attempt_narrative` / `.top_priority` (all optional; unknown keys
-  ignored for forward/back compat — data-model.md §A).
+  `Session.cross_attempt_narrative` / `.top_priority`. 003 added the additive
+  `Session.asr` field (`AsrProvenance`: engine, model, initial_prompt + sha256,
+  vad settings, fell_back) → emitted as the top-level `asr:` key only when
+  present (schema_version still 1). All optional; unknown keys ignored for
+  forward/back compat — data-model.md §A.
 - `markdown_writer.write_atomic(path, content)` — temp-file + `os.replace`
   (FR-016, SC-005).
 - `report_builder.build(session) -> str` — composes frontmatter + body; renders

@@ -86,3 +86,19 @@ def tmp_qa_file(tmp_path: Path) -> Path:
     paths.set_qa_file_path(f)
     yield f
     paths.set_qa_file_path(None)
+
+
+@pytest.fixture
+def starter_question_id() -> str:
+    """The first question id in the shipped starter.yaml.
+
+    Robust to edits of `starter.yaml`: tests that drive the listen flow off the
+    shipped starter (which `_ensure_starter_qa` copies into a fresh qa.yaml) pick
+    a real id at runtime instead of hardcoding one.
+    """
+    from importlib import resources
+
+    import yaml
+
+    text = resources.files("speakloop.content").joinpath("starter.yaml").read_text(encoding="utf-8")
+    return yaml.safe_load(text)["questions"][0]["id"]

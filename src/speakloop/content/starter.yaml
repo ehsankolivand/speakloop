@@ -1,43 +1,63 @@
 schema_version: 1
 questions:
-  - id: kotlin-coroutines-basics
+  - id: activity-rotation-callbacks
     question: |
-      Explain how Kotlin coroutines differ from threads, and when you would
-      choose one over the other in a high-load Android service.
+      Walk me through what happens to an Activity when the user rotates the device. Just the callbacks, in order.
     ideal_answer: |
-      Coroutines are a structured-concurrency primitive that runs on a
-      shared pool of threads. Unlike OS threads, they are cheap to create
-      and suspend cooperatively rather than blocking. You pick a coroutine
-      for I/O-bound or cooperative work, and a thread when you have
-      CPU-bound work that genuinely needs parallel execution.
-    tags: [behavioral, kotlin, concurrency]
+      By default, from API 24 up to Android 16 which is API 36, a rotation is a configuration change. The system tears the Activity down and builds a new one.
+
+      On the old instance, the callbacks fire in this order: onPause, then onStop, then onSaveInstanceState with a Bundle, then onDestroy.
+
+      Then the system creates a new Activity instance and runs it through onCreate, which receives the saved Bundle, then onStart, then onRestoreInstanceState, then onResume.
+
+      On the outgoing instance, isChangingConfigurations returns true. That is how ComponentActivity knows to hand its ViewModelStore to the new instance through onRetainNonConfigurationInstance, instead of clearing it.
+
+      One important note: this order of onStop and onSaveInstanceState is the API 28 and newer behavior. On API 27 and earlier, the order was onPause, then onSaveInstanceState, then onStop.
+
+      Starting from Android 16, which is API 36, the official behavior changes page says that orientation, resizability, and aspect ratio restrictions no longer apply on displays with a smallest width of 600dp or more, for apps targeting API 36. So this sequence fires more often than before on tablets and foldables. There is a temporary opt-out called PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY, but it is removed completely at API 37.
+    tags: [android, activity, lifecycle, core]
     difficulty: medium
 
-  - id: system-design-rate-limiter
+  - id: activity-destroyed-definition
     question: |
-      Design a per-user rate limiter for a public REST API at a fintech
-      company. Walk me through the data structures, the failure modes,
-      and how you would roll it out without locking out paying customers.
+      When an Activity goes through a configuration change like rotation, we often say it is destroyed and recreated. Define what destroyed means precisely, without using the words destroy, kill, or recreate.
     ideal_answer: |
-      The simplest sufficient design is a token bucket per user, stored in
-      an in-memory keyed cache with a write-through to Redis for
-      multi-instance correctness. Each request decrements the user's
-      bucket; refill at a fixed rate. Edge cases: bursty traffic handled
-      by bucket depth; cache eviction handled by Redis TTL. Roll out
-      behind a feature flag scoped to a small percentage of users first,
-      and only enforce after a week of dry-run logging.
-    tags: [system-design, fintech]
+      The Activity Java object becomes unreachable from the framework.
+
+      ActivityThread releases its reference in ActivityClientRecord. The window is detached. The view hierarchy is disconnected. Lifecycle observers receive ON_DESTROY. The instance becomes eligible for garbage collection.
+
+      The OS process itself usually stays alive. Only this one Java object goes away.
+
+      Anything held only by that instance is gone. That includes member fields, view references, and listeners.
+
+      Anything held by something with a longer scope survives. That includes the ViewModelStore retained through NonConfigurationInstances, Application singletons, static fields, and the serialized Bundle inside SavedStateRegistry.
+    tags: [android, activity, lifecycle, internals]
+    difficulty: medium
+
+  - id: onpause-vs-onstop-process-guarantee
+    question: |
+      Between onPause and onStop, which one is guaranteed to run before the OS can take your process? Be specific.
+    ideal_answer: |
+      Neither is fully guaranteed under all conditions, but onPause is the stronger guarantee.
+
+      onPause runs synchronously before any other Activity can resume. The framework documents that an app is not killable until after onPause returns.
+
+      Since Honeycomb, which is API 11, the process is also not considered killable until onStop returns under normal flow. But onStop can be skipped if the system is under extreme memory pressure, or if the user force stops the app.
+
+      The practical rule is simple. Write nothing critical in onStop that you would not accept losing. Do lightweight commits in onPause, and use onSaveInstanceState for UI state.
+    tags: [android, activity, lifecycle, process]
     difficulty: hard
 
-  - id: tell-me-about-yourself
+  - id: onstop-savedinstancestate-api28-ordering
     question: |
-      Tell me about yourself.
+      What changed about the ordering of onStop and onSaveInstanceState after API 28, and why does it matter for fragment transactions?
     ideal_answer: |
-      I am a senior Android engineer with around ten years of experience,
-      most recently building order-execution flows for a fintech exchange.
-      My strengths are in Kotlin, concurrency, and turning ambiguous
-      product requirements into reliable mobile systems. Right now I am
-      looking for a role that lets me lead a small Android team while
-      still spending most of my time in code reviews and architecture.
-    tags: [behavioral]
-    difficulty: easy
+      Before Android 9, which is API 28, onSaveInstanceState ran before onStop. Starting from API 28, the platform calls onSaveInstanceState after onStop.
+
+      Here is the consequence. Before Pie, if you called FragmentTransaction commit between onSaveInstanceState and onStop, it threw an IllegalStateException with the message "Can not perform this action after onSaveInstanceState".
+
+      With the new ordering from API 28 and later, the state saved flag inside FragmentManager flips at onStop. So a fragment transaction issued after onPause but before onStop is now safe.
+
+      The pre Pie workaround was to use commitAllowingStateLoss, or to move the commit earlier. On API 28 and newer, the window where this bug could fire is eliminated, as long as you stop doing work in onStop.
+    tags: [android, activity, lifecycle, fragments, api-changes]
+    difficulty: hard

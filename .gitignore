@@ -8,3 +8,4 @@ data/sessions/
 .ruff_cache/
 dist/
 build/
+interview/

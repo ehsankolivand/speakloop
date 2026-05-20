@@ -16,7 +16,7 @@ description: "Task list for Post-Session Interactive Debrief"
 
 - **[P]**: Can run in parallel (different files, no dependencies on incomplete tasks)
 - **[Story]**: US1 / US2 / US3 / US4 — Setup/Foundational/Polish carry no story label
-- All paths are repo-relative to `/Users/ehsankolivans/Desktop/projects/speakloop/speakloop/`
+- All paths are repo-relative to the repository root.
 
 ## Path Conventions
 

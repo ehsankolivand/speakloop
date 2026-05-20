@@ -1,0 +1,12 @@
+{
+  "_comment": "The previous-pipeline (Parakeet, no biasing, no VAD) known-bad output from the original kotlin-coroutines failure session. Used as the SC-B baseline. Replace the placeholder transcripts below with the actual baseline run on your recordings; the substitutions shown are the documented failures.",
+  "engine": "parakeet-tdt-0.6b-v3",
+  "documented_substitutions": {
+    "threads": "trades",
+    "primitive": "primary",
+    "IO-bound": "IO bonds",
+    "coroutine": "quarantine",
+    "shared pool": "shaded pool"
+  },
+  "attempts": []
+}

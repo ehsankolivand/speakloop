@@ -63,11 +63,21 @@ def practice_cmd(
     no_audio: bool = typer.Option(
         False, "--no-audio", help="Skip reading the debrief feedback aloud; show it visually only."
     ),
+    asr_engine: str = typer.Option(
+        None,
+        "--asr-engine",
+        help="ASR engine: 'whisper' (default) or 'parakeet'. Whisper falls back to Parakeet on load failure.",
+    ),
 ) -> None:
     """Run a practice session."""
     from speakloop.cli import practice as _practice  # local import; engine touch is deferred.
 
-    _practice.run(question=question, listen_only=listen_only, no_audio=no_audio)
+    _practice.run(
+        question=question,
+        listen_only=listen_only,
+        no_audio=no_audio,
+        asr_engine_choice=asr_engine,
+    )
 
 
 @app.command("doctor")

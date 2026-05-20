@@ -220,6 +220,7 @@ def run(
     question: str | None = None,
     listen_only: bool = False,
     no_audio: bool = False,
+    asr_engine_choice: str | None = None,
     tts_engine=None,
     play_fn=None,
     audio_devices=devices,
@@ -278,16 +279,31 @@ def run(
         console.print("[red]No microphone detected. Run `speakloop doctor` for remediation.[/red]")
         raise typer.Exit(1)
 
+    from speakloop import asr as _asr
     from speakloop import debrief
-    from speakloop.asr.parakeet_engine import ParakeetEngine
     from speakloop.sessions import coordinator
 
-    # Construct the engines ONCE, before the loop, and inject them into every
-    # session. Replay reuses these resident instances — no model reload — so the
+    # Construct the engine ONCE, before the loop, and inject it into every
+    # session. Replay reuses this resident instance — no model reload — so the
     # next "press space to begin attempt 1" appears in < 3 s (SC-004,
     # research.md §d). The grammar analyzer closure holds a lazily-loaded,
     # memoised QwenEngine; Kokoro is already injected.
-    asr_engine = ParakeetEngine()
+    #
+    # 003: build_engine resolves the default Whisper (research §B.2) or the
+    # `--asr-engine` choice, probes the load eagerly (the cold load is outside the
+    # timed attempt loop → warm model per SC-D, research §c), and falls back to
+    # Parakeet on load failure with one English line (FR-009/SC-F). The engine
+    # packages are imported function-local inside the wrapper files, so
+    # `speakloop --help` never loads them (Principle VIII).
+    selection = _asr.build_engine(asr_engine_choice)
+    asr_engine = selection.engine
+    asr_engine_name = selection.engine_name
+    asr_model_id = selection.model_id
+    if selection.fell_back:
+        console.print(
+            f"[yellow]ASR: requested engine unavailable "
+            f"({selection.fallback_reason}); falling back to Parakeet.[/yellow]"
+        )
     grammar_analyzer = _build_grammar_analyzer()
 
     current = chosen
@@ -305,6 +321,9 @@ def run(
             asr_engine=asr_engine,
             console=console,
             grammar_analyzer=grammar_analyzer,
+            asr_engine_name=asr_engine_name,
+            asr_model_id=asr_model_id,
+            asr_fell_back=selection.fell_back,
         )
 
         choice = debrief.run(
