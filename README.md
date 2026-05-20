@@ -1,5 +1,10 @@
 # speakloop
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-lightgrey.svg)
+![Status: v1](https://img.shields.io/badge/status-v1-brightgreen.svg)
+
 **Practice answering technical-interview questions out loud — fully offline, on your
 own Mac, with feedback that respects your privacy.**
 
@@ -37,7 +42,7 @@ and deliberately so.
 You need [`uv`](https://docs.astral.sh/uv/) and a microphone.
 
 ```bash
-git clone <repo-url> speakloop
+git clone https://github.com/ehsankolivand/speakloop.git
 cd speakloop
 uv sync
 uv run speakloop --help   # works immediately — no models required just to read help
@@ -141,7 +146,7 @@ metrics and a fluency narrative (see [Known limitations](#known-limitations)).
 
 ## Where things live
 
-- **Reports** are saved under `data/sessions/` as `YYYY-MM-DD-qXX.md`. Open that folder
+- **Reports** Reports are saved under data/sessions/ as YYYY-MM-DD-qXX.md. Open that folder
   as an [Obsidian](https://obsidian.md) vault to browse, link, and tag past sessions —
   the files are plain Markdown, so any editor works too.
 - **Questions** ship in the repo at [`content/questions.yaml`](content/questions.yaml).
@@ -261,5 +266,11 @@ override and takes precedence over the in-repo default per the resolution order.
 falls back to the in-repo default `content/questions.yaml` automatically.
 
 ## License
+
+## Found this useful?
+
+If speakloop helps your interview prep, a star on GitHub is appreciated. If you have ideas, bugs, or want to add Persian-L1 grammar patterns, issues and PRs are welcome.
+
+---
 
 MIT. See [LICENSE](LICENSE).
