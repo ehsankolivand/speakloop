@@ -1,0 +1,55 @@
+# speakloop session-report frontmatter — v1 ADDITIVE extensions
+#
+# This file documents ONLY the fields this feature adds. The base schema is
+# unchanged: specs/001-v1-product-spec/contracts/report-frontmatter.yaml.
+#
+# schema_version REMAINS 1. Every field below is additive and optional from the
+# perspective of any existing consumer:
+#   - The trends reader consumes label, occurrence_count, and attempts[].metrics
+#     only; it ignores the new keys and keeps working unchanged (FR-031).
+#   - A reader of the pre-feature shape ignores unknown keys.
+# Breaking changes (renames, type changes, removals) are still forbidden without
+# a schema_version bump + migration note (Constitution Development Guidelines).
+
+schema_version: 1   # UNCHANGED
+
+# --- NEW top-level keys -------------------------------------------------------
+
+# The deterministic cross-attempt narrative (FR-008): what improved across the
+# 4/3/2 rounds and what stayed the same. Block scalar. Audio-eligible.
+cross_attempt_narrative: |
+  Your speech rate climbed from 116 to 138 WPM across the three attempts and
+  filler density fell from 4.4 to 2.0 per 100 words — the proceduralization
+  signature. Article use stayed inconsistent across all three rounds.
+
+# The single most important thing to fix next session (FR-008). Derived
+# deterministically by a most-impactful-wins rule across BOTH grammar patterns
+# (scored by impact_rank) and fluency dimensions (scored by a fixed severity
+# heuristic): the highest-impact item is chosen, so a fluency issue may be the
+# top priority even when grammar patterns exist. Rendered as the bordered banner
+# (FR-011) and read aloud right after the narrative (FR-018). Audio-eligible.
+top_priority: >
+  Fix gerund/infinitive choice after "like/enjoy": say "I like programming",
+  not "I like to programming".
+
+# --- EXTENDED: grammar_patterns[] item ----------------------------------------
+# Existing fields (label, occurrence_count, evidence[], suggested_fix) are
+# unchanged. New optional fields are shown here.
+grammar_patterns:
+  - label: gerund/infinitive confusion          # MUST match a catalog label/id (or be open-bucket)
+    occurrence_count: 3
+    impact_rank: 2                               # NEW — 1 = highest impact (FR-005); persisted for reproducible order
+    catalog_id: gerund-infinitive-confusion      # NEW — null/absent for open-bucket patterns
+    explanation: >                               # NEW — the "Because:" transfer reason (FR-003)
+      Persian does not split verbs into "-ing" vs "to" complements, so the wrong
+      form gets chosen after verbs like "like".
+    evidence:
+      - attempt_ordinal: 1
+        quote: "I like to programming"           # existing — verbatim, coherent (FR-006/FR-007)
+        corrected: "I like programming"          # NEW — the "Better:" line (FR-004); MUST differ from quote (FR-009)
+    # suggested_fix: ...                          # existing; retained for back-compat, MAY be omitted now
+
+# --- UNCHANGED keys (for reference) -------------------------------------------
+# session_id, started_at, question_id, question, attempts[] (+metrics),
+# generated_by_phase  — all exactly as in the base v1 contract.
+generated_by_phase: C

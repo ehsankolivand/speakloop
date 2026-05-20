@@ -1,11 +1,20 @@
 <!-- SPECKIT START -->
-Active feature: speakloop v1 — local English interview-practice CLI.
+Active feature: 002-post-session-debrief — educational LLM grammar feedback
+  (Persian-L1 catalog) + in-terminal interactive debrief (rich render + TTS
+  read-aloud + replay menu) closing the practice loop.
 
-Plan: specs/001-v1-product-spec/plan.md
-Spec: specs/001-v1-product-spec/spec.md
-Research (integration-layer only): specs/001-v1-product-spec/research.md
-Data model: specs/001-v1-product-spec/data-model.md
-Contracts: specs/001-v1-product-spec/contracts/
+Plan: specs/002-post-session-debrief/plan.md
+Spec: specs/002-post-session-debrief/spec.md
+Research (catalog format · impact ranking · rich.live vs rich.markdown):
+  specs/002-post-session-debrief/research.md
+Data model (additive frontmatter; schema_version stays 1):
+  specs/002-post-session-debrief/data-model.md
+Contracts: specs/002-post-session-debrief/contracts/
+New module: src/speakloop/debrief/ (render + audio + menu).
+Catalog/ranking derive from doc/research_methodology.md §1.1/§1.3.
+
+Base feature: speakloop v1 — local English interview-practice CLI.
+  Plan: specs/001-v1-product-spec/plan.md · Spec: specs/001-v1-product-spec/spec.md
 
 Engine selections cite the in-repo research documents:
   doc/research_tts.md (Kokoro-82M),
