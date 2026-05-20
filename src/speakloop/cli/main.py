@@ -60,11 +60,14 @@ def practice_cmd(
     listen_only: bool = typer.Option(
         False, "--listen-only", help="Skip the attempt phase even when ASR is installed."
     ),
+    no_audio: bool = typer.Option(
+        False, "--no-audio", help="Skip reading the debrief feedback aloud; show it visually only."
+    ),
 ) -> None:
     """Run a practice session."""
     from speakloop.cli import practice as _practice  # local import; engine touch is deferred.
 
-    _practice.run(question=question, listen_only=listen_only)
+    _practice.run(question=question, listen_only=listen_only, no_audio=no_audio)
 
 
 @app.command("doctor")

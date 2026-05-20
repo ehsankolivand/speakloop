@@ -72,7 +72,7 @@ def test_phase_c_report_has_grammar_patterns(tmp_sessions_dir, tmp_path):
         sessions_dir=tmp_sessions_dir,
         scratch_dir=tmp_path / "scratch",
         grammar_analyzer=grammar_runner,
-    )
+    ).report_path
     elapsed = time.monotonic() - start
 
     fm = yaml.safe_load(path.read_text().split("---\n", 2)[1])

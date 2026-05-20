@@ -1,8 +1,22 @@
-"""Composes Markdown frontmatter + body sections."""
+"""Composes Markdown frontmatter + body sections.
+
+Renders the additive 002 fields (data-model §A): a "Top priority for next
+session" section, the deterministic cross-attempt narrative, and impact-ranked
+three-line fixes ("You said / Better / Because", FR-012). The Phase-B grammar
+placeholder is preserved, and a Phase-C session that yields no actionable
+patterns gets an explicit "no patterns" line (FR-009/T040).
+"""
 
 from __future__ import annotations
 
 from speakloop.feedback import frontmatter
+from speakloop.feedback.catalog import OPEN_BUCKET_IMPACT_RANK
+
+# Exact body strings (also asserted by tests / T040).
+PHASE_B_PLACEHOLDER = (
+    "_Grammar feedback will appear here once Phase C (LLM analyzer) is enabled._"
+)
+NO_PATTERNS_LINE = "No actionable grammar patterns detected this session."
 
 
 def _attempt_row(a: frontmatter.Attempt) -> str:
@@ -24,6 +38,7 @@ def _attempts_table(attempts: list[frontmatter.Attempt]) -> str:
 
 
 def _cross_attempt_paragraph(attempts: list[frontmatter.Attempt]) -> str:
+    """Fallback narrative when a session carries no persisted narrative."""
     if len(attempts) < 3:
         return ""
     wpm1 = attempts[0].metrics.speech_rate_wpm
@@ -42,20 +57,51 @@ def _cross_attempt_paragraph(attempts: list[frontmatter.Attempt]) -> str:
     )
 
 
-def _grammar_section(patterns: list[frontmatter.GrammarPattern]) -> str:
-    if not patterns:
-        return (
-            "## Grammar patterns\n\n"
-            "_Grammar feedback will appear here once Phase C (LLM analyzer) is enabled._"
-        )
-    parts = ["## Grammar patterns"]
-    for p in patterns:
-        parts.append(f"\n### {p.label} *({p.occurrence_count}×)*")
-        for ev in p.evidence:
-            parts.append(f"> {ev.get('quote', '').strip()}")
-        if p.suggested_fix:
-            parts.append(f"Suggested: {p.suggested_fix}")
-    return "\n".join(parts)
+def _rank_key(p: frontmatter.GrammarPattern):
+    return (
+        p.impact_rank if p.impact_rank is not None else OPEN_BUCKET_IMPACT_RANK,
+        -p.occurrence_count,
+    )
+
+
+def _pattern_card(p: frontmatter.GrammarPattern) -> str:
+    """One impact-ranked finding rendered as "You said / Better / Because" (FR-012)."""
+    lines = [f"### {p.label} *({p.occurrence_count}×)*"]
+    primary = p.evidence[0] if p.evidence else {}
+    you_said = (primary.get("quote") or "").strip()
+    better = (primary.get("corrected") or "").strip()
+    if you_said:
+        lines.append(f"- **You said:** “{you_said}”")
+    if better and better != you_said:
+        lines.append(f"- **Better:** “{better}”")
+    if p.explanation:
+        lines.append(f"- **Because:** {p.explanation.strip()}")
+    # Additional examples beneath the primary three lines.
+    for ev in p.evidence[1:]:
+        q = (ev.get("quote") or "").strip()
+        c = (ev.get("corrected") or "").strip()
+        if q and c and c != q:
+            lines.append(f"  - “{q}” → “{c}”")
+        elif q:
+            lines.append(f"  - “{q}”")
+    return "\n".join(lines)
+
+
+def _grammar_section(session: frontmatter.Session) -> str:
+    patterns = sorted(session.grammar_patterns, key=_rank_key)
+    if patterns:
+        parts = ["## Grammar patterns"]
+        parts.extend("\n" + _pattern_card(p) for p in patterns)
+        return "\n".join(parts)
+    # No patterns: distinguish "LLM ran, found nothing" from "Phase C not enabled".
+    placeholder = NO_PATTERNS_LINE if session.generated_by_phase == "C" else PHASE_B_PLACEHOLDER
+    return f"## Grammar patterns\n\n{placeholder}"
+
+
+def _top_priority_section(session: frontmatter.Session) -> str | None:
+    if not session.top_priority:
+        return None
+    return f"## Top priority for next session\n\n{session.top_priority.strip()}"
 
 
 def _transcripts_section(attempts: list[frontmatter.Attempt]) -> str:
@@ -68,19 +114,24 @@ def _transcripts_section(attempts: list[frontmatter.Attempt]) -> str:
 def build(session: frontmatter.Session, *, title: str | None = None) -> str:
     fm = frontmatter.dump(session)
     title = title or f"{session.question_id} — {session.started_at.date().isoformat()}"
-    parts = [
-        fm,
-        f"# {title}",
-        "",
+    narrative = session.cross_attempt_narrative or _cross_attempt_paragraph(session.attempts)
+
+    parts = [fm, f"# {title}", ""]
+
+    top_priority = _top_priority_section(session)
+    if top_priority is not None:
+        parts += [top_priority, ""]
+
+    parts += [
         "## Attempt-by-attempt summary",
         "",
         _attempts_table(session.attempts),
         "",
         "## Cross-attempt comparison",
         "",
-        _cross_attempt_paragraph(session.attempts),
+        narrative,
         "",
-        _grammar_section(session.grammar_patterns),
+        _grammar_section(session),
         "",
         _transcripts_section(session.attempts),
     ]

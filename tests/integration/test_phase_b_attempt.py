@@ -73,7 +73,7 @@ def test_full_phase_b_session(tmp_sessions_dir, tmp_path):
         record_fn=_stub_record_factory(),
         sessions_dir=tmp_sessions_dir,
         scratch_dir=tmp_path / "scratch",
-    )
+    ).report_path
     assert path.exists()
     # Exactly one .md
     md_files = list(tmp_sessions_dir.glob("*.md"))
@@ -109,14 +109,14 @@ def test_filename_disambiguation_on_repeat(tmp_sessions_dir, tmp_path):
         record_fn=_stub_record_factory(),
         sessions_dir=tmp_sessions_dir,
         scratch_dir=tmp_path / "scratch1",
-    )
+    ).report_path
     p2 = coordinator.run_session(
         q,
         asr_engine=StubASR(list(transcripts)),
         record_fn=_stub_record_factory(),
         sessions_dir=tmp_sessions_dir,
         scratch_dir=tmp_path / "scratch2",
-    )
+    ).report_path
     assert p1.exists() and p2.exists()
     assert p1 != p2
     assert p2.name.endswith("-2.md")

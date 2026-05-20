@@ -41,7 +41,7 @@ def test_silent_attempt_2_yields_zero_metrics(tmp_sessions_dir, tmp_path):
         record_fn=_stub_record,
         sessions_dir=tmp_sessions_dir,
         scratch_dir=tmp_path / "scratch",
-    )
+    ).report_path
     fm = yaml.safe_load(path.read_text().split("---\n", 2)[1])
     silent = fm["attempts"][1]
     assert silent["metrics"]["words_total"] == 0

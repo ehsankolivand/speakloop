@@ -15,6 +15,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import NamedTuple
 
 from rich.console import Console
 from rich.progress import (
@@ -28,13 +29,25 @@ from speakloop.asr import ASREngine, Transcript
 from speakloop.audio import recorder
 from speakloop.config import paths
 from speakloop.content import Question
-from speakloop.feedback import frontmatter, markdown_writer, report_builder
+from speakloop.feedback import frontmatter, markdown_writer, narrative, report_builder
 from speakloop.metrics import compute_all
 from speakloop.sessions import abort, timer
 
 
 class AbortedError(Exception):
     """Raised when the user aborts the session via SIGINT."""
+
+
+class SessionResult(NamedTuple):
+    """Return value of :func:`run_session` (data-model §D).
+
+    Additive: the report is still written exactly as before (``report_path``),
+    and the fully-populated in-memory ``session`` is returned alongside so the
+    debrief can render from typed data without re-parsing the Markdown file.
+    """
+
+    report_path: Path
+    session: frontmatter.Session
 
 
 def _spawn_enter_reader(
@@ -216,10 +229,12 @@ def run_session(
     sessions_dir: Path | None = None,
     scratch_dir: Path | None = None,
     now=datetime.now,
-) -> Path:
-    """Run a full session for one Question; return the report path on success.
+) -> SessionResult:
+    """Run a full session for one Question; return the report path + Session.
 
-    Raises AbortedError on SIGINT.
+    The report is written exactly as before; the populated in-memory ``Session``
+    is returned alongside (data-model §D) so the caller can drive the debrief
+    without re-reading the file. Raises AbortedError on SIGINT.
     """
     console = console or Console()
     sessions_dir = Path(sessions_dir or paths.sessions_dir())
@@ -293,8 +308,12 @@ def run_session(
         attempts=attempts,
         grammar_patterns=grammar_patterns,
         generated_by_phase=phase,
+        # Deterministic, persisted narrative + Top priority (FR-008). Computed
+        # for every phase: a Phase-B report still carries fluency-only guidance.
+        cross_attempt_narrative=narrative.build_narrative(attempts, grammar_patterns),
+        top_priority=narrative.select_top_priority(grammar_patterns, attempts),
     )
     body = report_builder.build(session)
     markdown_writer.write_atomic(report_path, body)
     console.print(f"[green]Report written:[/green] {report_path}")
-    return report_path
+    return SessionResult(report_path=report_path, session=session)

@@ -1,0 +1,52 @@
+# Gold-set transcript fixtures (T016) — human-labelled ground truth for SC-002 /
+# SC-003. See README.md. The LLM is always stubbed in tests; these cases are what
+# the stub's output is checked against by tests/unit/feedback/test_grammar_analyzer.py.
+#
+# Each `quote` is a VERBATIM substring of the named attempt transcript below
+# (FR-007). Catalog cases must surface with the given label + catalog_id and a
+# `corrected` differing from the quote (FR-004/FR-009). Garble cases must be
+# dropped by the coherence filter (FR-006).
+
+# The three attempt transcripts (what the speaker actually said). Together they
+# contain every `quote` below as an exact substring.
+transcripts:
+  attempt_1: >-
+    So I like to programming since university and I work on Android apps every
+    day. Killing RT check. I really enjoy building mobile software.
+  attempt_2: >-
+    I have eight year experience in mobile development and I build payment
+    systems for a fintech company.
+  attempt_3: >-
+    Honestly I like my job even bigger than ten years ago when I first started
+    writing code.
+
+# Patterns the analyzer SHOULD surface, each anchored to a catalog entry.
+catalog_cases:
+  - id: gerund
+    quote: "I like to programming"
+    attempt_ordinal: 1
+    expected_label: "gerund/infinitive confusion"
+    expected_catalog_id: "gerund-infinitive-confusion"
+    expected_impact_rank: 2
+    corrected: "I like programming"
+  - id: plural
+    quote: "eight year experience"
+    attempt_ordinal: 2
+    expected_label: "plural/singular agreement"
+    expected_catalog_id: "plural-agreement"
+    expected_impact_rank: 3
+    corrected: "eight years of experience"
+  - id: comparative
+    quote: "I like my job even bigger than ten years ago"
+    attempt_ordinal: 3
+    expected_label: "comparative form error"
+    expected_catalog_id: "comparative-form"
+    expected_impact_rank: 2
+    corrected: "I like my job even more than ten years ago"
+
+# Evidence the analyzer MUST drop as ASR garble (FR-006), even though it is a
+# verbatim substring of attempt 1.
+garble_cases:
+  - quote: "Killing RT check"
+    attempt_ordinal: 1
+    expected_dropped: true

@@ -219,6 +219,7 @@ def run(
     *,
     question: str | None = None,
     listen_only: bool = False,
+    no_audio: bool = False,
     tts_engine=None,
     play_fn=None,
     audio_devices=devices,
@@ -267,30 +268,65 @@ def run(
     if play_fn is None:
         play_fn = playback.play
 
-    # Listen phase runs in both modes — the user hears the question + ideal
-    # answer before deciding to advance to attempts.
-    exit_key = _listen_loop(chosen, console, tts_engine, play_fn)
-
-    if listen_only or exit_key != " ":
-        # listen-only flag, or user pressed q / Enter — done.
+    # --listen-only: hear the question + ideal answer; no attempts, no debrief.
+    if listen_only:
+        _listen_loop(chosen, console, tts_engine, play_fn)
         return
 
-    # Phase B: advance to attempts. Pre-check microphone (FR-009).
+    # Phase B/C: advance to attempts. Pre-check microphone (FR-009).
     if audio_devices.default_input() is None:
         console.print("[red]No microphone detected. Run `speakloop doctor` for remediation.[/red]")
         raise typer.Exit(1)
 
-    from speakloop.sessions.coordinator import run_session
+    from speakloop import debrief
+    from speakloop.asr.parakeet_engine import ParakeetEngine
+    from speakloop.sessions import coordinator
 
+    # Construct the engines ONCE, before the loop, and inject them into every
+    # session. Replay reuses these resident instances — no model reload — so the
+    # next "press space to begin attempt 1" appears in < 3 s (SC-004,
+    # research.md §d). The grammar analyzer closure holds a lazily-loaded,
+    # memoised QwenEngine; Kokoro is already injected.
+    asr_engine = ParakeetEngine()
     grammar_analyzer = _build_grammar_analyzer()
 
-    run_session(
-        chosen,
-        tts_engine=tts_engine,
-        play_fn=play_fn,
-        console=console,
-        grammar_analyzer=grammar_analyzer,
-    )
+    current = chosen
+    need_listen = True
+    while True:
+        # The listen phase runs on the first question and on NEW — but NOT on
+        # REPLAY, which goes straight back to the attempts (FR-025/FR-026).
+        if need_listen:
+            exit_key = _listen_loop(current, console, tts_engine, play_fn)
+            if exit_key != " ":  # q / Enter / EOF → leave practice
+                return
+
+        result = coordinator.run_session(
+            current,
+            asr_engine=asr_engine,
+            console=console,
+            grammar_analyzer=grammar_analyzer,
+        )
+
+        choice = debrief.run(
+            result.session,
+            sessions_dir=result.report_path.parent,
+            tts_engine=tts_engine,
+            play_fn=play_fn,
+            no_audio=no_audio,
+            console=console,
+        )
+
+        if choice == debrief.DebriefChoice.REPLAY:
+            need_listen = False  # skip the listen phase; reuse resident engines
+            continue
+        if choice == debrief.DebriefChoice.NEW:
+            picked = _pick_question(qa_file, console)
+            if picked is None:
+                return
+            current = picked
+            need_listen = True
+            continue
+        return  # QUIT
 
 
 def _build_grammar_analyzer():
