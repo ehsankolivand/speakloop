@@ -1,20 +1,28 @@
 <!-- SPECKIT START -->
-Active feature: 003-asr-l2-accent-accuracy — faithful transcripts on Persian-L1
-  accented technical English. Default ASR swaps to Whisper-large-v3-turbo
-  (mlx-whisper); Parakeet-TDT kept as `--asr-engine parakeet` flag + automatic
-  fallback. Adds per-session domain biasing (initial_prompt) + Silero-VAD
-  pre-segmentation; provenance recorded as an additive `asr:` frontmatter key
-  (schema_version stays 1).
+Active feature: 004-public-release-readiness — make speakloop cloneable & runnable
+  by a stranger. Default questions move to a discoverable in-repo
+  `content/questions.yaml`; `~/.speakloop/qa.yaml` becomes an opt-in personal
+  override (precedence: --qa-file → home override → repo default; no auto-copy).
+  Adds a stdlib+git path-portability audit (pytest, < 2 s) that fails on any
+  machine-specific absolute path. Rewrites the root README (pitch · platforms ·
+  install · quickstart · annotated report example · known limitations ·
+  troubleshooting). No new dependency; report schema_version stays 1; MIT LICENSE
+  present.
 
-Plan: specs/003-asr-l2-accent-accuracy/plan.md
-Spec: specs/003-asr-l2-accent-accuracy/spec.md
-Research (domain mining · VAD thresholds · cross-session model memoization):
-  specs/003-asr-l2-accent-accuracy/research.md
-Data model (additive asr provenance; TranscriptionContext; SpeechRegion):
-  specs/003-asr-l2-accent-accuracy/data-model.md
-Contracts: specs/003-asr-l2-accent-accuracy/contracts/
-Work stays inside src/speakloop/asr/ (new: whisper_mlx_engine, vad,
-  domain_context, selection, seed_lexicon); compass is doc/research_asr_l2_accent.md.
+Plan: specs/004-public-release-readiness/plan.md
+Spec: specs/004-public-release-readiness/spec.md
+Research: specs/004-public-release-readiness/research.md
+Data model: specs/004-public-release-readiness/data-model.md
+Contracts: specs/004-public-release-readiness/contracts/ (question-resolution · path-audit)
+Code touchpoints: src/speakloop/config/paths.py (default_qa_file/resolve_qa_file),
+  src/speakloop/cli/practice.py (resolution + FR-006 error), content/questions.yaml
+  (migrated), tests/integration/test_path_portability_audit.py (new), README.md.
+
+Prior feature: 003-asr-l2-accent-accuracy — faithful transcripts on Persian-L1
+  accented technical English. Default ASR Whisper-large-v3-turbo (mlx-whisper),
+  Parakeet-TDT via `--asr-engine parakeet` + automatic fallback; per-session domain
+  biasing + Silero-VAD; additive `asr:` frontmatter key (schema_version stays 1).
+  Plan: specs/003-asr-l2-accent-accuracy/plan.md · Spec: specs/003-asr-l2-accent-accuracy/spec.md
 
 Prior feature: 002-post-session-debrief — educational LLM grammar feedback
   (Persian-L1 catalog) + in-terminal interactive debrief.
