@@ -44,7 +44,7 @@ uv run speakloop practice --listen-only
 
 The installer flow runs first:
 
-1. The tool prints the list of models needed for listen-only — in v1 that is **Kokoro-82M (~330 MB)** to `~/.speakloop/models/Kokoro-82M/`.
+1. The tool prints the list of models needed for listen-only — in v1 that is **Kokoro-82M (~370 MB on disk; ~170 MB of bf16 weights + voice packs)** to `~/.speakloop/models/mlx-community__Kokoro-82M-bf16/`.
 2. Prompt: `Proceed with download? [y/N]:` — type `y` to consent.
 3. A `rich` progress bar shows the download. **If you Ctrl+C now, the partial file is preserved; re-running resumes from the existing byte offset** (FR-021, SC-002).
 4. After validation, the question picker opens. Arrow keys to pick a question from the starter file.
@@ -70,7 +70,17 @@ The installer prompts again for the additional models (Parakeet ASR ~2.4 GB). Af
 
 ## 6. Full report with grammar feedback (Phase C)
 
-Re-run `uv run speakloop practice`. The installer prompts for the LLM (Qwen3.5-9B ~5.1 GB). After consent and download, the next session's report includes the **Grammar patterns** section with evidence quotes, and `generated_by_phase: C`.
+Phase C is opt-in. `speakloop practice` auto-installs Phase A (listen-only) or Phase B (default); it does **not** auto-install the Phase-C LLM. Fetch it explicitly via the installer module:
+
+```bash
+uv run python -c "from speakloop.installer import ensure_models; from rich.console import Console; ensure_models('C', console=Console())"
+```
+
+This goes through the same consent prompt, size disclosure, and resumable-download flow as `practice`, and writes **Qwen3-8B-4bit (~4.62 GB)** to `~/.speakloop/models/mlx-community__Qwen3-8B-4bit/`. (Direct `huggingface-cli download` works for the bytes but bypasses the consent prompt, manifest validation, and target-path logic — prefer the installer module.)
+
+After the download completes, the next `uv run speakloop practice` session detects the Phase-C model via the validator check in `cli/practice.py` and automatically wires the LLM grammar analyzer into the report. The resulting report has the **Grammar patterns** section with evidence quotes and `generated_by_phase: C`.
+
+_Future work_: v2 should expose this as a first-class `speakloop install --phase C` subcommand (or auto-escalate `practice` to Phase C with consent), and route the doctor remediation message through it.
 
 ## 7. Review your progress (Phase C)
 

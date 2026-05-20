@@ -10,7 +10,9 @@ Contracts: specs/001-v1-product-spec/contracts/
 Engine selections cite the in-repo research documents:
   doc/research_tts.md (Kokoro-82M),
   doc/research_asr.md (Parakeet-TDT-0.6b-v3),
-  doc/research_llm.md (Qwen3.5-9B).
+  doc/research_llm.md (Qwen3-8B 4-bit — deviates from the initial Qwen3.5-9B
+    research choice because that HF repo turned out to be a VLM incompatible
+    with mlx_lm.load(); see installer/manifest.py rationale comment).
 
 Constitution: .specify/memory/constitution.md (v1.0.0).
 Shipping order is three phases (A: listen-only, B: attempts + metrics, C: LLM feedback + trends);
@@ -35,7 +37,7 @@ imports live in exactly one file per engine (Principle V).
 | `audio/`      | Playback, recording, device probing                       | [src/speakloop/audio/CLAUDE.md](src/speakloop/audio/CLAUDE.md) |
 | `asr/`        | ASR engine wrapper (Parakeet-TDT-0.6b-v3) [Phase B]       | [src/speakloop/asr/CLAUDE.md](src/speakloop/asr/CLAUDE.md) |
 | `metrics/`    | Fluency metrics                                            | [src/speakloop/metrics/CLAUDE.md](src/speakloop/metrics/CLAUDE.md) |
-| `llm/`        | LLM engine wrapper (Qwen3.5-9B MLX 4-bit) [Phase C]       | [src/speakloop/llm/CLAUDE.md](src/speakloop/llm/CLAUDE.md) |
+| `llm/`        | LLM engine wrapper (Qwen3-8B MLX 4-bit) [Phase C]         | [src/speakloop/llm/CLAUDE.md](src/speakloop/llm/CLAUDE.md) |
 | `feedback/`   | Frontmatter, atomic writer, report builder, grammar analyzer | [src/speakloop/feedback/CLAUDE.md](src/speakloop/feedback/CLAUDE.md) |
 | `sessions/`   | 4/3/2 coordinator, timer, signal handling                 | [src/speakloop/sessions/CLAUDE.md](src/speakloop/sessions/CLAUDE.md) |
 | `trends/`     | Cross-session dashboard [Phase C]                         | [src/speakloop/trends/CLAUDE.md](src/speakloop/trends/CLAUDE.md) |

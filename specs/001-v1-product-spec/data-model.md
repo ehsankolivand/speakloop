@@ -98,7 +98,7 @@ A fixed-shape record computed from the transcript and the recorded duration. The
 | `speech_rate_wpm` | float | words/min | `words_total / (actual_duration_seconds / 60)`. |
 | `filler_words_count` | int | count | Configurable list: `uh`, `um`, `like`, `you know`, … Methodology doc to finalize the list. |
 | `filler_density_per_100_words` | float | per 100 words | `filler_words_count / words_total * 100`. |
-| `pauses_count` | int | count | A pause is any non-speech segment ≥ 600 ms in the WAV (or `≥ pause_threshold_ms` if methodology doc specifies otherwise). |
+| `pauses_count` | int | count | A pause is any non-speech segment ≥ 250 ms (FR-012b, matching the MLR threshold cited in `doc/research_methodology.md`). |
 | `mean_pause_ms` | float | ms | Average pause duration. |
 | `self_corrections_count` | int | count | Heuristic from transcript: false-start tokens / repaired phrases. Methodology doc to refine. |
 
@@ -228,7 +228,7 @@ Tracked by the installer.
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `name` | string | Display name (`Kokoro-82M`, `Parakeet-TDT-0.6b-v3`, `Qwen3.5-9B-MLX-4bit`). |
+| `name` | string | Display name (`Kokoro-82M`, `Parakeet-TDT-0.6b-v3`, `Qwen3-8B-4bit`). |
 | `hf_repo_id` | string | HuggingFace repo for `snapshot_download`. |
 | `expected_size_bytes` | int | For consent disclosure and validation. |
 | `local_path` | string | Under `~/.speakloop/models/<repo-id-slug>/`. |

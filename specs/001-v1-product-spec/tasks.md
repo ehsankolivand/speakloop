@@ -84,7 +84,7 @@ Single-project Python CLI per plan.md § "Project Structure":
 
 ### Implementation for User Story 3
 
-- [X] T032 [P] [US3] Implement `src/speakloop/installer/manifest.py` — `Model` dataclass + `PHASE_A_MODELS` (Kokoro-82M), `PHASE_B_MODELS` (Kokoro + Parakeet-TDT-0.6b-v3), `PHASE_C_MODELS` (+ Qwen3.5-9B-MLX-4bit). `hf_repo_id` and approximate `expected_size_bytes` per `doc/research_{tts,asr,llm}.md`. The ONLY file that needs editing on engine swap at manifest level (Principle V)
+- [X] T032 [P] [US3] Implement `src/speakloop/installer/manifest.py` — `Model` dataclass + `PHASE_A_MODELS` (Kokoro-82M), `PHASE_B_MODELS` (Kokoro + Parakeet-TDT-0.6b-v3), `PHASE_C_MODELS` (+ Qwen3-8B-4bit; deviates from the initial `Qwen3.5-9B-MLX-4bit` choice because that HF repo is a VLM incompatible with `mlx_lm.load()` — see manifest rationale comment and `research.md` § LLM Decision). `hf_repo_id` and approximate `expected_size_bytes` per `doc/research_{tts,asr,llm}.md`. The ONLY file that needs editing on engine swap at manifest level (Principle V)
 - [X] T033 [P] [US3] Implement `src/speakloop/installer/consent.py` — `rich`-rendered prompt listing models with size + target path + total disk footprint; default `N`; FR-019, FR-020
 - [X] T034 [US3] Implement `src/speakloop/installer/downloader.py` — `download_model(model: Model) -> None` wrapping `huggingface_hub.snapshot_download(..., resume_download=True, local_dir=model.local_path)` with `rich.progress` overlay; FR-021; depends on T032
 - [X] T035 [US3] Implement `src/speakloop/installer/validator.py` — `validate(model: Model) -> ValidationResult`; size check + `etag` marker check per research.md § "Resumable download primitive"; corrupt → missing per FR-022; depends on T032
@@ -173,7 +173,7 @@ This story is split across **Phase B** (attempts + transcription + metrics + int
 
 ### Tests for User Story 2 — Phase C (LLM grammar feedback)
 
-> **⚠️ BLOCKED**: Tasks T082–T088 MUST NOT begin until `doc/research_methodology.md` is authored (Constitution Principle X; plan.md § Complexity Tracking). The seed-5 catalog (FR-013a) and the LLM analyzer prompt depend on that document.
+> **Historical blocker (now resolved)**: Tasks T082–T088 were originally gated on `doc/research_methodology.md` being authored (Constitution Principle X; plan.md § Complexity Tracking). The seed-5 catalog (FR-013a) and the LLM analyzer prompt depend on that document. The methodology doc was authored before this group started and all tasks below are now complete.
 
 - [X] T082 [P] [US2] Unit test `tests/unit/llm/test_qwen_engine.py` — with `mlx_lm` monkeypatched to a stub returning a canned response, assert `generate(system, user)` returns the canned text; assert response contains NO `<think>` substring (Qwen3-8B leak guard, research.md § LLM); raises `LLMEngineError` on stub failure
 - [X] T083 [P] [US2] Unit test `tests/unit/feedback/test_grammar_analyzer.py` — feed fixture 3-attempt transcripts that contain seed-5 examples (3sg-`s` drop, aux-be/do drop, definite-article omission, preposition substitution, possessor-order transfer); with mocked LLM, assert each seed pattern appears with ≥ 1 evidence quote drawn verbatim from a transcript (FR-013a, FR-013); a pattern absent from the transcripts is OMITTED, not reported as zero (FR-013c); an LLM-surfaced pattern with ≥ 2 occurrences appears labelled "other recurring pattern" (FR-013b)
@@ -258,11 +258,11 @@ This story is split across **Phase B** (attempts + transcription + metrics + int
 
 - [X] T103 [P] Finalize top-level `CLAUDE.md` with the complete module list and links to every per-module `CLAUDE.md` (Principle XI)
 - [X] T104 [P] Update `README.md` with install command, link to `quickstart.md`, and a note documenting the Phase-A-only and Phase-B-only install paths so partial-phase users have a useful tool (Principle XII)
-- [ ] T105 Run `quickstart.md` end-to-end on a clean macOS arm64 environment — verify SC-001 (≤ 30 minutes to practice menu excluding download bytes), SC-006 (≤ 2 s `--help`) **— DEFERRED to real-hardware verification; SC-006 verified in-process (`uv run speakloop --help` ≈ 0.25 s).**
+- [DEFERRED] T105 Run `quickstart.md` end-to-end on a clean macOS arm64 environment — verify SC-001 (≤ 30 minutes to practice menu excluding download bytes), SC-006 (≤ 2 s `--help`). **Reason: deferred to real-hardware verification on a fresh clone; SC-006 has been verified in-process on the build machine (`uv run speakloop --help` ≈ 0.25 s).**
 - [X] T106 SC-009 verification: with all models present, disable network (e.g., `networkdown` shell function or unplug Wi-Fi), run `speakloop practice` and `speakloop trends` end-to-end; assert NO outbound network call observed (FR-023, FR-037) **— Verified via `tests/integration/test_offline_after_install.py` (socket monkeypatch fixture): `practice --listen-only`, `trends`, and `doctor` all complete with zero socket construction.**
-- [ ] T107 [P] SC-003 performance measurement on target M-series hardware — full Phase-C session; assert report is written within 60 s of attempt 3 ending; tune `mlx_lm` generation params (`max_tokens`, temperature) in `qwen_engine.py` if necessary **— DEFERRED to real-hardware verification; SC-003 verified on the mock path in T084 (< 1 s).**
+- [DEFERRED] T107 [P] SC-003 performance measurement on target M-series hardware — full Phase-C session; assert report is written within 60 s of attempt 3 ending; tune `mlx_lm` generation params (`max_tokens`, temperature) in `qwen_engine.py` if necessary. **Reason: deferred to real-hardware verification; SC-003 has been verified on the mock path in T084 (< 1 s). Phase-C latency on real M-series hardware is a separate calibration pass.**
 - [X] T108 [P] Final `ruff check` + `ruff format` sweep; ensure all module `__init__.py` re-exports match the public surface documented in each `CLAUDE.md`
-- [X] T109 Constitution Principle V audit: `grep -rE '^(from|import) (kokoro_mlx|mlx_audio|parakeet_mlx|mlx_lm)' src/speakloop/` MUST return exactly three matches — one in `tts/kokoro_engine.py`, one in `asr/parakeet_engine.py`, one in `llm/qwen_engine.py`; fail loudly otherwise
+- [X] T109 Constitution Principle V audit: `grep -rE '^\s*(from|import) (kokoro_mlx|mlx_audio|parakeet_mlx|mlx_lm)' src/speakloop/`. The leading `\s*` allows lazy/indented imports inside wrapper functions. Principle V requires every match to live inside one of the three wrapper files — `tts/kokoro_engine.py`, `asr/parakeet_engine.py`, or `llm/qwen_engine.py`. **Match count MAY exceed three** (e.g., `mlx_lm`, `mlx_lm.sample_utils`, `mlx_lm.generate` all count). The audit fails loudly if any path outside the three wrapper files appears in the output.
 
 ---
 
@@ -339,9 +339,9 @@ Task: "src/speakloop/metrics/self_corrections.py + test_self_corrections.py"    
 2. **Phase B**: Add Story 2 Phase B (T051–T081). Sessions now produce interim Markdown reports with metrics. Phase B ships as a complete practice-with-feedback tool.
 3. **Phase C**: After `doc/research_methodology.md` is authored, unblock T082–T088 and complete Story 2 Phase C. Add Story 4 (trends). v1 complete.
 
-### Hard blocker
+### Hard blocker (resolved)
 
-- **`doc/research_methodology.md` must exist on disk before T082 begins.** This is the Constitution Principle X tracked exception in plan.md § Complexity Tracking. Phase A and Phase B are fully unblocked.
+- **`doc/research_methodology.md` was required on disk before T082 began.** This was the Constitution Principle X tracked exception in plan.md § Complexity Tracking. The document was authored before Phase C work started; all of Phase A, Phase B, and Phase C are shipped.
 
 ---
 

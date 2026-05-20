@@ -10,9 +10,9 @@ speakloop is a CLI tool that runs three local AI engines (TTS, ASR, LLM) on Appl
 
 Engine choices are pre-resolved by the in-repo research documents and are NOT re-litigated here:
 
-- **TTS**: Kokoro-82M via `kokoro-mlx` / `mlx-audio` (Apache 2.0, native MLX, IPA override via Misaki). Fallback engine candidate per `doc/research_tts.md`: Piper. — See `doc/research_tts.md`.
+- **TTS**: Kokoro-82M via `kokoro-mlx` (Apache 2.0, native MLX, IPA override via Misaki). Fallback engine candidate per `doc/research_tts.md`: Piper. — See `doc/research_tts.md`.
 - **ASR**: Parakeet-TDT-0.6b-v3 via `parakeet-mlx` (RNN-T/TDT — does **not** hallucinate on silence; ~2 GB peak RAM; native MLX). Fallback: faster-whisper. — See `doc/research_asr.md`.
-- **LLM**: Qwen3.5-9B (MLX 4-bit) via `mlx_lm` (Apache 2.0, thinking disabled by default — sidesteps the Qwen3-8B `<think>`-leak bug, 262 K context, ~5.1 GB on disk). Fallback: Llama 3.1 8B Instruct. — See `doc/research_llm.md`.
+- **LLM**: Qwen3-8B (MLX 4-bit) via `mlx_lm` (Apache 2.0; thinking suppressed via `apply_chat_template(enable_thinking=False)` plus a defensive `<think>` regex strip — sidesteps the documented `<think>`-leak bug; ~4.62 GB on disk). The `mlx-community/Qwen3.5-9B-MLX-4bit` repo turned out to be a vision-language model incompatible with `mlx_lm.load()` — see the rationale comment in `src/speakloop/installer/manifest.py`. Fallback: Llama 3.1 8B Instruct. — See `doc/research_llm.md`.
 
 Implementation is sequenced into three end-user-facing phases per the user's input, each shipping a complete working system: **Phase A** (TTS-only listening practice), **Phase B** (record + transcribe + fluency metrics), **Phase C** (LLM-generated feedback report + trends dashboard).
 
@@ -24,9 +24,10 @@ Implementation is sequenced into three end-user-facing phases per the user's inp
 
 **Primary Dependencies** (grouped by phase):
 
-- **Phase A**: `kokoro-mlx` or `mlx-audio` (TTS), `huggingface_hub` (resumable download primitives), `pyyaml` (Q&A loader), `sounddevice` + `soundfile` (audio playback), `rich` (CLI rendering — Constitution Non-Negotiable), `typer` (argument parser — pairs with `rich`; standard-library `argparse` is a fallback if `typer` adds unwanted weight).
+- **Phase A**: `kokoro-mlx` (TTS), `huggingface_hub` (resumable download primitives), `pyyaml` (Q&A loader), `sounddevice` + `soundfile` (audio playback), `rich` (CLI rendering — Constitution Non-Negotiable), `typer` (argument parser — pairs with `rich`; standard-library `argparse` is a fallback if `typer` adds unwanted weight).
 - **Phase B (additional)**: `parakeet-mlx` (ASR), `sounddevice` already covers recording, `numpy` (already a transitive dep of every audio package above).
 - **Phase C (additional)**: `mlx-lm` (LLM driver), `python-frontmatter` (parse Markdown reports for trends — alternative: hand-roll a 30-line YAML-block reader).
+- **Installed but unused** (deferred cleanup): `readchar>=4.2.2`. The prior listen-loop keypress path used `readchar`; the as-built 2-tier tty implementation in `cli/practice.py` reads via `termios`+`tty.setcbreak` directly, leaving `readchar` resident but unreferenced.
 
 **Storage**: Filesystem only. Models under `~/.speakloop/models/` (Constitution Non-Negotiable). Session reports under `data/sessions/` (Constitution Principle IX). Q&A YAML at `~/.speakloop/qa.yaml` with starter file `src/speakloop/content/starter.yaml` shipped in-repo and copied on first run if no user file exists.
 
@@ -68,7 +69,7 @@ Implementation is sequenced into three end-user-facing phases per the user's inp
 | VII. Apple Silicon Primary Target | PASS | All three chosen engines have native MLX paths per the research docs. |
 | VIII. Easy Install for Everyone | PASS | `uv run speakloop` flow with explicit consent gate (FR-019); `--help` works model-free (FR-018). |
 | IX. Obsidian-Compatible Reports | PASS | Markdown + YAML frontmatter under `data/sessions/` with versioned schema (FR-010, FR-011, FR-015). |
-| X. Research is Part of the Repo | **VIOLATION (tracked)** | `doc/research_methodology.md` is required by Principle X and is referenced by FR-012/FR-013 — but does not yet exist on disk. See **Complexity Tracking** below. Does not block Phase A or Phase B implementation; blocks Phase C task generation. |
+| X. Research is Part of the Repo | PASS | All four research files (`research_tts.md`, `research_asr.md`, `research_llm.md`, `research_methodology.md`) are present in `doc/`. The previously-tracked exception (methodology doc missing) was resolved before Phase C work began; see **Complexity Tracking** below for the resolution note. |
 | XI. AI-Collaborator Friendly | PASS by design | Top-level `CLAUDE.md` is the map; every module ships its own `CLAUDE.md`. |
 | XII. Iterative Delivery | PASS | The three-phase shipping order below makes the TTS-only MVP usable before B and C land. |
 
@@ -228,11 +229,11 @@ LICENSE                           # MIT
 
 ## Complexity Tracking
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| `doc/research_methodology.md` is not yet present on disk, violating Constitution Principle X (which names this file by path). | The methodology document is the authoritative source for which fluency metrics and grammar patterns the system computes (cited by spec FR-012, FR-013). Without it, `feedback/grammar_analyzer.py` and the `metrics/` module cannot be specified at task-level granularity. | "Pick the metrics ad hoc during implementation" was rejected because it would (a) violate Principle X, (b) make the choice un-reviewable, and (c) defeat the iterative-research foundation of the project. Disposition: the `speckit-tasks` step for Phase C MUST NOT generate tasks until `doc/research_methodology.md` is authored. Phase A and Phase B are unblocked. |
+| Violation | Resolution |
+|-----------|------------|
+| (Historical) `doc/research_methodology.md` was not present on disk at planning time, violating Constitution Principle X. | **Resolved.** The methodology document was authored before Phase C task generation began; `feedback/grammar_analyzer.py` and the `metrics/` module are specified against it. All seed-5 grammar patterns (FR-013a) and the 250 ms pause threshold (FR-012b) trace back to this document. |
 
-No other violations.
+No outstanding violations.
 
 ## Notes on user input
 

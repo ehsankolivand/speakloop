@@ -70,16 +70,19 @@ Read all reports under `data/sessions/`, render an aggregated summary in the ter
 
 ## First-run flow (FR-019..FR-021)
 
-`speakloop practice` and `speakloop trends` both call the installer before doing any work. The installer:
+`speakloop practice` calls the installer before doing any work. `speakloop trends` and `speakloop doctor` do **not** — they only read state. The installer:
 
-1. Computes which models are needed for the requested phase.
+1. Computes which models are needed for the requested phase. `practice` escalates to phase `A` with `--listen-only`, phase `B` otherwise. **Phase `C` (the LLM) is not auto-installed by any CLI command in v1**; fetch it by invoking the installer module directly:
+
+   ```bash
+   uv run python -c "from speakloop.installer import ensure_models; from rich.console import Console; ensure_models('C', console=Console())"
+   ```
+
 2. For each model NOT validated locally, lists name + HF repo + size + target path.
 3. Sums sizes; prints total disk footprint.
 4. Asks `Proceed with download? [y/N]:` — **default is N** (decline-by-default is safer for consent flows).
 5. On `n` or EOF, exits 1 without writing any file.
 6. On `y`, calls `huggingface_hub.snapshot_download(... resume_download=True)` for each model in turn, with `rich.progress` shown.
-
-`speakloop doctor` does NOT trigger a download — it only reports state.
 
 `speakloop --help` does NOT trigger anything but help printing — it MUST work without models (FR-018).
 
