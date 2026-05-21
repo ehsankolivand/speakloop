@@ -1,0 +1,14 @@
+Pre-edit baseline (T001) — Context Engineering Audit (005)
+==========================================================
+git HEAD at baseline : 4c3c096ef5b42630d846785dd1a1daebf8e2d34b
+git status --porcelain (before any CLAUDE.md rewrite):
+   M .specify/feature.json
+   M CLAUDE.md          (SPECKIT-managed block already advanced to 005)
+  ?? doc/research_context_engineering.md
+  ?? specs/005-context-engineering-audit/
+
+pytest result (uv run pytest -q):
+  306 passed, 3 skipped, 3 warnings in 8.00s
+  (the 3 skips are the optional local repro-gate fixtures, unrelated to this feature)
+
+This is the green baseline the rewrite must preserve (SC-H, gate G8).

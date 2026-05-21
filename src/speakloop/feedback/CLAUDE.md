@@ -1,35 +1,53 @@
 # feedback
 
-Session-report assembly (Markdown + YAML frontmatter).
+## Purpose
 
-**Public surface**:
+Session-report assembly: Markdown body + versioned YAML frontmatter, plus the educational
+grammar/coherence analysis that feeds the report. The "what the user reads after a session" layer.
 
-- `frontmatter.dump(session) -> str` — versioned schema, matches
-  `contracts/report-frontmatter.yaml`. `schema_version` stays **1**; the debrief
-  feature added the additive fields `GrammarPattern.explanation` /
-  `.impact_rank` / `.catalog_id`, per-evidence `corrected`, and top-level
-  `Session.cross_attempt_narrative` / `.top_priority`. 003 added the additive
-  `Session.asr` field (`AsrProvenance`: engine, model, initial_prompt + sha256,
-  vad settings, fell_back) → emitted as the top-level `asr:` key only when
-  present (schema_version still 1). All optional; unknown keys ignored for
-  forward/back compat — data-model.md §A.
-- `markdown_writer.write_atomic(path, content)` — temp-file + `os.replace`
-  (FR-016, SC-005).
-- `report_builder.build(session) -> str` — composes frontmatter + body; renders
-  the "Top priority for next session" section, the cross-attempt narrative, and
-  three-line `You said / Better / Because` fixes in `impact_rank` order, with the
-  Phase-B placeholder and "no actionable patterns" fallbacks.
-- `grammar_analyzer.analyze(transcripts, llm) -> list[GrammarPattern]` (Phase C)
-  — catalog-aware: injects `detection_hints`, emits `corrected` + `explanation`,
-  runs the coherence filter, keeps the verbatim-substring guarantee, suppresses
-  no-op fixes (FR-009), and sorts by `impact_rank`.
-- `catalog.get_catalog() -> Catalog` — the Persian-L1 transfer-error catalog
-  (`persian_l1_catalog.yaml`); lookup by `id`/`label`, `OPEN_BUCKET_IMPACT_RANK`
-  default (sorts below all catalog entries).
-- `coherence.is_coherent(quote, transcripts)` / `coherence.make_filter(transcripts)`
-  — deterministic ASR-garble filter (`common_words.txt`); runs AFTER the verbatim
-  check, favours precision (attested transcript jargon is kept).
-- `narrative.build_narrative(attempts, patterns)` /
-  `narrative.select_top_priority(patterns, attempts)` — deterministic
-  cross-attempt narrative + single most-impactful Top priority across grammar
-  (`impact_rank`) and fluency (severity heuristic).
+## Public interface
+
+- `frontmatter.dump(session) -> str` — versioned schema (`schema_version` stays **1**); all
+  002/003 additions are additive optional keys (e.g. top-level `asr:`); unknown keys ignored.
+- `markdown_writer.write_atomic(path, content)` — temp-file + `os.replace` (crash-safe write).
+- `report_builder.build(session) -> str` — composes frontmatter + body (Top-priority section,
+  cross-attempt narrative, `You said / Better / Because` fixes in `impact_rank` order, with
+  Phase-B and "no actionable patterns" fallbacks).
+- `grammar_analyzer.analyze(transcripts, llm) -> list[GrammarPattern]` [Phase C] — catalog-aware,
+  coherence-filtered, verbatim-substring guaranteed, sorted by `impact_rank`.
+- `catalog.get_catalog() -> Catalog` — the Persian-L1 transfer-error catalog.
+- `coherence` / `narrative` — deterministic ASR-garble filter + cross-attempt narrative + top
+  priority selection.
+
+## Dependencies
+
+- Internal: `speakloop.asr` (`Transcript`), `speakloop.config` (paths), `speakloop.llm`
+  (`LLMEngine`, used only by `grammar_analyzer`). No engine packages imported directly.
+- Third-party: `python-frontmatter`, `pyyaml`.
+
+## Consumers
+
+`cli`, `debrief`, `sessions`.
+
+## File map
+
+- `frontmatter.py` — `Session` model + schema (`schema_version` 1; additive keys at 20/40/91).
+- `markdown_writer.py` — atomic write.
+- `report_builder.py` — report composition.
+- `grammar_analyzer.py` — LLM grammar analysis (the only file here touching `speakloop.llm`).
+- `catalog.py`, `coherence.py`, `narrative.py` — Persian-L1 catalog, garble filter, narrative.
+
+## Common modification patterns
+
+- **Add a frontmatter field**: add it optional in `frontmatter.py`; never bump `schema_version`.
+- **Tune grammar analysis**: edit `grammar_analyzer.py` / `catalog.py` (keep the verbatim guarantee).
+
+## Traps
+
+- **`schema_version` stays 1** — every new key is additive and optional (lines 20, 40, 91); a
+  bump would break trends/back-compat (specs 002/003).
+
+## Pointers
+
+- Root map: [`../../../CLAUDE.md`](../../../CLAUDE.md);
+  contract: `specs/002-post-session-debrief/contracts/report-frontmatter.yaml`.

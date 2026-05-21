@@ -1,0 +1,11 @@
+Toolchain versions (T003) — audit tooling = stdlib + git + ripgrep, no new dependency
+======================================================================================
+uv      : 0.5.21 (3478c068b 2025-01-17)
+python3 : 3.14.3        (system interpreter)
+uv run python : 3.12.6  (project-pinned >=3.12,<3.13 — this is what runs the suite)
+ruff    : 0.15.12
+ripgrep : 14.1.1 (rev 521eedd6d8)
+
+Note: the project pins Python to 3.12 (pyproject.toml:7 `requires-python = ">=3.12,<3.13"`).
+The bare `python3` on this machine is 3.14; all project commands go through `uv run`,
+which resolves the pinned 3.12 venv (confirmed: `uv run python --version` -> 3.12.6).

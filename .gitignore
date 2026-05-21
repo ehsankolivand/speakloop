@@ -21,4 +21,4 @@ Thumbs.db
 .env.local
 *.token
 *.key
-*.pem
+*.pem.claude/scheduled_tasks.lock
