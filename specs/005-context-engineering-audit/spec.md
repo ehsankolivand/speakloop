@@ -289,7 +289,7 @@ path-portability audit passes and the launch footprint stays within budget.
   placement versus living in the relevant `CLAUDE.md` versus being skipped. If no
   rule file is justified, none is added and the decision is recorded.
 - **FR-041**: `doc/research_context_engineering.md` MUST be present in the repo with
-  no maintainer personal path (the existing line-3 `/Users/ehsankolivans/...` path
+  no maintainer personal path (the existing line-3 `/Users/<name>/...` path
   MUST be removed) and with content in English.
 - **FR-042**: The path-portability audit (`tests/integration/test_path_portability_audit.py`)
   MUST stay green with the research doc and all changes committed.

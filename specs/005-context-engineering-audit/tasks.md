@@ -150,7 +150,7 @@ and confirm both the path-portability audit passes and the footprint is within b
 ### Implementation for User Story 3
 
 - [x] T042 [US3] Investigate real session friction and decide whether any `.claude/rules/*.md` earns its place (default expectation: zero — research §K). If none is justified, record that decision and rationale in `specs/005-context-engineering-audit/audit/scoped-rules-decision.md`. If one is justified, create `.claude/rules/<name>.md` with `paths` frontmatter scope + an HTML-comment justification (why module-scope rule vs. living in the relevant `CLAUDE.md` vs. skipped) (FR-040, SC-G, G7).
-- [x] T043 [US3] Sanitize `doc/research_context_engineering.md`: remove the line-3 maintainer personal path (`/Users/ehsankolivans/...`) and confirm all content is English; do NOT rewrite its Android/Gradle illustrative examples (FR-041, SC-F).
+- [x] T043 [US3] Sanitize `doc/research_context_engineering.md`: remove the line-3 maintainer personal path (`/Users/<name>/...`) and confirm all content is English; do NOT rewrite its Android/Gradle illustrative examples (FR-041, SC-F).
 - [x] T044 [US3] Run `uv run pytest tests/integration/test_path_portability_audit.py` and confirm it is green with the sanitized research doc and all `.md` changes staged; record the result in `audit/command-matrix.md` (FR-042, SC-F, G6).
 - [x] T045 [US3] Re-measure the final launch footprint with the research §A command (`CLAUDE.md` + any unscoped `.claude/rules/*.md`) and confirm ≤ 6000 tokens; confirm module `CLAUDE.md` files and any `paths`-scoped rules contribute zero launch tokens; update `specs/005-context-engineering-audit/audit/footprint.md` (FR-043, SC-K, G11). If over budget, push detail from `CLAUDE.md` into a module file or scoped rule and re-measure.
 
