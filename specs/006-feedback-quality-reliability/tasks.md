@@ -105,8 +105,8 @@ the pre-registered threshold AND neither precision nor recall regresses.
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Tune the system prompt in `src/speakloop/feedback/grammar_analyzer.py` (`_build_system_prompt`): keep the FLAT schema, add ≤2 few-shot examples, tighten label/evidence/correction/explanation guidance; do NOT introduce nested `oneOf`/optional objects (4-bit drift). (grammar-output-schema §A; research R7)
-- [ ] T027 [US2] [live_llm] Re-measure agreement with the tuned prompt: `uv run python eval/grammar/run_eval.py --phase post --runs 3 --out eval/grammar/baselines/post.yaml`; confirm the SC-002 bar — F0.5 clears the pre-registered threshold (T011) AND neither precision nor recall falls below `baseline-pre`. Add a 3rd few-shot only if schema drift appears. The model stays `mlx-community/Qwen3-8B-4bit` (8-bit out of scope — Decision 2). (spec SC-002; quickstart §3,§4)
+- [X] T026 [US2] Tune the system prompt in `src/speakloop/feedback/grammar_analyzer.py` (`_build_system_prompt`): keep the FLAT schema, add ≤2 few-shot examples, tighten label/evidence/correction/explanation guidance; do NOT introduce nested `oneOf`/optional objects (4-bit drift). (grammar-output-schema §A; research R7)
+- [ ] T027 [US2] [live_llm] Re-measure agreement with the tuned prompt: `uv run python eval/grammar/run_eval.py --phase post --runs 3 --out eval/grammar/baselines/post.yaml`; confirm the SC-002 bar — F0.5 clears the pre-registered threshold (T011) AND neither precision nor recall falls below `baseline-pre`. Add a 3rd few-shot only if schema drift appears. The model stays `mlx-community/Qwen3-8B-4bit` (8-bit out of scope — Decision 2). (spec SC-002; quickstart §3,§4) ← DEFERRED (live_llm, manual): paired with T010; run after the maintainer captures baseline-pre. Tuned prompt (T026), harness, and threshold (T011) are all in place; only the on-device comparison is pending.
 
 **Checkpoint**: US1 + US2 both hold independently; grammar content is measurably better.
 

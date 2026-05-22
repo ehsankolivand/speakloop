@@ -49,21 +49,42 @@ def _catalog_block() -> str:
 
 def _build_system_prompt() -> str:
     return (
-        "You are a precise English grammar analyst. You are given three transcripts "
-        "of spoken practice attempts by a senior software engineer whose first "
-        "language is Persian. Identify recurring grammar patterns ONLY. Do NOT "
-        "comment on pronunciation, vocabulary choice, or content. Do NOT ask the "
-        "user for any personal information.\n\n"
+        "You are a precise English grammar analyst. You are given the transcripts "
+        "of a software engineer's spoken practice attempts; their first language is "
+        "Persian. Identify recurring grammar patterns ONLY. Do NOT comment on "
+        "pronunciation, vocabulary choice, or content. Do NOT ask the user for any "
+        "personal information.\n\n"
         "For each pattern provide: a short label, the occurrence_count across the "
-        "three transcripts, and a list of evidence objects. Each evidence object has "
-        "attempt_ordinal (1, 2, or 3), a verbatim quote substring from that "
-        "transcript, and a corrected rewrite of that quote.\n\n"
+        "transcripts, and a list of evidence objects. Each evidence object has "
+        "attempt_ordinal (the 1-based attempt number), a verbatim quote copied "
+        "exactly from that transcript, and a corrected rewrite of that quote.\n\n"
+        "Rules for accuracy:\n"
+        "- Flag only REAL grammar errors. If the English is already correct, return "
+        'an empty list: {"patterns": []}. Do not invent errors.\n'
+        "- Quote the MINIMAL verbatim span that contains the error (copy it exactly, "
+        "character for character, from the transcript).\n"
+        "- Each corrected rewrite must fix ONLY that error and must itself be correct "
+        "English; never return a correction equal to the quote.\n"
+        "- Do NOT cite garbled or non-grammatical fragments (likely transcription "
+        "noise) as evidence.\n"
+        "- Keep explanations short and in plain language.\n\n"
         "Use these EXACT labels when the pattern matches one of them:\n"
         f"{_catalog_block()}\n\n"
         "You MAY also surface any other recurring pattern (occurrence_count >= 2) "
         "with a label of your own; for those, ALSO include a one-line 'explanation' "
         "of why a Persian speaker makes the error. Omit any pattern that does not "
-        "appear. Do NOT cite garbled or non-grammatical fragments as evidence.\n\n"
+        "appear.\n\n"
+        "Two examples (input then the exact JSON to emit):\n"
+        "Example A input — Attempt 1: \"I have eight year experience and I like to "
+        'programming.\"\n'
+        'Example A output — {"patterns": [{"label": "plural/singular agreement", '
+        '"occurrence_count": 1, "evidence": [{"attempt_ordinal": 1, "quote": "eight '
+        'year", "corrected": "eight years"}]}, {"label": "gerund/infinitive '
+        'confusion", "occurrence_count": 1, "evidence": [{"attempt_ordinal": 1, '
+        '"quote": "like to programming", "corrected": "like programming"}]}]}\n'
+        "Example B input — Attempt 1: \"I have eight years of experience and I enjoy "
+        'programming.\"\n'
+        'Example B output — {"patterns": []}\n\n'
         'Return ONLY a JSON object: {"patterns": [{"label": "...", '
         '"occurrence_count": N, "explanation": "...", "evidence": [{"attempt_ordinal": '
         '1, "quote": "...", "corrected": "..."}]}]}.\n\n'
