@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-001
+source: synthetic
+l1: persian
+transcripts:
+- I manage two team in the company.
+- Where you deploy the new service? Where you deploy the new service?
+- Our service handles thousands of requests per second.

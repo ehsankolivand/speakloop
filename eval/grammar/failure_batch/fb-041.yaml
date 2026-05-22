@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-041
+source: synthetic
+l1: persian
+transcripts:
+- I enjoy to build small tools on the weekend. Where you deploy the new service? We not use that framework anymore. I enjoy to build small tools on the weekend.
+- I mentor junior developers on testing and design.

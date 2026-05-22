@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-073
+source: synthetic
+l1: persian
+transcripts:
+- I reviewed three design document this week. I am responsible of the backend services.
+- Right now I studying the trade-offs. I have worked as a backend engineer for several years.

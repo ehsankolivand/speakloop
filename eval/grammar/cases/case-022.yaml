@@ -1,0 +1,12 @@
+id: case-022
+source: synthetic
+l1: persian
+transcripts:
+  - "I joined the company three years ago and now the team lead all the planning. We build internal tools that the whole org uses."
+gold_issues:
+  - attempt_ordinal: 1
+    quote: "the team lead all"
+    label: "3rd-person singular -s drop"
+    correction: "the team leads all"
+    explanation: "3sg -s missing on 'lead'."
+notes: "Single real error embedded in otherwise-correct prose (precision pressure)."

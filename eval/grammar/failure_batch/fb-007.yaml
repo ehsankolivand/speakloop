@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-007
+source: synthetic
+l1: persian
+transcripts:
+- We shipped five feature last quarter. I manage two team in the company. Where you deploy the new service? The cache layer keeps the read path fast.
+- We monitor latency and error rates on every endpoint. Right now I studying the trade-offs. I enjoy to build small tools on the weekend. We use a message queue to decouple the components.

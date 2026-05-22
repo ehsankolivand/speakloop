@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-004
+source: synthetic
+l1: persian
+transcripts:
+- I prefer composition over deep inheritance hierarchies. It is different of the old design. He is senior engineer on our team.
+- I enjoy designing reliable distributed systems. I fixed my friend brother laptop yesterday. I enjoy designing reliable distributed systems.
+- We monitor latency and error rates on every endpoint. We shipped five feature last quarter.

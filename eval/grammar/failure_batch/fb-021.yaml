@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-021
+source: synthetic
+l1: persian
+transcripts:
+- I enjoy to build small tools on the weekend. I opened pull request for the fix. We use a message queue to decouple the components.
+- I like my job even bigger than five years ago.

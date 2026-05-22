@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-076
+source: synthetic
+l1: persian
+transcripts:
+- We not use that framework anymore.
+- I fixed my friend brother laptop yesterday.
+- I document the trade-offs in a short design note.

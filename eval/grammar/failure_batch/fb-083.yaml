@@ -1,0 +1,6 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-083
+source: synthetic
+l1: persian
+transcripts:
+- We monitor latency and error rates on every endpoint. Where you deploy the new service?

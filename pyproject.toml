@@ -15,6 +15,11 @@ dependencies = [
     "huggingface_hub>=0.24",
     "python-frontmatter>=1.1",
     "numpy>=1.26",
+    # 006-feedback-quality-reliability: post-hoc JSON recovery for the grammar
+    # analyzer (replaces ~5 brittle hand-rolled repair regexes). Pure-Python,
+    # offline, zero required runtime deps; the optional [schema] extra is NOT
+    # taken (the flat grammar schema needs no Pydantic). research Decision 3.
+    "json-repair>=0.30",
     "kokoro-mlx>=0.1.2",
     "readchar>=4.2.2",
     "parakeet-mlx>=0.5.1",
@@ -75,5 +80,6 @@ markers = [
     "slow: long-running; opt-in",
     "repro: local-only acceptance gate against the user's own recordings; skips when audio is absent (FR-010)",
     "live_asr: thin smoke test exercising the REAL silero-vad + torchaudio audio I/O; skips when the deps are absent (catches transitive-dep breakage)",
+    "live_llm: on-device measurement exercising the REAL local Qwen3-8B model (mlx_lm); skips when the model/deps are absent; excluded from the default suite (Constitution Dev Guidelines, mirrors live_asr)",
 ]
 addopts = "-ra"

@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-032
+source: synthetic
+l1: persian
+transcripts:
+- We use a message queue to decouple the components. I write integration tests for the critical paths. The worker process the queue slowly.
+- I use library for the network layer. Right now I studying the trade-offs. The worker process the queue slowly. I profiled the code and reduced the tail latency.
+- I like to programming since university. I am responsible of the backend services. This approach is more better for our case.

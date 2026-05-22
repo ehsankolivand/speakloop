@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-057
+source: synthetic
+l1: persian
+transcripts:
+- We shipped the feature behind a flag and rolled it out slowly.
+- I am responsible of the backend services. I opened pull request for the fix. I prefer composition over deep inheritance hierarchies. We deploy to production twice a week with canaries.
+- He is senior engineer on our team. I use library for the network layer. I like to programming since university.

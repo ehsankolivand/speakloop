@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-039
+source: synthetic
+l1: persian
+transcripts:
+- The pipeline runs static analysis on each commit. Where you deploy the new service? I opened pull request for the fix. The Kotlin service retries with exponential backoff.
+- Always I check the logs first. She lead the platform team now.

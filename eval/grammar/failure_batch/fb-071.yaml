@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-071
+source: synthetic
+l1: persian
+transcripts:
+- We use a message queue to decouple the components. The pipeline runs static analysis on each commit.
+- We not use that framework anymore. Yesterday I work on the deployment pipeline. I migrated the database without downtime last quarter.
+- I migrated the database without downtime last quarter.

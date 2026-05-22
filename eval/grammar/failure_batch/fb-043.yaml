@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-043
+source: synthetic
+l1: persian
+transcripts:
+- I profiled the code and reduced the tail latency. We use a message queue to decouple the components. I profiled the code and reduced the tail latency.
+- I like to programming since university. We monitor latency and error rates on every endpoint. I use library for the network layer.
+- I use library for the network layer. I mentor junior developers on testing and design.

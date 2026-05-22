@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-107
+source: synthetic
+l1: persian
+transcripts:
+- Our coroutine dispatcher batches the network calls.
+- I reviewed three design document this week. We shipped five feature last quarter.
+- I prefer composition over deep inheritance hierarchies. The Kotlin service retries with exponential backoff.

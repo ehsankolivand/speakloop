@@ -1,0 +1,18 @@
+id: case-009
+source: synthetic
+l1: persian
+transcripts:
+  - "I avoid to use global state in my services."
+  - "I prefer to writing tests before the code."
+gold_issues:
+  - attempt_ordinal: 1
+    quote: "avoid to use"
+    label: "gerund/infinitive confusion"
+    correction: "avoid using"
+    explanation: "'avoid' takes a gerund."
+  - attempt_ordinal: 2
+    quote: "prefer to writing"
+    label: "gerund/infinitive confusion"
+    correction: "prefer writing"
+    explanation: "Mixed 'to' + gerund; use the plain gerund after 'prefer'."
+notes: "Same pattern recurs across two attempts."

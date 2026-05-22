@@ -1,0 +1,32 @@
+# Pre-registered SC-002 success threshold (T011) — feature 006.
+#
+# Registered at Foundational-phase time, BEFORE any US1/US2 analyzer change, so
+# the bar is versioned and auditable rather than chosen post-hoc to fit the
+# result (quickstart §2; spec SC-002). Kept in this sibling file because the
+# live `baseline-pre.yaml` is captured by the maintainer (a [live_llm] step);
+# the contract permits "baseline-pre.yaml OR a sibling thresholds.yaml".
+#
+# Verdict procedure (run_eval.py --phase post → compare to baseline-pre.yaml):
+#   PASS iff  post.grammar.f05 - baseline_pre.grammar.f05 >= min_absolute_f05_improvement
+#        AND  post.grammar.precision >= baseline_pre.grammar.precision
+#        AND  post.grammar.recall    >= baseline_pre.grammar.recall
+# i.e. F0.5 clears the improvement bar AND neither axis regresses (data-model §6).
+
+registered_at: 2026-05-22
+phase_registered: foundational            # before US1 (golden rule of ordering)
+metric: f05                                # F0.5 — precision-weighted (GEC convention)
+
+# Absolute improvement F0.5 must clear over baseline-pre. 0.05 is a modest but
+# real gain appropriate to a reliability+accuracy sprint that does NOT swap the
+# model or add a feedback dimension; chosen pre-hoc to avoid rationalizing the
+# outcome. Revisit only in a future sprint's own decision record, never post-hoc.
+min_absolute_f05_improvement: 0.05
+
+# No-regression guard: post must not fall below baseline-pre on EITHER axis.
+no_precision_regression: true
+no_recall_regression: true
+
+notes: >
+  SC-001 (failure_rate <= 0.01 over the >=100-session failure batch, and below
+  baseline-pre) is a separate, fixed bar defined by the spec and is NOT
+  pre-registered here. This file governs only the SC-002 agreement verdict.

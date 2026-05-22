@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-024
+source: synthetic
+l1: persian
+transcripts:
+- We shipped five feature last quarter. I document the trade-offs in a short design note. I have eight year experience in mobile development.
+- The cache layer keeps the read path fast.

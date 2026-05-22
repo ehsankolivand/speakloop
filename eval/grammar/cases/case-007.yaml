@@ -1,0 +1,12 @@
+id: case-007
+source: synthetic
+l1: persian
+transcripts:
+  - "We depend on this solution to scale, and I am responsible of the backend services."
+gold_issues:
+  - attempt_ordinal: 1
+    quote: "responsible of the backend"
+    label: "preposition substitution / non-standard preposition"
+    correction: "responsible for the backend"
+    explanation: "'responsible' takes 'for', not 'of'."
+notes: "'depend on' is correct and must NOT be flagged (precision check)."

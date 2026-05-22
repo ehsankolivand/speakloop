@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-118
+source: synthetic
+l1: persian
+transcripts:
+- She lead the platform team now. I mentor junior developers on testing and design. I like my job even bigger than five years ago.
+- The cache layer keeps the read path fast. I reviewed three design document this week. We shipped five feature last quarter.

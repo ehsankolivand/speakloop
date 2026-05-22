@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-063
+source: synthetic
+l1: persian
+transcripts:
+- I have worked as a backend engineer for several years. I have eight year experience in mobile development.
+- I am good in solving concurrency bugs. I like my job even bigger than five years ago. The worker process the queue slowly.
+- I enjoy to build small tools on the weekend. We monitor latency and error rates on every endpoint.

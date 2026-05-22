@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-048
+source: synthetic
+l1: persian
+transcripts:
+- This approach is more better for our case. I reviewed three design document this week.
+- Where you deploy the new service? I migrated the database without downtime last quarter. The cache layer keeps the read path fast.
+- The system handle retries automatically. Our coroutine dispatcher batches the network calls. I reviewed three design document this week.

@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-110
+source: synthetic
+l1: persian
+transcripts:
+- I enjoy designing reliable distributed systems.
+- I profiled the code and reduced the tail latency. She lead the platform team now. She lead the platform team now. I write integration tests for the critical paths.

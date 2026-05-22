@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-099
+source: synthetic
+l1: persian
+transcripts:
+- I prefer composition over deep inheritance hierarchies. He is senior engineer on our team. I document the trade-offs in a short design note.
+- We deploy to production twice a week with canaries. The team reviews every pull request before merging. Our service handles thousands of requests per second. I migrated the database without downtime last quarter.
