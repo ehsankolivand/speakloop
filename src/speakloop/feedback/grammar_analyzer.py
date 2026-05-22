@@ -25,7 +25,10 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections import Counter
 from datetime import UTC, datetime
+
+import json_repair
 
 from speakloop.asr import Transcript
 from speakloop.feedback import catalog as catalog_mod
@@ -87,17 +90,6 @@ def _user_prompt(transcripts: list[Transcript]) -> str:
 
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", flags=re.DOTALL | re.IGNORECASE)
-_TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
-_SINGLE_QUOTED_KEY_RE = re.compile(r"([{,]\s*)'([^'\\]*)'(\s*:)")
-_BARE_KEY_RE = re.compile(r"([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)")
-_SINGLE_QUOTED_VALUE_RE = re.compile(r"([:\[,]\s*)'((?:[^'\\]|\\.)*)'")
-# A stray junk token (1-4 alnum chars) that some reasoning models leak right
-# before a quoted key, e.g. `1,\n    a "quote": ...`. Conservative: it must sit
-# between a separator (`{`, `,`, or newline) and a *quoted key* (`"..."` then
-# `:`), so a legitimate unquoted key (`token:`) is never touched.
-_JUNK_TOKEN_BEFORE_KEY_RE = re.compile(r'([\n,{]\s*)[a-z0-9]{1,4}\s+("[^"]*"\s*:)')
-
-
 def _strip_code_fences(raw: str) -> str:
     """Remove a surrounding markdown code fence (```json ... ``` or ``` ... ```)."""
     m = _FENCE_RE.search(raw)
@@ -107,47 +99,67 @@ def _strip_code_fences(raw: str) -> str:
     return re.sub(r"```(?:json)?", "", raw, flags=re.IGNORECASE).strip()
 
 
-def _repair_json(s: str) -> str:
-    """Best-effort repair of the common LLM bad-JSON cases (research: Qwen emits
-    single-quoted/trailing-comma JSON). Keys are fixed before values so already
-    double-quoted keys are never touched."""
-    s = _TRAILING_COMMA_RE.sub(r"\1", s)  # drop trailing commas before } or ]
-    s = _JUNK_TOKEN_BEFORE_KEY_RE.sub(r"\1\2", s)  # `, a "key":` -> `, "key":`
-    s = _SINGLE_QUOTED_KEY_RE.sub(r'\1"\2"\3', s)  # 'key': -> "key":
-    s = _BARE_KEY_RE.sub(r'\1"\2"\3', s)  # key: -> "key":
-    s = _SINGLE_QUOTED_VALUE_RE.sub(r'\1"\2"', s)  # : 'val' / ['val' -> : "val"
-    return s
+def _extract_json(raw: str) -> dict:
+    """Recover the grammar payload from the LLM response (recovery ladder —
+    contracts/grammar-output-schema.md §C; research Decision 3):
 
+    1. strict ``json.loads`` of the fence-stripped text,
+    2. strict parse of the first ``{...}`` region (tolerates surrounding prose),
+    3. ``json_repair`` on the full text — recovers single/bare-quoted keys,
+       trailing commas, junk-token-before-key, AND truncated/unclosed objects
+       (the case the old hand-rolled regex repair could not handle),
+    4. ``json_repair`` on just the ``{...}`` region as a last resort.
 
-def _loads_lenient(s: str) -> dict:
-    """Parse JSON, falling back to a repair pass (and json5 if installed). If all
-    fail, re-raise the ORIGINAL json error so phase_c_error shows the real issue."""
+    Raises ``ValueError`` only when nothing yields a JSON object (then analyze()
+    may bounded-regenerate once, else fall back gracefully)."""
+    raw = _strip_code_fences(raw.strip())
     try:
-        return json.loads(s)
-    except json.JSONDecodeError as original:
+        obj = json.loads(raw)
+        if isinstance(obj, dict):
+            return obj
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
+    if match:
         try:
-            return json.loads(_repair_json(s))
+            obj = json.loads(match.group(0))
+            if isinstance(obj, dict):
+                return obj
         except json.JSONDecodeError:
             pass
-        try:
-            import json5  # optional; not in the closed dep set, used only if present
 
-            return json5.loads(s)
-        except ImportError:
-            pass
-        except Exception:  # noqa: BLE001 — json5 parse failure: fall through to original
-            pass
-        raise original
+    repaired = json_repair.loads(raw)
+    if isinstance(repaired, dict) and repaired:
+        return repaired
+    if match:
+        repaired = json_repair.loads(match.group(0))
+        if isinstance(repaired, dict) and repaired:
+            return repaired
+
+    raise ValueError(f"Could not extract JSON from LLM response: {raw[:200]}")
 
 
-def _extract_json(raw: str) -> dict:
-    """Pull the first JSON object out of the LLM response, tolerating markdown
-    fences and the common single-quote / trailing-comma emissions."""
-    raw = _strip_code_fences(raw.strip())
-    match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
-    if not match:
-        raise ValueError(f"Could not extract JSON from LLM response: {raw[:200]}")
-    return _loads_lenient(match.group(0))
+def _looks_like_repetition_loop(text: str) -> bool:
+    """Detect degenerate repetition (the 4-bit loop / truncation signature) so the
+    analyzer can trigger ONE bounded regenerate (FR-002). Deliberately conservative
+    and JSON-safe — well-formed structured output repeats *keys* with varied values,
+    so neither signal below fires on it; a false positive only costs one extra
+    (bounded) generation, never a hang."""
+    s = (text or "").strip()
+    if not s:
+        return False
+    words = s.split()
+    run = max_run = 1  # the same token repeated many times in a row
+    for a, b in zip(words, words[1:]):
+        run = run + 1 if a == b else 1
+        max_run = max(max_run, run)
+    if max_run >= 8:
+        return True
+    lines = [ln.strip() for ln in s.splitlines() if len(ln.strip()) > 3]
+    if lines and Counter(lines).most_common(1)[0][1] >= 6:  # one line repeated
+        return True
+    return False
 
 
 def _debug_dump_raw(raw: str) -> str | None:
@@ -175,6 +187,36 @@ def _first_attempt_ordinal(pattern: GrammarPattern) -> int:
     return min((ev.get("attempt_ordinal", 99) for ev in pattern.evidence), default=99)
 
 
+def _merge_key(p: GrammarPattern) -> str:
+    """Identity for deduping: the catalog id when matched, else the normalized label."""
+    return p.catalog_id or p.label.strip().lower()
+
+
+def _dedupe(patterns: list[GrammarPattern]) -> list[GrammarPattern]:
+    """Merge patterns sharing a canonical label (FR-004): sum ``occurrence_count``
+    and union evidence (by attempt_ordinal+quote) so no repeated or near-duplicate
+    restatement reaches the report. First occurrence keeps catalog metadata/order."""
+    merged: dict[str, GrammarPattern] = {}
+    order: list[str] = []
+    for p in patterns:
+        key = _merge_key(p)
+        if key not in merged:
+            merged[key] = p
+            order.append(key)
+            continue
+        existing = merged[key]
+        seen = {(e.get("attempt_ordinal"), e.get("quote")) for e in existing.evidence}
+        for ev in p.evidence:
+            sig = (ev.get("attempt_ordinal"), ev.get("quote"))
+            if sig not in seen:
+                existing.evidence.append(ev)
+                seen.add(sig)
+        existing.occurrence_count += p.occurrence_count
+        if not existing.explanation and p.explanation:
+            existing.explanation = p.explanation
+    return [merged[k] for k in order]
+
+
 def _verify_and_enrich(
     patterns: list[dict], transcripts: list[Transcript]
 ) -> list[GrammarPattern]:
@@ -184,6 +226,8 @@ def _verify_and_enrich(
     out: list[GrammarPattern] = []
 
     for p in patterns:
+        if not isinstance(p, dict):
+            continue  # json-repair may yield non-dict items (e.g. [1,2,3]); drop them
         label = (p.get("label") or "").strip()
         if not label:
             continue
@@ -247,6 +291,9 @@ def _verify_and_enrich(
             )
         )
 
+    # FR-004: merge near-duplicate patterns (same canonical label) before ranking.
+    out = _dedupe(out)
+
     # FR-005: deterministic impact order; ties → more frequent, then earliest.
     out.sort(
         key=lambda p: (
@@ -258,31 +305,57 @@ def _verify_and_enrich(
     return out
 
 
+def _generate_and_parse(
+    transcripts: list[Transcript], llm: LLMEngine, max_tokens: int, *, retry: bool
+) -> tuple[dict | None, str]:
+    """One generate+parse pass. Returns (payload | None, raw_text). A ``<think>``
+    leak is a hard misconfiguration error (not a retry case) and is raised here."""
+    raw = llm.generate(
+        _build_system_prompt(),
+        _user_prompt(transcripts),
+        max_tokens=max_tokens,
+        retry=retry,
+    )
+    if "<think>" in raw:
+        raise LLMEngineError("LLM response contains <think> leakage; engine misconfigured.")
+    try:
+        return _extract_json(raw), raw
+    except (ValueError, json.JSONDecodeError):
+        return None, raw
+
+
 def analyze(
     transcripts: list[Transcript],
     llm: LLMEngine,
     *,
     max_tokens: int = 2048,
-    temperature: float = 0.2,
 ) -> list[GrammarPattern]:
-    """Run the catalog-aware grammar analyzer; return verified, ranked findings."""
+    """Run the catalog-aware grammar analyzer; return verified, ranked findings.
+
+    Generation config (temperature 0.7, repetition penalty, stop) is owned by the
+    LLM wrapper (Principle V) — the call site no longer overrides it. On a parse
+    failure OR a detected repetition loop, ONE bounded regenerate is attempted
+    (FR-002, FR-003); on terminal failure the existing graceful path runs (caller
+    records ``phase_c_error`` and renders the Phase-B report; the session never
+    crashes)."""
     if not transcripts:
         return []
-    raw = llm.generate(
-        _build_system_prompt(),
-        _user_prompt(transcripts),
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    if "<think>" in raw:
-        raise LLMEngineError("LLM response contains <think> leakage; engine misconfigured.")
 
-    try:
-        payload = _extract_json(raw)
-    except (ValueError, json.JSONDecodeError) as e:
-        dump_path = _debug_dump_raw(raw)
-        suffix = f" (raw saved to {dump_path})" if dump_path else ""
-        raise LLMEngineError(f"Could not parse LLM grammar response: {e}{suffix}") from e
+    payload, raw = _generate_and_parse(transcripts, llm, max_tokens, retry=False)
+    if payload is None or _looks_like_repetition_loop(raw):
+        # Bounded regenerate (at most one) — the wrapper raises repetition_penalty
+        # and lowers temperature for this pass.
+        payload_retry, raw_retry = _generate_and_parse(transcripts, llm, max_tokens, retry=True)
+        if payload_retry is not None:
+            payload, raw = payload_retry, raw_retry
+        elif payload is None:
+            dump_path = _debug_dump_raw(raw)
+            suffix = f" (raw saved to {dump_path})" if dump_path else ""
+            raise LLMEngineError(
+                f"Could not parse LLM grammar response after one bounded regenerate{suffix}"
+            )
+        # else: the loop-flagged original parsed fine and the retry did not improve
+        # parseability — keep the original payload rather than discard usable output.
 
     patterns_raw = payload.get("patterns") or []
     if not isinstance(patterns_raw, list):

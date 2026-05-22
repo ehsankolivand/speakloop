@@ -7,8 +7,6 @@ genuinely can't, raise the original JSON error so `phase_c_error` shows it.
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from speakloop.feedback import grammar_analyzer as ga
@@ -80,10 +78,18 @@ def test_no_json_object_raises_value_error():
         ga._extract_json("I could not produce any JSON for this input.")
 
 
-def test_unrepairable_json_raises_original_decode_error():
-    # Has braces (so extraction proceeds) but is not repairable (missing commas).
-    with pytest.raises(json.JSONDecodeError):
-        ga._extract_json('{"patterns": [1 2 3]}')
+def test_missing_commas_now_recovered_by_json_repair():
+    # 006: the json-repair ladder recovers what the old hand-rolled regex repair
+    # raised on (missing commas). The non-dict items are dropped later in
+    # _verify_and_enrich, so this is a strict improvement for SC-001/SC-004.
+    assert ga._extract_json('{"patterns": [1 2 3]}') == {"patterns": [1, 2, 3]}
+
+
+def test_truncated_object_recovered_by_json_repair():
+    # The major SC-001 win: a cut-off object (hit max_tokens) used to raise because
+    # the `\{.*\}` regex needs a closing brace; json-repair closes the structure.
+    raw = '{"patterns": [{"label": "gerund", "occurrence_count": 2'
+    assert ga._extract_json(raw) == {"patterns": [{"label": "gerund", "occurrence_count": 2}]}
 
 
 def test_repair_does_not_corrupt_already_valid_json():

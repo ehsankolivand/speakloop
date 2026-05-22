@@ -1,0 +1,12 @@
+description: "Stray ``` lines with no clean opening/closing pair."
+raw: |
+  {"patterns": [{"label": "gerund/infinitive confusion", "occurrence_count": 2, "evidence": [{"attempt_ordinal": 1, "quote": "like to programming", "corrected": "like programming"}]}]}
+  ```
+expected:
+  patterns:
+    - label: "gerund/infinitive confusion"
+      occurrence_count: 2
+      evidence:
+        - attempt_ordinal: 1
+          quote: "like to programming"
+          corrected: "like programming"

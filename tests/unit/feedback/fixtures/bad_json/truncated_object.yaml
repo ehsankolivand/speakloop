@@ -1,0 +1,12 @@
+description: "Truncated / cut-off object (hit max_tokens mid-evidence). The old regex
+  `\\{.*\\}` could not recover this — json-repair closes the open structures. SC-001 win."
+raw: |
+  {"patterns": [{"label": "gerund/infinitive confusion", "occurrence_count": 2, "evidence": [{"attempt_ordinal": 1, "quote": "like to programming", "corrected": "like programming"
+expected:
+  patterns:
+    - label: "gerund/infinitive confusion"
+      occurrence_count: 2
+      evidence:
+        - attempt_ordinal: 1
+          quote: "like to programming"
+          corrected: "like programming"
