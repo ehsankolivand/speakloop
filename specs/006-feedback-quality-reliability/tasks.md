@@ -123,16 +123,16 @@ more meaningful; no narrative clause asserts an unsupported fact; report structu
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] Tighten the DETERMINISTIC narrative in `src/speakloop/feedback/narrative.py`: every clause grounded in the session's transcripts/metrics; drop any ungrounded phrasing; degrade to today's sensible defaults on silent/empty input. Stays deterministic and reproducible (no LLM). (FR-011, FR-013; research Decision 1; report-invariance "what MAY change")
-- [ ] T029 [US3] Confirm the deterministic top-priority selection in `src/speakloop/feedback/narrative.py` is reproducible from the report itself and drawn only from the session's own issues/metrics by a stable rule (it inherits cleaner inputs; the rule itself is unchanged). (FR-012; data-model V5; research Decision 1)
+- [X] T028 [US3] Tighten the DETERMINISTIC narrative in `src/speakloop/feedback/narrative.py`: every clause grounded in the session's transcripts/metrics; drop any ungrounded phrasing; degrade to today's sensible defaults on silent/empty input. Stays deterministic and reproducible (no LLM). (FR-011, FR-013; research Decision 1; report-invariance "what MAY change")
+- [X] T029 [US3] Confirm the deterministic top-priority selection in `src/speakloop/feedback/narrative.py` is reproducible from the report itself and drawn only from the session's own issues/metrics by a stable rule (it inherits cleaner inputs; the rule itself is unchanged). (FR-012; data-model V5; research Decision 1)
 
 ### Tests for User Story 3 (report-invariance guardrail) ⚠️
 
-- [ ] T030 [P] [US3] [TEST] V-R1: existing report/format/golden tests pass; if any assert exact narrative wording, update the golden text AND confirm the STRUCTURE is untouched (wording diff allowed, structural diff not) — in `tests/unit/feedback/`. (report-invariance V-R1; SC-005)
-- [ ] T031 [P] [US3] [TEST] V-R2: frontmatter `dump → parse → dump` is idempotent and `schema_version` stays `1` (no bump) — in `tests/unit/feedback/test_report_invariance.py`. (report-invariance V-R2; FR-018)
-- [ ] T032 [P] [US3] [TEST] V-R3: a pre-feature report vs a post-feature CLEAN report differ only in grammar/narrative CONTENT — empty structural diff (identical key set, section set, ordering); also confirms no new feedback dimension/section (FR-015) — in `tests/unit/feedback/test_report_invariance.py`. (report-invariance V-R3; SC-005, FR-014)
-- [ ] T033 [P] [US3] [TEST] V-R4: zero network calls during a full session+analysis (reuse the engine-import offline guard) — in `tests/integration/test_no_network_during_session.py`. (report-invariance V-R4; SC-006, FR-016)
-- [ ] T034 [P] [US3] [TEST] V-R5: the model is unchanged — `mlx-community/Qwen3-8B-4bit` (family AND quantization), no swap — in `tests/unit/llm/test_model_family_unchanged.py`. (report-invariance V-R5; FR-017)
+- [X] T030 [P] [US3] [TEST] V-R1: existing report/format/golden tests pass; if any assert exact narrative wording, update the golden text AND confirm the STRUCTURE is untouched (wording diff allowed, structural diff not) — in `tests/unit/feedback/`. (report-invariance V-R1; SC-005)
+- [X] T031 [P] [US3] [TEST] V-R2: frontmatter `dump → parse → dump` is idempotent and `schema_version` stays `1` (no bump) — in `tests/unit/feedback/test_report_invariance.py`. (report-invariance V-R2; FR-018)
+- [X] T032 [P] [US3] [TEST] V-R3: a pre-feature report vs a post-feature CLEAN report differ only in grammar/narrative CONTENT — empty structural diff (identical key set, section set, ordering); also confirms no new feedback dimension/section (FR-015) — in `tests/unit/feedback/test_report_invariance.py`. (report-invariance V-R3; SC-005, FR-014)
+- [X] T033 [P] [US3] [TEST] V-R4: zero network calls during a full session+analysis (reuse the engine-import offline guard) — in `tests/integration/test_no_network_during_session.py`. (report-invariance V-R4; SC-006, FR-016)
+- [X] T034 [P] [US3] [TEST] V-R5: the model is unchanged — `mlx-community/Qwen3-8B-4bit` (family AND quantization), no swap — in `tests/unit/llm/test_model_family_unchanged.py`. (report-invariance V-R5; FR-017)
 
 **Checkpoint**: all three stories independently functional; report is reliable, accurate, and trustworthy.
 
