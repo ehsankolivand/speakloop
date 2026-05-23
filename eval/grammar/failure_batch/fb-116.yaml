@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-116
+source: synthetic
+l1: persian
+transcripts:
+- We shipped the feature behind a flag and rolled it out slowly. I enjoy to build small tools on the weekend. It is different of the old design. The Kotlin service retries with exponential backoff.
+- I enjoy designing reliable distributed systems. She lead the platform team now. I prefer composition over deep inheritance hierarchies. I like my job even bigger than five years ago.

@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-097
+source: synthetic
+l1: persian
+transcripts:
+- The system handle retries automatically.
+- The team reviews every pull request before merging.

@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-080
+source: synthetic
+l1: persian
+transcripts:
+- We shipped the feature behind a flag and rolled it out slowly. I reviewed three design document this week. We use a message queue to decouple the components.
+- The worker process the queue slowly. The pipeline runs static analysis on each commit. Our service handles thousands of requests per second. I write integration tests for the critical paths.
+- I like my job even bigger than five years ago. The worker process the queue slowly. The system handle retries automatically.

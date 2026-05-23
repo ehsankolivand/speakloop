@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-050
+source: synthetic
+l1: persian
+transcripts:
+- I like to programming since university. The Kotlin service retries with exponential backoff. She lead the platform team now. I have eight year experience in mobile development.
+- The Kotlin service retries with exponential backoff. I enjoy to build small tools on the weekend. I enjoy to build small tools on the weekend.
+- This approach is more better for our case.

@@ -146,7 +146,12 @@ def _recurring_pattern(patterns: list[GrammarPattern]) -> GrammarPattern | None:
 
 
 def build_narrative(attempts: list[Attempt], patterns: list[GrammarPattern]) -> str:
-    """Deterministic prose: what improved and what stayed the same across rounds."""
+    """Deterministic prose: what improved and what stayed the same across rounds.
+
+    Every clause is grounded ONLY in this session's measured metrics (speech rate,
+    filler density) and verified grammar patterns — no LLM, no invented fact
+    (FR-011, FR-013). The "improving" interpretation is emitted strictly when the
+    measured deltas support it. Degrades to a sensible default on silent input."""
     voiced = _non_silent(attempts)
     if not voiced:
         return "No speech was captured across the attempts this session."
@@ -157,13 +162,24 @@ def build_narrative(attempts: list[Attempt], patterns: list[GrammarPattern]) -> 
         first.metrics.filler_density_per_100_words,
         last.metrics.filler_density_per_100_words,
     )
-    wpm_dir = "climbed" if wpm3 > wpm1 else "dropped" if wpm3 < wpm1 else "held steady at"
-    fill_dir = "fell" if fill3 < fill1 else "rose" if fill3 > fill1 else "held steady"
 
-    sentences = [
-        f"Across the timed rounds your speech rate {wpm_dir} from {wpm1:.0f} to {wpm3:.0f} "
-        f"WPM and filler density {fill_dir} from {fill1:.1f} to {fill3:.1f} per 100 words."
-    ]
+    # Rate clause — phrased correctly whether it climbed, dropped, or held steady.
+    if wpm3 > wpm1:
+        rate_clause = f"your speech rate climbed from {wpm1:.0f} to {wpm3:.0f} WPM"
+    elif wpm3 < wpm1:
+        rate_clause = f"your speech rate dropped from {wpm1:.0f} to {wpm3:.0f} WPM"
+    else:
+        rate_clause = f"your speech rate held steady at {wpm1:.0f} WPM"
+
+    # Filler clause — same, grounded in the measured filler density.
+    if fill3 < fill1:
+        fill_clause = f"filler density fell from {fill1:.1f} to {fill3:.1f} per 100 words"
+    elif fill3 > fill1:
+        fill_clause = f"filler density rose from {fill1:.1f} to {fill3:.1f} per 100 words"
+    else:
+        fill_clause = f"filler density held steady at {fill1:.1f} per 100 words"
+
+    sentences = [f"Across the timed rounds {rate_clause} and {fill_clause}."]
     if wpm3 > wpm1 and fill3 < fill1:
         sentences.append("Rising pace with fewer fillers is the proceduralization signature.")
 

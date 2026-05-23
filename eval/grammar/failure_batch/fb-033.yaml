@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-033
+source: synthetic
+l1: persian
+transcripts:
+- Yesterday I work on the deployment pipeline. I document the trade-offs in a short design note. Where you deploy the new service?
+- I write integration tests for the critical paths. We shipped five feature last quarter.
+- I fixed my friend brother laptop yesterday. I mentor junior developers on testing and design. The team reviews every pull request before merging.

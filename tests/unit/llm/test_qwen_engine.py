@@ -100,7 +100,9 @@ class _FakeTokenizer:
         return "RENDERED_PROMPT"
 
 
-def _install_fake_mlx_lm(monkeypatch, *, generate_impl, make_sampler_impl, load_impl=None):
+def _install_fake_mlx_lm(
+    monkeypatch, *, generate_impl, make_sampler_impl, load_impl=None, make_logits_impl=None
+):
     """Install a stand-in `mlx_lm` (and `mlx_lm.sample_utils`) in sys.modules."""
     fake_mlx_lm = types.ModuleType("mlx_lm")
     fake_mlx_lm.generate = generate_impl
@@ -108,6 +110,9 @@ def _install_fake_mlx_lm(monkeypatch, *, generate_impl, make_sampler_impl, load_
         fake_mlx_lm.load = load_impl
     fake_sample_utils = types.ModuleType("mlx_lm.sample_utils")
     fake_sample_utils.make_sampler = make_sampler_impl
+    # The wrapper now also builds repetition logits processors (006); provide a
+    # default stub so callers that don't care about it still work.
+    fake_sample_utils.make_logits_processors = make_logits_impl or (lambda **k: [])
     fake_mlx_lm.sample_utils = fake_sample_utils
     monkeypatch.setitem(sys.modules, "mlx_lm", fake_mlx_lm)
     monkeypatch.setitem(sys.modules, "mlx_lm.sample_utils", fake_sample_utils)

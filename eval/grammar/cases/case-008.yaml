@@ -1,0 +1,17 @@
+id: case-008
+source: synthetic
+l1: persian
+transcripts:
+  - "I fixed my friend brother laptop, and the team lead decision was final."
+gold_issues:
+  - attempt_ordinal: 1
+    quote: "my friend brother"
+    label: "possessor-order transfer (ezafe)"
+    correction: "my friend's brother"
+    explanation: "English marks the possessor with 's; Persian uses post-nominal ezafe."
+  - attempt_ordinal: 1
+    quote: "team lead decision"
+    label: "possessor-order transfer (ezafe)"
+    correction: "team lead's decision"
+    explanation: "Possessive 's omitted."
+notes: "Two ezafe-transfer possessives."

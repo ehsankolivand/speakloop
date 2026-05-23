@@ -21,7 +21,13 @@ class LLMEngine(Protocol):
         user_prompt: str,
         max_tokens: int = 2048,
         temperature: float = 0.7,
-    ) -> str: ...
+        retry: bool = False,
+    ) -> str:
+        """Generate text. ``retry=True`` signals a bounded regenerate after a
+        repetition loop / truncation: the engine wrapper internally strengthens
+        anti-repetition (the call site passes intent only, never engine config —
+        Principle V). All other generation config is owned by the wrapper."""
+        ...
 
 
 class LLMEngineError(Exception):

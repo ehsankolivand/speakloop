@@ -1,0 +1,18 @@
+id: case-012
+source: synthetic
+l1: persian
+transcripts:
+  - "She lead the platform team now."
+  - "It depend on the cache configuration."
+gold_issues:
+  - attempt_ordinal: 1
+    quote: "She lead the platform"
+    label: "3rd-person singular -s drop"
+    correction: "She leads the platform"
+    explanation: "3sg -s missing."
+  - attempt_ordinal: 2
+    quote: "It depend on"
+    label: "3rd-person singular -s drop"
+    correction: "It depends on"
+    explanation: "3sg -s missing ('depend on' itself is the correct preposition)."
+notes: "Recurring 3sg drop; the preposition 'on' is correct here."

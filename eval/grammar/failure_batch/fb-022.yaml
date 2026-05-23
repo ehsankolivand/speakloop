@@ -1,0 +1,7 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-022
+source: synthetic
+l1: persian
+transcripts:
+- I enjoy designing reliable distributed systems. I migrated the database without downtime last quarter.
+- I reviewed three design document this week. I document the trade-offs in a short design note. I reviewed three design document this week.

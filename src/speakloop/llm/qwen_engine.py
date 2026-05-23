@@ -36,6 +36,11 @@ _THINK_UNCLOSED_RE = re.compile(r"<think>.*\Z", flags=re.DOTALL)
 class QwenEngine:
     """Local Qwen3-8B generator. Offline-only (FR-023)."""
 
+    # Defensive EOS (research_llm.md Rec 10 / grammar-output-schema §B): mlx-lm's
+    # generation API has no `stop=` parameter, so the stop marker is applied as
+    # wrapper-side truncation — any text from "<|im_end|>" onward is cut.
+    _STOP = ["<|im_end|>"]
+
     def __init__(self) -> None:
         self._model = None
         self._tokenizer = None
@@ -69,6 +74,7 @@ class QwenEngine:
         user_prompt: str,
         max_tokens: int = 2048,
         temperature: float = 0.7,
+        retry: bool = False,
     ) -> str:
         # _load may raise LLMEngineError or a user-supplied exception (tests
         # monkeypatch this) — let those propagate before we touch mlx_lm.
@@ -76,18 +82,25 @@ class QwenEngine:
 
         try:
             from mlx_lm import generate as _mlx_generate  # type: ignore
-            from mlx_lm.sample_utils import make_sampler  # type: ignore
+            from mlx_lm.sample_utils import (  # type: ignore
+                make_logits_processors,
+                make_sampler,
+            )
         except ImportError as e:  # pragma: no cover — _load would have caught it
             raise LLMEngineError("mlx_lm is not installed.") from e
 
         prompt = self._build_prompt(tokenizer, system_prompt, user_prompt)
-        # Sampling values follow research_llm.md §"Sampling (Qwen non-thinking)":
-        # temperature=0.7, top_p=0.8, top_k=20, min_p=0.
-        sampler = make_sampler(
-            temp=temperature,
-            top_p=0.8,
-            top_k=20,
-            min_p=0.0,
+        # Qwen3-8B non-thinking config (research_llm.md / grammar-output-schema §B):
+        # temperature=0.7, top_p=0.8, top_k=20, min_p=0, repetition_penalty=1.05,
+        # repetition_context_size=40. A bounded regenerate (retry=True) breaks a
+        # repetition loop by raising repetition_penalty and lowering temperature —
+        # both owned HERE so no engine config leaks to the call site (Principle V).
+        temp = round(temperature - 0.1, 2) if retry else temperature
+        repetition_penalty = 1.15 if retry else 1.05
+        sampler = make_sampler(temp=temp, top_p=0.8, top_k=20, min_p=0.0)
+        logits_processors = make_logits_processors(
+            repetition_penalty=repetition_penalty,
+            repetition_context_size=40,
         )
         try:
             text = _mlx_generate(
@@ -96,6 +109,7 @@ class QwenEngine:
                 prompt=prompt,
                 max_tokens=max_tokens,
                 sampler=sampler,
+                logits_processors=logits_processors,
             )
         except Exception as e:
             raise LLMEngineError(f"Qwen generation failed: {e}") from e
@@ -125,13 +139,19 @@ class QwenEngine:
 
     @staticmethod
     def _strip_artefacts(text: str) -> str:
-        """Strip ``<think>`` artefacts that slip through.
+        """Apply defensive EOS, then strip ``<think>`` artefacts that slip through.
 
-        Removes closed ``<think>...</think>`` blocks first, then any lone
-        unclosed ``<think>`` (truncated generation / ignored ``enable_thinking``)
-        from the opening tag to end of text, so no ``<think>`` substring survives
-        to trip the analyzer's leakage guard.
+        First truncates at any ``_STOP`` marker (``<|im_end|>``) — the wrapper's
+        stand-in for a ``stop`` parameter the mlx-lm generate API does not expose.
+        Then removes closed ``<think>...</think>`` blocks and any lone unclosed
+        ``<think>`` (truncated generation / ignored ``enable_thinking``) from the
+        opening tag to end of text, so no ``<think>`` substring survives to trip
+        the analyzer's leakage guard.
         """
+        for stop in QwenEngine._STOP:
+            idx = text.find(stop)
+            if idx != -1:
+                text = text[:idx]
         text = _THINK_RE.sub("", text)
         text = _THINK_UNCLOSED_RE.sub("", text)
         return text.strip()

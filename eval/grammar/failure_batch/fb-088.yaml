@@ -1,0 +1,6 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-088
+source: synthetic
+l1: persian
+transcripts:
+- Our service handles thousands of requests per second. Yesterday I work on the deployment pipeline. Our coroutine dispatcher batches the network calls. We monitor latency and error rates on every endpoint.

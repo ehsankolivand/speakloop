@@ -1,0 +1,6 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-067
+source: synthetic
+l1: persian
+transcripts:
+- I enjoy designing reliable distributed systems. Our coroutine dispatcher batches the network calls. I profiled the code and reduced the tail latency.

@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-035
+source: synthetic
+l1: persian
+transcripts:
+- We shipped five feature last quarter.
+- We monitor latency and error rates on every endpoint. I fixed my friend brother laptop yesterday.
+- I have worked as a backend engineer for several years. We use a message queue to decouple the components.

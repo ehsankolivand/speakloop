@@ -255,4 +255,40 @@ technical interview for a Senior Android Engineer role. Remote-first company.
 - **Streaming + TTS pipelining shrinks the felt latency gap.** First audio reaches the speaker within ~0.6–0.9 s for both Gemma 3 4B (88 tok/s) and Llama 3.1 8B (62 tok/s) on M3 Pro. Persona stability over a 30-minute mock interview is the harder constraint — hence the tilt toward the 8–9 B class.
 - **Gemma 3 4B model card is >12 months old** → mandatory re-verification before long-term adoption. The QAT Q4_0 weights and Ollama tags remain actively maintained but the underlying model has not had a major refresh.
 - **Multiple primary GitHub issues confirm** that for the base Qwen3 family (not the 3.5 small series), `enable_thinking=False` is not reliable. Do not casually swap Qwen3-8B for Qwen3.5-9B.
+
+---
+
+## Update — 2026-05-22 (feature 006: shipped generation config + 4-bit-only decision)
+
+This document is the *original* model survey; it recommended Qwen3.5-9B. The code instead
+ships **`mlx-community/Qwen3-8B-4bit`** because the `Qwen3.5-9B` MLX repo turned out to be a
+vision-language build incompatible with `mlx_lm.load()` (rationale: `installer/manifest.py:56-65`;
+root `CLAUDE.md` trap 3). Feature 006 hardened the single grammar LLM call site. The source of
+truth for these decisions is **`doc/QWEN_IMPROVMENT_RESEARCH.md`**, lifted into
+**`specs/006-feedback-quality-reliability/research.md`**.
+
+**Generation config now applied inside `llm/qwen_engine.py`** (Constitution Principle V — no engine
+config leaks to the call site). Supersedes the bare "Sampling (Qwen non-thinking)" line above:
+
+| Param | Default | Bounded regenerate (`retry=True`) | Source |
+|---|---|---|---|
+| `enable_thinking` | `False` | `False` | Qwen3-8B card; `<think>` still stripped defensively |
+| `temperature` | `0.7` | `0.6` (−0.1) | Qwen3-8B "Best Practices" |
+| `top_p` / `top_k` / `min_p` | `0.8` / `20` / `0` | unchanged | same |
+| `repetition_penalty` | `1.05` | `1.15` | research R2 (mlx-lm default 1.0 = no-op; 4-bit is loop-prone) |
+| `repetition_context_size` | `40` | `40` | research R2 |
+| `stop` (defensive EOS) | `["<\|im_end\|>"]` | same | research R5 — applied by truncation (mlx-lm `generate` has no `stop=`) |
+| `max_tokens` | `≤ 2048` | same | research R6 |
+
+- Built via `make_sampler(...)` + `make_logits_processors(repetition_penalty=…, repetition_context_size=…)`
+  — mlx-lm-native, **no new dependency** for sampling/repetition control.
+- **Output recovery**: `json-repair` (post-hoc) replaces the old hand-rolled regex repair, plus **one
+  bounded regenerate** on a repetition loop / truncation, then the existing graceful Phase-B fallback
+  (`feedback/grammar_analyzer.py`). One new dependency: `json-repair` (offline, pure-Python).
+
+**Quantization decision (firm).** Stay on **4-bit**; the **8-bit variant is out of scope this sprint**
+(no A/B, no adoption threshold). 8-bit adds ~4 GB to every download and doubles resident RAM —
+the wrong trade for the target user under Constitution VI (bandwidth) / VII (Apple-Silicon RAM),
+and the research has no *measured* GEC gain to weigh against it. Any future revisit belongs in its
+own sprint decision record (`specs/006-…/research.md` Decision 2 / M3).
 - **All five finalists support streaming** in their recommended Python inference engine; none is disqualified on that axis. The differentiation is on quality, latency, persona stability, and freshness.

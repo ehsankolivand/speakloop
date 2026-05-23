@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-078
+source: synthetic
+l1: persian
+transcripts:
+- I opened pull request for the fix. Yesterday I work on the deployment pipeline. I am good in solving concurrency bugs.
+- We use a message queue to decouple the components.
+- I fixed my friend brother laptop yesterday. Yesterday I work on the deployment pipeline.

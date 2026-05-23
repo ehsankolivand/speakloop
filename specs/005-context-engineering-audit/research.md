@@ -176,7 +176,7 @@ during US1):
 
 **Research-doc personal-path leak — CONFIRMED (FR-041, SC-F):**
 `doc/research_context_engineering.md:3` contains
-`> **File to save at:** /Users/ehsankolivans/AndroidStudioProjects/WalletFlow2/...`.
+`> **File to save at:** /Users/<name>/AndroidStudioProjects/WalletFlow2/...`.
 This MUST be removed for the path-portability audit to pass. The claim ledger is at
 **Section 17** (`## 17. Sources and claim ledger`, line 523) — the authoritative trace
 target (FR-056).

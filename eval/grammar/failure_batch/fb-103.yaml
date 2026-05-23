@@ -1,0 +1,6 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-103
+source: synthetic
+l1: persian
+transcripts:
+- The system handle retries automatically. I am good in solving concurrency bugs. I prefer composition over deep inheritance hierarchies.

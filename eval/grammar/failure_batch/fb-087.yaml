@@ -1,0 +1,6 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-087
+source: synthetic
+l1: persian
+transcripts:
+- I profiled the code and reduced the tail latency. I reviewed three design document this week. I document the trade-offs in a short design note. I migrated the database without downtime last quarter.

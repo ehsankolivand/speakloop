@@ -71,7 +71,7 @@ class _StubLLM:
     def __init__(self, response: str) -> None:
         self._response = response
 
-    def generate(self, system_prompt, user_prompt, max_tokens=2048, temperature=0.7):
+    def generate(self, system_prompt, user_prompt, max_tokens=2048, temperature=0.7, retry=False):
         return self._response
 
 
@@ -231,6 +231,38 @@ def test_fix_equal_to_quote_is_suppressed(transcript_fixture):
     )
     # The only correction equals the quote → no real fix → suppressed (FR-009).
     assert grammar_analyzer.analyze(ts, _StubLLM(payload)) == []
+
+
+def test_duplicate_patterns_are_merged(transcript_fixture):
+    """FR-004 (006): two emissions of the same catalog pattern merge into one card —
+    no repeated restatement reaches the report. V1–V5 are unweakened by the merge."""
+    gold = _gold(transcript_fixture)
+    ts = _transcripts(gold)
+    payload = json.dumps(
+        {
+            "patterns": [
+                {
+                    "label": "gerund/infinitive confusion",
+                    "occurrence_count": 1,
+                    "evidence": [
+                        {"attempt_ordinal": 1, "quote": "I like to programming", "corrected": "I like programming"}
+                    ],
+                },
+                {
+                    "label": "gerund/infinitive confusion",
+                    "occurrence_count": 1,
+                    "evidence": [
+                        {"attempt_ordinal": 1, "quote": "I like to programming", "corrected": "I like programming"}
+                    ],
+                },
+            ]
+        }
+    )
+    patterns = grammar_analyzer.analyze(ts, _StubLLM(payload))
+    gerunds = [p for p in patterns if p.label == "gerund/infinitive confusion"]
+    assert len(gerunds) == 1  # merged, not two duplicate cards
+    assert len(gerunds[0].evidence) == 1  # identical evidence unioned, not doubled
+    assert gerunds[0].occurrence_count == 2  # counts summed (FR-004)
 
 
 def test_think_tag_in_response_is_rejected(transcript_fixture):

@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-069
+source: synthetic
+l1: persian
+transcripts:
+- I prefer composition over deep inheritance hierarchies. The team reviews every pull request before merging. I mentor junior developers on testing and design.
+- We shipped the feature behind a flag and rolled it out slowly. It is different of the old design. I reviewed three design document this week. We not use that framework anymore.
+- I migrated the database without downtime last quarter. I fixed my friend brother laptop yesterday. I opened pull request for the fix.

@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-105
+source: synthetic
+l1: persian
+transcripts:
+- I mentor junior developers on testing and design.
+- I like to programming since university. I mentor junior developers on testing and design.
+- The worker process the queue slowly. We not use that framework anymore. I like my job even bigger than five years ago. I like my job even bigger than five years ago.

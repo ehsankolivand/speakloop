@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-109
+source: synthetic
+l1: persian
+transcripts:
+- We shipped five feature last quarter. We not use that framework anymore. Our service handles thousands of requests per second. Our coroutine dispatcher batches the network calls.
+- We not use that framework anymore. It is different of the old design. We monitor latency and error rates on every endpoint.
+- The Kotlin service retries with exponential backoff. I migrated the database without downtime last quarter. I document the trade-offs in a short design note.

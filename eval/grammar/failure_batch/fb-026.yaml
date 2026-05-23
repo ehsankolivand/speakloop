@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-026
+source: synthetic
+l1: persian
+transcripts:
+- Yesterday I work on the deployment pipeline. The pipeline runs static analysis on each commit. We use a message queue to decouple the components.
+- The team reviews every pull request before merging.
+- We shipped the feature behind a flag and rolled it out slowly.

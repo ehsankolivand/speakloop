@@ -23,7 +23,7 @@ grammar/coherence analysis that feeds the report. The "what the user reads after
 
 - Internal: `speakloop.asr` (`Transcript`), `speakloop.config` (paths), `speakloop.llm`
   (`LLMEngine`, used only by `grammar_analyzer`). No engine packages imported directly.
-- Third-party: `python-frontmatter`, `pyyaml`.
+- Third-party: `python-frontmatter`, `pyyaml`, `json-repair` (grammar JSON recovery, 006).
 
 ## Consumers
 
@@ -35,12 +35,18 @@ grammar/coherence analysis that feeds the report. The "what the user reads after
 - `markdown_writer.py` — atomic write.
 - `report_builder.py` — report composition.
 - `grammar_analyzer.py` — LLM grammar analysis (the only file here touching `speakloop.llm`).
+  Recovery ladder (006): `json.loads` → first-`{...}` strict → `json_repair` (recovers single
+  quotes, trailing commas, junk tokens, AND truncation) → one bounded regenerate on
+  parse-fail/loop (`retry=True`) → graceful `phase_c_error` fallback. Dedupe merges same-label
+  patterns before ranking. KEEPS V1–V5 (verbatim, coherence, no-op drop, open-bucket gate, sort).
 - `catalog.py`, `coherence.py`, `narrative.py` — Persian-L1 catalog, garble filter, narrative.
 
 ## Common modification patterns
 
 - **Add a frontmatter field**: add it optional in `frontmatter.py`; never bump `schema_version`.
 - **Tune grammar analysis**: edit `grammar_analyzer.py` / `catalog.py` (keep the verbatim guarantee).
+  JSON recovery is `json-repair`, not hand-rolled regex — don't reintroduce the old repair regexes.
+  Generation config (temp/rep-penalty/stop) is owned by `llm/qwen_engine.py`; pass intent (`retry`), not config.
 
 ## Traps
 

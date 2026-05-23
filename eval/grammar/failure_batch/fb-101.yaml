@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-101
+source: synthetic
+l1: persian
+transcripts:
+- The pipeline runs static analysis on each commit. I like my job even bigger than five years ago. It is different of the old design.
+- I like to programming since university.
+- Our coroutine dispatcher batches the network calls. The team reviews every pull request before merging. Always I check the logs first.

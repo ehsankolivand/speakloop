@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-094
+source: synthetic
+l1: persian
+transcripts:
+- He is senior engineer on our team. She lead the platform team now.
+- Our coroutine dispatcher batches the network calls.
+- I reviewed three design document this week.

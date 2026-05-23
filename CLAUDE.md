@@ -1,19 +1,28 @@
 <!-- SPECKIT START -->
-Active feature: 005-context-engineering-audit — audit & rewrite the CLAUDE.md
-  layer (root + 13 module files + research doc) as a first-class, code-true
-  deliverable. Shared anatomy at every scope; launch footprint capped ≤ 6000
-  tokens; ≥5 evidence-cited traps; top-level passes a fresh review sub-agent with
-  0 CRITICAL/MAJOR. No code changes (docs only), no new dependency; constitution
-  read-only. Iterative: US1 top-level (MVP) → US2 module files → US3 scoped rules
-  + path-sanitized research doc.
+Active feature: 006-feedback-quality-reliability — make the existing AI-derived
+  feedback (grammar suggestions, cross-attempt narrative, single top-priority)
+  reliably higher-quality. Same model family (Qwen3-8B); report format & schema_version
+  stay 1; fully offline; no new feedback dimension (no ideal-answer judging). Grammar
+  call site adopts vendor non-thinking config (temp 0.7) + repetition_penalty/stop +
+  json-repair recovery (one new dep); narrative & top-priority STAY deterministic.
+  Decisions: (1) single LLM call site, thinking off — no dual-mode; (2) stay 4-bit;
+  8-bit OUT OF SCOPE this sprint (no A/B, no threshold; Constitution VI/VII); (3)
+  json-repair now, Outlines deferred (its rep-penalty gap is RESOLVED — see research.md). New: eval/grammar/ held-out set +
+  offline harness (baseline→post) proves SC-001/SC-002. Iterative: US1 reliability (MVP)
+  → US2 grammar accuracy → US3 narrative + top-priority grounding.
 
-Plan: specs/005-context-engineering-audit/plan.md
-Spec: specs/005-context-engineering-audit/spec.md
-Research: specs/005-context-engineering-audit/research.md
-Data model: specs/005-context-engineering-audit/data-model.md
-Contracts: specs/005-context-engineering-audit/contracts/ (anatomy · audit-pass-fail)
-Doc touchpoints: CLAUDE.md (root), src/speakloop/*/CLAUDE.md (×13),
-  doc/research_context_engineering.md (path-sanitized), optional .claude/rules/.
+Plan: specs/006-feedback-quality-reliability/plan.md
+Spec: specs/006-feedback-quality-reliability/spec.md
+Research: specs/006-feedback-quality-reliability/research.md (lifts doc/QWEN_IMPROVMENT_RESEARCH.md)
+Data model: specs/006-feedback-quality-reliability/data-model.md
+Contracts: specs/006-feedback-quality-reliability/contracts/ (grammar-output-schema · eval-set-format · report-invariance)
+Code touchpoints: llm/qwen_engine.py (sampler + rep-penalty + stop), feedback/grammar_analyzer.py
+  (json-repair + bounded regenerate; keep verbatim/coherence/no-op verification),
+  feedback/narrative.py (tighten deterministic grounding); + eval/grammar/; pyproject.toml (+json-repair).
+
+Prior feature: 005-context-engineering-audit — audited & rewrote the CLAUDE.md layer
+  (root + 13 module files) as a code-true deliverable; launch footprint ≤ 6000 tokens.
+  Plan: specs/005-context-engineering-audit/plan.md · Spec: specs/005-context-engineering-audit/spec.md
 
 Prior feature: 004-public-release-readiness — cloneable & runnable by a stranger.
   Default questions ship in-repo at `content/questions.yaml`; `~/.speakloop/qa.yaml`
@@ -111,7 +120,7 @@ Each verified by running it during this feature (see `specs/005-…/audit/comman
 ```bash
 uv run speakloop --help     # works with NO models downloaded (Principle VIII)
 uv run speakloop doctor     # environment + model health check (exit 0 when healthy)
-uv run pytest               # full suite — 306 passed, 3 skipped at HEAD
+uv run pytest               # full suite — 363 passed, 3 skipped at HEAD (006 added eval + recovery tests)
 uv run pytest -m live_asr   # real silero+torchaudio smoke — run when touching torchaudio
 uv run pytest tests/integration/test_path_portability_audit.py   # no personal-path leakage
 ```
@@ -168,6 +177,12 @@ same commit. No calendar cadence.
    home file is opt-in, not created for you (`config/paths.py:103` `resolve_qa_file`, `specs/004-…`).
 6. **Never bump report `schema_version`** — add frontmatter keys additively only
    (`feedback/frontmatter.py:20,40,91`, specs 002/003).
+7. **Grammar JSON recovery is `json-repair`, not regex** — the old hand-rolled repair
+   regexes (`_repair_json`/`_loads_lenient`/`json5`) were removed (006); don't reintroduce them.
+   The Qwen generation config (temp 0.7, `repetition_penalty` 1.05/context 40, defensive
+   `<|im_end|>` stop, `enable_thinking=False`, and the `retry=True` bump to 1.15/−0.1) lives
+   **only** in `llm/qwen_engine.py`; the analyzer passes intent (`retry`), never engine config
+   (`feedback/grammar_analyzer.py`, `specs/006-…`). 8-bit stays out of scope (Decision 2).
 
 ## Never do
 

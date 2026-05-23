@@ -1,0 +1,18 @@
+id: case-010
+source: synthetic
+l1: persian
+transcripts:
+  - "I manage two team in the company."
+  - "We shipped five feature last quarter."
+gold_issues:
+  - attempt_ordinal: 1
+    quote: "two team"
+    label: "plural/singular agreement"
+    correction: "two teams"
+    explanation: "Plural -s after a number."
+  - attempt_ordinal: 2
+    quote: "five feature"
+    label: "plural/singular agreement"
+    correction: "five features"
+    explanation: "Plural -s after a number."
+notes: "Recurring plural drop."

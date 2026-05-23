@@ -1,0 +1,18 @@
+id: case-013
+source: synthetic
+l1: persian
+transcripts:
+  - "I working on the migration this week."
+  - "We not use that framework anymore."
+gold_issues:
+  - attempt_ordinal: 1
+    quote: "I working on"
+    label: "auxiliary be/do drop"
+    correction: "I am working on"
+    explanation: "Progressive needs 'am'."
+  - attempt_ordinal: 2
+    quote: "We not use"
+    label: "auxiliary be/do drop"
+    correction: "We do not use"
+    explanation: "Negation needs the 'do' auxiliary."
+notes: "Recurring auxiliary drop."

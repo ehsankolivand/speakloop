@@ -1,0 +1,11 @@
+description: "Single-quoted keys AND values (the classic Qwen emission)."
+raw: |
+  {'patterns': [{'label': 'gerund/infinitive confusion', 'occurrence_count': 2, 'evidence': [{'attempt_ordinal': 1, 'quote': 'like to programming', 'corrected': 'like programming'}]}]}
+expected:
+  patterns:
+    - label: "gerund/infinitive confusion"
+      occurrence_count: 2
+      evidence:
+        - attempt_ordinal: 1
+          quote: "like to programming"
+          corrected: "like programming"

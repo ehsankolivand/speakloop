@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-036
+source: synthetic
+l1: persian
+transcripts:
+- I use library for the network layer. I have eight year experience in mobile development.
+- We use a message queue to decouple the components. Yesterday I work on the deployment pipeline.
+- I prefer composition over deep inheritance hierarchies. I document the trade-offs in a short design note. I reviewed three design document this week.

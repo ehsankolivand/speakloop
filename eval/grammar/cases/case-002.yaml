@@ -1,0 +1,12 @@
+id: case-002
+source: synthetic
+l1: persian
+transcripts:
+  - "Now I like my job even bigger than five years ago when I first started."
+gold_issues:
+  - attempt_ordinal: 1
+    quote: "even bigger than"
+    label: "comparative form error"
+    correction: "even more than"
+    explanation: "'bigger' is the wrong comparative for liking something; use 'more'."
+notes: "Comparative misuse; the rest of the sentence is correct (precision check)."

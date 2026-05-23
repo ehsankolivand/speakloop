@@ -1,0 +1,8 @@
+# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
+id: fb-114
+source: synthetic
+l1: persian
+transcripts:
+- I manage two team in the company.
+- I opened pull request for the fix. Always I check the logs first. Right now I studying the trade-offs. I prefer composition over deep inheritance hierarchies.
+- I prefer composition over deep inheritance hierarchies. Our coroutine dispatcher batches the network calls.

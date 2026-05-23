@@ -1,0 +1,7 @@
+id: case-021
+source: synthetic
+l1: persian
+transcripts:
+  - "I started learning English in school, and I practice speaking every day before interviews."
+gold_issues: []
+notes: "Simple correct sentence. Measures false alarms."

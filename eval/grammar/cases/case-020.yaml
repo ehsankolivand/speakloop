@@ -1,0 +1,7 @@
+id: case-020
+source: synthetic
+l1: persian
+transcripts:
+  - "I don't think we're over-engineering it; the trade-offs are well understood and the real-time path is fast enough."
+gold_issues: []
+notes: "Contractions and hyphenated compounds are correct English. Measures false alarms."
