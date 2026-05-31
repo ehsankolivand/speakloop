@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-005
-source: synthetic
-l1: persian
-transcripts:
-- I am responsible of the backend services. I enjoy designing reliable distributed systems.
-- I fixed my friend brother laptop yesterday. It is different of the old design.

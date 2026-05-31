@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-089
-source: synthetic
-l1: persian
-transcripts:
-- It is different of the old design. She lead the platform team now. I opened pull request for the fix. I use library for the network layer.
-- The system handle retries automatically. This approach is more better for our case. I enjoy to build small tools on the weekend.
-- Our coroutine dispatcher batches the network calls. Coroutine runs on dispatcher in the background. We shipped five feature last quarter. I like my job even bigger than five years ago.

@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-046
-source: synthetic
-l1: persian
-transcripts:
-- We monitor latency and error rates on every endpoint. Always I check the logs first. I profiled the code and reduced the tail latency. We not use that framework anymore.
-- I opened pull request for the fix. The cache layer keeps the read path fast. I document the trade-offs in a short design note.

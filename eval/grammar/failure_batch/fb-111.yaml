@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-111
-source: synthetic
-l1: persian
-transcripts:
-- Yesterday I work on the deployment pipeline. I have eight year experience in mobile development. I migrated the database without downtime last quarter. The pipeline runs static analysis on each commit.
-- Our service handles thousands of requests per second. We shipped five feature last quarter. I like my job even bigger than five years ago.
-- The team reviews every pull request before merging. I prefer composition over deep inheritance hierarchies.

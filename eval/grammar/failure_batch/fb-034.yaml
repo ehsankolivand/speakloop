@@ -1,6 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-034
-source: synthetic
-l1: persian
-transcripts:
-- Always I check the logs first.

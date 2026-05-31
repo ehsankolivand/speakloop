@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-115
-source: synthetic
-l1: persian
-transcripts:
-- We shipped the feature behind a flag and rolled it out slowly. He is senior engineer on our team. I profiled the code and reduced the tail latency.
-- The system handle retries automatically. The team reviews every pull request before merging. Always I check the logs first.
-- This approach is more better for our case.

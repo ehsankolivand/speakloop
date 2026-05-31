@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-060
-source: synthetic
-l1: persian
-transcripts:
-- I prefer composition over deep inheritance hierarchies. We not use that framework anymore. I reviewed three design document this week. She lead the platform team now.
-- I mentor junior developers on testing and design. I mentor junior developers on testing and design.
-- Where you deploy the new service? It is different of the old design. The worker process the queue slowly. The team reviews every pull request before merging.

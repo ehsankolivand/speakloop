@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-051
-source: synthetic
-l1: persian
-transcripts:
-- We use a message queue to decouple the components.
-- I mentor junior developers on testing and design. We monitor latency and error rates on every endpoint. Yesterday I work on the deployment pipeline. This approach is more better for our case.

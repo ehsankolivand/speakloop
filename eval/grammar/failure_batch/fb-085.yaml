@@ -1,6 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-085
-source: synthetic
-l1: persian
-transcripts:
-- The worker process the queue slowly.

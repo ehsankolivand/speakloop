@@ -10,18 +10,23 @@ guardrail for FR-014, FR-015, FR-018, FR-019 and SC-005/SC-006.
 - **I1 — Schema version**: `feedback/frontmatter.py` `SCHEMA_VERSION` stays **1**. No bump.
 - **I2 — Frontmatter keys**: no key added, removed, renamed, or retyped on the normal path.
   Any future addition is **additive + optional + emitted only when present** (the existing
-  `asr:` / `phase_c_error` pattern). This sprint adds **none**.
+  `asr:` / `phase_c_error` pattern). 006 sprint added one such key — `ideal_answer:` — under
+  this rule: additive, optional, only emitted when the Q&A entry has one (post-2026-05-25).
 - **I3 — Sections & order**: the body keeps today's sections and order from
-  `report_builder.build()` — Top priority → Attempt-by-attempt table → Cross-attempt
-  comparison → Grammar patterns → Transcripts. No section added or removed.
+  `report_builder.build()` — (optional Question & reference answer →) Top priority →
+  Attempt-by-attempt table → Cross-attempt comparison → Grammar patterns → Transcripts.
+  The "Question & reference answer" block is optional and only renders when `ideal_answer`
+  is present; no section added or removed on the pre-feature path.
 - **I4 — "You said / Better / Because"** card shape and the impact-ranked ordering are unchanged.
 - **I5 — Graceful fallback retained**: the Phase-B placeholder, the `NO_PATTERNS_LINE`, and the
   `phase_c_error` ⚠️ note render exactly as today when analysis is unavailable (FR-003). This
   sprint reduces *how often* they appear; it does not restyle them.
 - **I6 — English-only** (Principle I): any user-facing string that changes stays English. No
   new locale surface.
-- **I7 — No new feedback dimension** (FR-015): no ideal-answer / semantic-equivalence content,
-  no new card type, no new metric.
+- **I7 — No new *feedback* dimension** (FR-015): no semantic-equivalence judging, no scoring,
+  no new card type, no new metric. **The Q&A reference answer is a static copy** for the
+  human reader (post-2026-05-25), not a feedback dimension: the AI never receives it
+  (grammar analyzer takes transcripts only; narrative is deterministic over metrics).
 
 ## What MAY change (content, not structure)
 

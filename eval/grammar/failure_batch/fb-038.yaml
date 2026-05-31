@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-038
-source: synthetic
-l1: persian
-transcripts:
-- We deploy to production twice a week with canaries. I am good in solving concurrency bugs. Yesterday I work on the deployment pipeline. I am responsible of the backend services.
-- This approach is more better for our case. I have worked as a backend engineer for several years. We monitor latency and error rates on every endpoint. We not use that framework anymore.

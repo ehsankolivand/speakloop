@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-070
-source: synthetic
-l1: persian
-transcripts:
-- I mentor junior developers on testing and design. I prefer composition over deep inheritance hierarchies. I write integration tests for the critical paths.
-- I have eight year experience in mobile development. I write integration tests for the critical paths. We use a message queue to decouple the components. I reviewed three design document this week.
-- We not use that framework anymore. We shipped the feature behind a flag and rolled it out slowly.

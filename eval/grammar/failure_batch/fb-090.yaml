@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-090
-source: synthetic
-l1: persian
-transcripts:
-- We shipped five feature last quarter. I mentor junior developers on testing and design. I manage two team in the company.
-- Right now I studying the trade-offs. I enjoy designing reliable distributed systems.

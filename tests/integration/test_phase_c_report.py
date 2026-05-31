@@ -41,17 +41,28 @@ def test_phase_c_report_has_grammar_patterns(tmp_sessions_dir, tmp_path):
     ]
     canned = json.dumps(
         {
-            "patterns": [
+            "errors": [
                 {
-                    "label": "3rd-person singular -s drop",
-                    "occurrence_count": 5,
-                    "evidence": [
-                        {"attempt_ordinal": 1, "quote": "He write a function"},
-                        {"attempt_ordinal": 2, "quote": "The system handle"},
-                        {"attempt_ordinal": 3, "quote": "A coroutine run"},
-                    ],
-                    "suggested_fix": "He writes / it runs / handles / listens.",
-                }
+                    "attempt_ordinal": 1,
+                    "quote": "He write a function",
+                    "corrected": "He writes a function",
+                    "error_type": "3rd-person singular -s drop",
+                    "explanation": "Third-person singular present verbs take -s.",
+                },
+                {
+                    "attempt_ordinal": 2,
+                    "quote": "The system handle",
+                    "corrected": "The system handles",
+                    "error_type": "3rd-person singular -s drop",
+                    "explanation": "Third-person singular present verbs take -s.",
+                },
+                {
+                    "attempt_ordinal": 3,
+                    "quote": "A coroutine run",
+                    "corrected": "A coroutine runs",
+                    "error_type": "3rd-person singular -s drop",
+                    "explanation": "Third-person singular present verbs take -s.",
+                },
             ]
         }
     )

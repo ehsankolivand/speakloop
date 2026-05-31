@@ -49,13 +49,13 @@ class _StubLLM:
     def generate(self, system_prompt, user_prompt, max_tokens=2048, temperature=0.7, retry=False):
         return json.dumps(
             {
-                "patterns": [
+                "errors": [
                     {
-                        "label": "gerund/infinitive confusion",
-                        "occurrence_count": 1,
-                        "evidence": [
-                            {"attempt_ordinal": 1, "quote": "like to programming", "corrected": "like programming"}
-                        ],
+                        "attempt_ordinal": 1,
+                        "quote": "like to programming",
+                        "corrected": "like programming",
+                        "error_type": "gerund/infinitive confusion",
+                        "explanation": "After like, use the -ing form.",
                     }
                 ]
             }
@@ -85,7 +85,7 @@ def test_full_analysis_and_report_make_no_network_connection(block_network):
 
     # Phase-C grammar analysis (json-repair recovery + dedupe) — no network.
     patterns = grammar_analyzer.analyze(transcripts, _StubLLM())
-    assert patterns and patterns[0].catalog_id == "gerund-infinitive-confusion"
+    assert patterns and patterns[0].label == "gerund/infinitive confusion"
 
     attempts = [_attempt(1, 116, 2.5, transcripts[0].text),
                 _attempt(2, 128, 2.0, transcripts[1].text),

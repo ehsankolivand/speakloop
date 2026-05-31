@@ -1,6 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-010
-source: synthetic
-l1: persian
-transcripts:
-- The system handle retries automatically. I write integration tests for the critical paths. I fixed my friend brother laptop yesterday.

@@ -10,6 +10,12 @@ import yaml
 
 SCHEMA_VERSION = 1
 
+# Fallback impact rank for grammar patterns parsed from legacy reports that
+# pre-date the per-pattern impact_rank field (or sessions where impact_rank is
+# missing for any reason). New sessions always set a 1..N rank in the analyzer;
+# this constant only matters for backward-compat parse paths.
+OPEN_BUCKET_IMPACT_RANK = 99
+
 
 @dataclass
 class GrammarPattern:
@@ -80,6 +86,11 @@ class Session:
     attempts: list[Attempt]
     grammar_patterns: list[GrammarPattern] = field(default_factory=list)
     generated_by_phase: Literal["A", "B", "C"] = "B"
+    # Static reference copy of the Q&A file's ideal_answer for the human reader.
+    # Additive optional; the AI model never receives it (grammar analyzer takes
+    # transcripts only; narrative is deterministic over metrics). Pre-feature
+    # reports parse with this as None and render unchanged.
+    ideal_answer: str | None = None
     # --- Additive top-level keys (002-post-session-debrief) -------------------
     # Deterministic prose: what improved across the 4/3/2 rounds (data-model §A.3,
     # FR-008). Phase-B reports may carry a fluency-only narrative.
@@ -159,16 +170,21 @@ def dump(session: Session) -> str:
     `dump` is normalised (strings are stripped before block-scalar emission) so a
     `dump → parse → dump` round-trip is idempotent (see `parse`).
     """
-    payload = {
+    payload: dict = {
         "schema_version": SCHEMA_VERSION,
         "session_id": session.session_id,
         "started_at": session.started_at.isoformat(),
         "question_id": session.question_id,
         "question": _LiteralStr(session.question_text.strip() + "\n"),
-        "attempts": [_attempt_to_dict(a) for a in session.attempts],
-        "grammar_patterns": [_pattern_to_dict(p) for p in session.grammar_patterns],
-        "generated_by_phase": session.generated_by_phase,
     }
+    # Static reference answer (human-only): emitted right after `question` when
+    # present so reader and frontmatter pair them. AI-facing modules never read
+    # this field (grammar analyzer sees transcripts only; narrative is metrics).
+    if session.ideal_answer:
+        payload["ideal_answer"] = _LiteralStr(session.ideal_answer.strip() + "\n")
+    payload["attempts"] = [_attempt_to_dict(a) for a in session.attempts]
+    payload["grammar_patterns"] = [_pattern_to_dict(p) for p in session.grammar_patterns]
+    payload["generated_by_phase"] = session.generated_by_phase
     # Additive top-level keys — emitted only when present so existing readers and
     # Phase-B reports are byte-identical to before (FR-031).
     if session.cross_attempt_narrative:
@@ -300,6 +316,7 @@ def parse(text: str) -> Session:
         attempts=[_attempt_from_dict(a) for a in (data.get("attempts") or [])],
         grammar_patterns=[_pattern_from_dict(p) for p in (data.get("grammar_patterns") or [])],
         generated_by_phase=phase,
+        ideal_answer=_opt_str(data.get("ideal_answer")),
         cross_attempt_narrative=_opt_str(data.get("cross_attempt_narrative")),
         top_priority=_opt_str(data.get("top_priority")),
         asr=_asr_from_dict(data["asr"]) if isinstance(data.get("asr"), dict) else None,

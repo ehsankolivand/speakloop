@@ -1,6 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-044
-source: synthetic
-l1: persian
-transcripts:
-- We use a message queue to decouple the components. Our service handles thousands of requests per second. I am good in solving concurrency bugs.

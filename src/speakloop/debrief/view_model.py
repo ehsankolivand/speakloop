@@ -11,7 +11,7 @@ from enum import Enum
 from pathlib import Path
 
 from speakloop.feedback import frontmatter
-from speakloop.feedback.catalog import OPEN_BUCKET_IMPACT_RANK
+from speakloop.feedback.frontmatter import OPEN_BUCKET_IMPACT_RANK
 
 # First ~N words shown in a collapsed transcript preview (FR-014).
 PREVIEW_WORDS = 10

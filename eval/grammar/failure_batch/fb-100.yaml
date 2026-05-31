@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-100
-source: synthetic
-l1: persian
-transcripts:
-- I document the trade-offs in a short design note.
-- Coroutine runs on dispatcher in the background.
-- I like my job even bigger than five years ago. I am good in solving concurrency bugs. I fixed my friend brother laptop yesterday.

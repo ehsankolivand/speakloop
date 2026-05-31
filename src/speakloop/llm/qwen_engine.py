@@ -1,7 +1,7 @@
-"""Qwen3-8B (MLX 4-bit) LLM wrapper.
+"""Qwen3-14B (MLX 4-bit) LLM wrapper.
 
 This is the ONLY file in the repo allowed to ``import mlx_lm``
-(Constitution Principle V, audited by T109).
+(Constitution Principle V, audited by tests/integration/test_help_without_models.py).
 
 Real API (verified via ``inspect.signature`` against installed ``mlx_lm==0.31.3``):
 
@@ -13,32 +13,38 @@ Real API (verified via ``inspect.signature`` against installed ``mlx_lm==0.31.3`
         built with ``mlx_lm.sample_utils.make_sampler(temp=…, top_p=…,
         top_k=…, min_p=…)`` and passed as ``sampler=``.
 
-Thinking mode: the Qwen3 chat template honors ``enable_thinking=False``
-(verified on the live tokenizer template for ``mlx-community/Qwen3-8B-4bit``),
-which suppresses the documented ``<think>`` leak. We still strip any
-residual ``<think>`` blocks defensively.
+Thinking mode: ENABLED. The Qwen3-14B chat template emits a leading
+``<think>...</think>`` reasoning block before the assistant payload. The
+wrapper strips exactly the leading block at the boundary (see
+``_strip_artefacts``) so every consumer of ``LLMEngine.generate(...)`` sees
+a clean post-think payload. A truncated thinking pass (missing ``</think>``)
+is NOT auto-scrubbed — the analyzer's bounded regenerate path catches that
+case (feedback/grammar_analyzer.py).
 """
 
 from __future__ import annotations
 
 import re
 
-from speakloop.installer.manifest import QWEN3_8B_4BIT
+from speakloop.installer.manifest import QWEN3_14B_4BIT
 from speakloop.llm.interface import LLMEngineError
 
-_THINK_RE = re.compile(r"<think>.*?</think>", flags=re.DOTALL)
-# A lone, unclosed ``<think>`` (no ``</think>``) — happens when generation is
-# truncated at max_tokens or the chat template ignores ``enable_thinking``.
-# Strip from the opening tag to end of text.
-_THINK_UNCLOSED_RE = re.compile(r"<think>.*\Z", flags=re.DOTALL)
+# Strip exactly the leading ``<think>...</think>`` block (and any leading
+# whitespace before / trailing whitespace after it). Non-greedy, DOTALL so the
+# block may span newlines.
+_LEADING_THINK_RE = re.compile(r"^\s*<think>.*?</think>\s*", flags=re.DOTALL)
 
 
 class QwenEngine:
-    """Local Qwen3-8B generator. Offline-only (FR-023)."""
+    """Local Qwen3-14B generator. Offline-only (FR-023).
 
-    # Defensive EOS (research_llm.md Rec 10 / grammar-output-schema §B): mlx-lm's
-    # generation API has no `stop=` parameter, so the stop marker is applied as
-    # wrapper-side truncation — any text from "<|im_end|>" onward is cut.
+    Thinking mode is ON; the leading ``<think>...</think>`` block is stripped
+    at the wrapper boundary so downstream code parses a clean payload.
+    """
+
+    # Defensive EOS (grammar-output-schema §B): mlx-lm's generation API has no
+    # `stop=` parameter, so the stop marker is applied as wrapper-side
+    # truncation — any text from "<|im_end|>" onward is cut.
     _STOP = ["<|im_end|>"]
 
     def __init__(self) -> None:
@@ -55,10 +61,10 @@ class QwenEngine:
                 "mlx_lm is not installed. Install the Phase-C model bundle."
             ) from e
 
-        model_path = QWEN3_8B_4BIT.local_path
+        model_path = QWEN3_14B_4BIT.local_path
         if not model_path.exists():
             raise LLMEngineError(
-                f"Qwen model not found at {model_path}. "
+                f"Qwen3-14B model not found at {model_path}. "
                 "Run `speakloop practice` to consent and download it."
             )
 
@@ -90,11 +96,13 @@ class QwenEngine:
             raise LLMEngineError("mlx_lm is not installed.") from e
 
         prompt = self._build_prompt(tokenizer, system_prompt, user_prompt)
-        # Qwen3-8B non-thinking config (research_llm.md / grammar-output-schema §B):
-        # temperature=0.7, top_p=0.8, top_k=20, min_p=0, repetition_penalty=1.05,
-        # repetition_context_size=40. A bounded regenerate (retry=True) breaks a
-        # repetition loop by raising repetition_penalty and lowering temperature —
-        # both owned HERE so no engine config leaks to the call site (Principle V).
+        # Qwen3 sampler config (research_llm.md): top_p 0.8, top_k 20, min_p 0,
+        # repetition_penalty 1.05 / context 40. The caller's ``temperature`` is
+        # passed through (the analyzer uses 0.3 for analytic / structured-output
+        # tasks; the Protocol default remains 0.7). A bounded regenerate
+        # (retry=True) breaks a repetition loop by raising repetition_penalty
+        # and lowering temperature — both owned HERE so no engine config leaks
+        # to the call site (Principle V).
         temp = round(temperature - 0.1, 2) if retry else temperature
         repetition_penalty = 1.15 if retry else 1.05
         sampler = make_sampler(temp=temp, top_p=0.8, top_k=20, min_p=0.0)
@@ -124,34 +132,31 @@ class QwenEngine:
         ]
         if not hasattr(tokenizer, "apply_chat_template"):
             return f"{system}\n\n{user}"
-        # `add_generation_prompt=True` matches the example in research_llm.md
-        # so the rendered prompt ends with the assistant turn cue.
         kwargs = {"tokenize": False, "add_generation_prompt": True}
-        # Belt-and-suspenders against the documented Qwen3-8B `<think>` leak.
-        # Qwen3.5 templates accept the flag; older templates may not — fall
-        # back rather than crash.
+        # Thinking ON: the Qwen3-14B chat template supports the flag. Older
+        # templates may not — fall back rather than crash.
         try:
             return tokenizer.apply_chat_template(
-                messages, enable_thinking=False, **kwargs
+                messages, enable_thinking=True, **kwargs
             )
         except TypeError:
             return tokenizer.apply_chat_template(messages, **kwargs)
 
     @staticmethod
     def _strip_artefacts(text: str) -> str:
-        """Apply defensive EOS, then strip ``<think>`` artefacts that slip through.
+        """Apply defensive EOS, then strip the leading ``<think>`` block.
 
         First truncates at any ``_STOP`` marker (``<|im_end|>``) — the wrapper's
-        stand-in for a ``stop`` parameter the mlx-lm generate API does not expose.
-        Then removes closed ``<think>...</think>`` blocks and any lone unclosed
-        ``<think>`` (truncated generation / ignored ``enable_thinking``) from the
-        opening tag to end of text, so no ``<think>`` substring survives to trip
-        the analyzer's leakage guard.
+        stand-in for a ``stop`` parameter the mlx-lm generate API does not
+        expose. Then strips exactly the leading ``<think>...</think>`` block
+        so the analyzer sees clean JSON-ready output. Mid-output ``<think>``
+        is unexpected with the Qwen3-14B chat template and is left in place;
+        a truncated thinking pass (missing ``</think>``) is also left in place
+        and triggers the analyzer's bounded regenerate path.
         """
         for stop in QwenEngine._STOP:
             idx = text.find(stop)
             if idx != -1:
                 text = text[:idx]
-        text = _THINK_RE.sub("", text)
-        text = _THINK_UNCLOSED_RE.sub("", text)
+        text = _LEADING_THINK_RE.sub("", text, count=1)
         return text.strip()

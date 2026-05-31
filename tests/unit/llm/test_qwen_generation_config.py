@@ -71,7 +71,7 @@ def test_default_generation_config(monkeypatch):
     assert gen_kwargs.get("max_tokens") == 512
     assert gen_kwargs.get("prompt") == "RENDERED_PROMPT"
     assert "temp" not in gen_kwargs and "temperature" not in gen_kwargs
-    assert tok.template_kwargs.get("enable_thinking") is False
+    assert tok.template_kwargs.get("enable_thinking") is True
     # Defensive EOS: output is truncated at the stop marker.
     assert QwenEngine._STOP == ["<|im_end|>"]
     assert out == "GENERATED"

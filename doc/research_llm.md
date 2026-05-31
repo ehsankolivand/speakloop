@@ -292,3 +292,81 @@ the wrong trade for the target user under Constitution VI (bandwidth) / VII (App
 and the research has no *measured* GEC gain to weigh against it. Any future revisit belongs in its
 own sprint decision record (`specs/006-…/research.md` Decision 2 / M3).
 - **All five finalists support streaming** in their recommended Python inference engine; none is disqualified on that axis. The differentiation is on quality, latency, persona stability, and freshness.
+
+---
+
+## Update — 2026-05-24 (model swap to Qwen3-14B-6bit + thinking ON + free-form prompt)
+
+The code now ships **`mlx-community/Qwen3-14B-6bit`** (replacing the prior
+`mlx-community/Qwen3-8B-4bit`), with the Qwen3 chat template's `enable_thinking`
+flag **enabled** and the leading `<think>...</think>` block stripped at the
+wrapper boundary (`llm/qwen_engine.py:_strip_artefacts`). The grammar analyzer
+adopts a **free-form prompt** in place of the Persian-L1 catalog; the model
+returns its own `error_type` strings which become `GrammarPattern.label`.
+
+**Pre-adoption testing.** A representative Persian-L1 transcript triple was run
+through three candidate models with the same free-form prompt:
+
+| Model | Recall on triple | Present-continuous vs simple |
+|---|---|---|
+| **Qwen3-14B-6bit (chosen)** | **7 / 7** | **distinguishes correctly** |
+| Granite-4.1-8B | partial | does not distinguish |
+| Ministral-3-14B-Instruct | partial | does not distinguish |
+
+Qwen3-14B-6bit was the only candidate that consistently surfaced every grammar
+error and the only candidate that distinguished present continuous from present
+simple — the deciding capability for Persian-L1 learners.
+
+**Generation config (analyzer call site).** Temperature is **0.3** (vs the
+`LLMEngine.generate` Protocol default 0.7); pre-adoption testing showed
+materially improved recall and JSON discipline at 0.3 for analytic /
+structured-output tasks. The Protocol default remains 0.7 for compatibility.
+The wrapper still owns the sampler config (top_p 0.8, top_k 20, min_p 0) and
+the rep-penalty (1.05 / context 40; 1.15 on `retry=True`).
+
+**Thinking-mode strip (wrapper).** The leading-block-only regex
+`re.compile(r"^\s*<think>.*?</think>\s*", flags=re.DOTALL)` strips the
+expected reasoning prelude. Mid-output `<think>` is unexpected with the
+Qwen3-14B chat template and is left in place; a truncated thinking pass
+(missing `</think>`) is also left in place and triggers the analyzer's
+bounded regenerate path.
+
+**Closed divergence.** Trap 3 in the root `CLAUDE.md` is retired. Research
+and shipped model finally agree on the Qwen3 family at 14B-6bit; the prior
+Qwen3.5-9B-VLM divergence is now historical context only.
+
+**On-disk footprint.** ~12 GB vs ~4.31 GiB (Qwen3-8B-4bit). The trade is
+deliberate under Constitution VI (bandwidth) / VII (Apple-Silicon RAM): the
+recall lift on real Persian-L1 transcripts is decisive for the target user,
+and the resumable HF download flow already softens the bandwidth cost.
+
+---
+
+## Update — 2026-05-25 (re-quantised 14B → 4-bit to fit M3 Pro 18 GB)
+
+The 6-bit variant of Qwen3-14B did not fit the M3 Pro 18 GB unified-memory
+target: a real-session crash with `[METAL] Command buffer execution failed:
+Insufficient Memory` occurred during a Whisper transcribe after multiple
+sequential calls, before Qwen had even loaded. Memory math: macOS + apps
+(~4-6 GB) + Python deps (~1-2 GB) + Whisper-large-v3-turbo resident (~3 GB) +
+Qwen3-14B-6bit resident (~14 GB with KV cache) = ~22-25 GB demanded vs 18 GB
+available.
+
+**Resolved by re-quantising to 4-bit at the same 14B size:**
+`mlx-community/Qwen3-14B-4bit` is ~8 GB on disk, ~9-10 GB resident with KV
+cache. Combined with the resident Whisper (~3 GB) and system overhead it fits
+the 18 GB budget with headroom. Quality cost vs 6-bit at the same parameter
+count is small for analytic / structured-output tasks at temperature 0.3
+(no community measurements show a material drop on GEC-style work at this
+quant level).
+
+**Thinking mode stays ON; free-form prompt unchanged.** The wrapper still
+strips the leading `<think>...</think>` block; the analyzer still passes
+`temperature=0.3`. The only change is the manifest entry and a smaller
+on-disk / resident footprint.
+
+**Hardware target reaffirmed.** Future LLM swaps in this repo MUST sanity-
+check resident size against 18 GB unified memory minus ~3 GB for the resident
+ASR encoder minus ~5 GB for macOS + Python overhead — i.e. an LLM resident
+ceiling of roughly 10 GB. This is the working budget for the M3 Pro 18 GB
+target user.

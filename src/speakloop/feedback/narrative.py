@@ -15,8 +15,7 @@ fixed fluency-severity heuristic — never a model guess.
 
 from __future__ import annotations
 
-from speakloop.feedback.catalog import OPEN_BUCKET_IMPACT_RANK
-from speakloop.feedback.frontmatter import Attempt, GrammarPattern
+from speakloop.feedback.frontmatter import OPEN_BUCKET_IMPACT_RANK, Attempt, GrammarPattern
 
 # --- Fluency severity thresholds (documented; unit-tested) -------------------
 # Mapped onto the SAME 1..N impact scale as grammar ``impact_rank`` (1 = most

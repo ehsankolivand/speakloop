@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-042
-source: synthetic
-l1: persian
-transcripts:
-- I mentor junior developers on testing and design.
-- The system handle retries automatically. We deploy to production twice a week with canaries.

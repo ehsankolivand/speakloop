@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-084
-source: synthetic
-l1: persian
-transcripts:
-- I like my job even bigger than five years ago.
-- Yesterday I work on the deployment pipeline. We not use that framework anymore.
-- I enjoy designing reliable distributed systems. The team reviews every pull request before merging. I opened pull request for the fix.

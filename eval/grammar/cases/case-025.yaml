@@ -1,7 +1,0 @@
-id: case-025
-source: synthetic
-l1: persian
-transcripts:
-  - "I have eight years of experience, and the system handles thousands of requests per second without issues."
-gold_issues: []
-notes: "Deliberately CORRECT 'eight years' (plural) and 'system handles' (3sg) — catches a model that over-flags already-correct forms. Measures false alarms."

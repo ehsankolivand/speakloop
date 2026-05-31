@@ -2,7 +2,11 @@
 Active feature: 006-feedback-quality-reliability — make the existing AI-derived
   feedback (grammar suggestions, cross-attempt narrative, single top-priority)
   reliably higher-quality. Same model family (Qwen3-8B); report format & schema_version
-  stay 1; fully offline; no new feedback dimension (no ideal-answer judging). Grammar
+  stay 1; fully offline; no new AI feedback dimension (no ideal-answer JUDGING).
+  Post-2026-05-25 addendum: the Q&A `ideal_answer` IS now copied verbatim into the
+  report (additive optional frontmatter `ideal_answer:` + "## Question & reference
+  answer" body section, both emitted only when set) as a static reference for the
+  human reader; the AI never reads it. Grammar
   call site adopts vendor non-thinking config (temp 0.7) + repetition_penalty/stop +
   json-repair recovery (one new dep); narrative & top-priority STAY deterministic.
   Decisions: (1) single LLM call site, thinking off — no dual-mode; (2) stay 4-bit;
@@ -67,7 +71,7 @@ source of truth; the constitution wins on any documentation conflict. -->
 
 speakloop is a fully local, offline English speaking-practice CLI for non-native
 software engineers preparing for technical interviews. It runs three local AI models
-on Apple Silicon — TTS (Kokoro-82M), ASR (Whisper-large-v3-turbo), LLM (Qwen3-8B
+on Apple Silicon — TTS (Kokoro-82M), ASR (Whisper-large-v3-turbo), LLM (Qwen3-14B
 4-bit) — to drive a listen → attempt (4/3/2) → feedback loop, written as Obsidian-
 compatible Markdown reports. After the initial model download it makes zero network
 calls (Constitution Principles II, III).
@@ -105,7 +109,7 @@ not prose (FR-007). Leaves: `config`, `content`, `trends`. Orchestrators: `cli` 
 | [`tts/`](src/speakloop/tts/CLAUDE.md) | TTS wrapper (**owns `kokoro_mlx`**) + clip cache | config, installer |
 | [`audio/`](src/speakloop/audio/CLAUDE.md) | Playback, recording, device probing | sessions |
 | [`asr/`](src/speakloop/asr/CLAUDE.md) | ASR wrapper (**owns `mlx_whisper`, `silero_vad`, `parakeet_mlx`**) + biasing | installer |
-| [`llm/`](src/speakloop/llm/CLAUDE.md) | LLM wrapper (**owns `mlx_lm`** — Qwen3-8B 4-bit) | installer |
+| [`llm/`](src/speakloop/llm/CLAUDE.md) | LLM wrapper (**owns `mlx_lm`** — Qwen3-14B 4-bit) | installer |
 | [`metrics/`](src/speakloop/metrics/CLAUDE.md) | Per-attempt fluency metrics | asr |
 | [`feedback/`](src/speakloop/feedback/CLAUDE.md) | Frontmatter, atomic writer, report builder, grammar analyzer | asr, config, llm |
 | [`debrief/`](src/speakloop/debrief/CLAUDE.md) | Post-session interactive debrief (render + audio + menu) | feedback, tts |
@@ -120,7 +124,7 @@ Each verified by running it during this feature (see `specs/005-…/audit/comman
 ```bash
 uv run speakloop --help     # works with NO models downloaded (Principle VIII)
 uv run speakloop doctor     # environment + model health check (exit 0 when healthy)
-uv run pytest               # full suite — 363 passed, 3 skipped at HEAD (006 added eval + recovery tests)
+uv run pytest               # full suite — re-measure after each feature lands
 uv run pytest -m live_asr   # real silero+torchaudio smoke — run when touching torchaudio
 uv run pytest tests/integration/test_path_portability_audit.py   # no personal-path leakage
 ```
@@ -168,21 +172,24 @@ same commit. No calendar cadence.
    `tests/integration/test_help_without_models.py::test_importing_cli_loads_no_engine_packages`
    asserts importing the CLI loads none of `mlx_whisper`, `silero_vad`, `parakeet_mlx`, `mlx_lm`;
    `kokoro_mlx` is not yet covered by that guard (finding D-3).
-3. **The LLM intentionally diverges from research**: `doc/research_llm.md` chose Qwen3.5-9B but
-   that repo is a VLM incompatible with `mlx_lm.load()`; the code ships Qwen3-8B-4bit
-   (`installer/manifest.py:56-65`). Don't "fix" it back.
+3. **Research and manifest agree** on Qwen3-14B-6bit (May 2026). The prior
+   Qwen3.5-9B-VLM divergence is **closed**; the historical context lives in
+   `doc/research_llm.md`. Thinking mode is ON; the wrapper strips the leading
+   `<think>...</think>` block.
 4. **No personal absolute paths** (`/Users/...`) in any committed file — the path-portability
    audit fails CI otherwise (`tests/integration/test_path_portability_audit.py`, `specs/004-…`).
 5. **Q&A precedence is `--qa-file → ~/.speakloop/qa.yaml → repo default`, no auto-copy** — the
    home file is opt-in, not created for you (`config/paths.py:103` `resolve_qa_file`, `specs/004-…`).
 6. **Never bump report `schema_version`** — add frontmatter keys additively only
    (`feedback/frontmatter.py:20,40,91`, specs 002/003).
-7. **Grammar JSON recovery is `json-repair`, not regex** — the old hand-rolled repair
-   regexes (`_repair_json`/`_loads_lenient`/`json5`) were removed (006); don't reintroduce them.
-   The Qwen generation config (temp 0.7, `repetition_penalty` 1.05/context 40, defensive
-   `<|im_end|>` stop, `enable_thinking=False`, and the `retry=True` bump to 1.15/−0.1) lives
-   **only** in `llm/qwen_engine.py`; the analyzer passes intent (`retry`), never engine config
-   (`feedback/grammar_analyzer.py`, `specs/006-…`). 8-bit stays out of scope (Decision 2).
+7. **Grammar uses a free-form prompt (no catalog).** `error_type` strings come straight
+   from the model and become `GrammarPattern.label`. JSON recovery is `json-repair`, not
+   hand-rolled regex — don't reintroduce the old repair regexes. The Qwen generation config
+   (sampler top_p 0.8 / top_k 20 / min_p 0; `repetition_penalty` 1.05 / context 40; defensive
+   `<|im_end|>` stop; `enable_thinking=True`; the `retry=True` bump to 1.15 / −0.1) lives
+   **only** in `llm/qwen_engine.py`; the analyzer passes intent (`retry`) and
+   `temperature=0.3`, never other engine config (`feedback/grammar_analyzer.py`). 6-bit is
+   the current ship; 8-bit stays out of scope.
 
 ## Never do
 

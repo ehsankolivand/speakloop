@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-059
-source: synthetic
-l1: persian
-transcripts:
-- I opened pull request for the fix. Right now I studying the trade-offs.
-- I am good in solving concurrency bugs.
-- I document the trade-offs in a short design note. I like to programming since university. He is senior engineer on our team.

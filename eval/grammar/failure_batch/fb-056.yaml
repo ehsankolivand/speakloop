@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-056
-source: synthetic
-l1: persian
-transcripts:
-- I profiled the code and reduced the tail latency. I use library for the network layer. The worker process the queue slowly.
-- We shipped the feature behind a flag and rolled it out slowly. I enjoy to build small tools on the weekend. She lead the platform team now. It is different of the old design.

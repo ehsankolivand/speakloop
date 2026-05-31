@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-119
-source: synthetic
-l1: persian
-transcripts:
-- Coroutine runs on dispatcher in the background.
-- I opened pull request for the fix. Our coroutine dispatcher batches the network calls.

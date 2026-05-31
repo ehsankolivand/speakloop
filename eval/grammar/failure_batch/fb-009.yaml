@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-009
-source: synthetic
-l1: persian
-transcripts:
-- Our coroutine dispatcher batches the network calls. I am good in solving concurrency bugs. I like to programming since university.
-- I profiled the code and reduced the tail latency. The system handle retries automatically. I write integration tests for the critical paths.
-- Coroutine runs on dispatcher in the background. I like my job even bigger than five years ago.

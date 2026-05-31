@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-066
-source: synthetic
-l1: persian
-transcripts:
-- I migrated the database without downtime last quarter. I am responsible of the backend services.
-- The team reviews every pull request before merging. Our service handles thousands of requests per second. Yesterday I work on the deployment pipeline.

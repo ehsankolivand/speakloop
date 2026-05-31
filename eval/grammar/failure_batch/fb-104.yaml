@@ -1,6 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-104
-source: synthetic
-l1: persian
-transcripts:
-- The Kotlin service retries with exponential backoff.

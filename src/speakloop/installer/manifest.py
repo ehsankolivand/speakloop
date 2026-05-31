@@ -53,17 +53,24 @@ PARAKEET_TDT_06B_V3 = Model(
     expected_size_bytes=2_509_044_141,  # measured 2.34 GB (7-file repo)
     required_for_phase="B",
 )
-# mlx-community's `Qwen3.5-9B-MLX-4bit` repos are vision-language models
-# (`pipeline_tag: vision-language-model`, framework `mlx-vlm`) — incompatible
-# with our `mlx_lm.load()` wrapper. The Phase-C use case is text-only grammar
-# analysis on ASR transcripts, so we use the pure-text Qwen3-8B 4-bit build.
-# Size = sum of every file in the repo (HF tree API, May 2026):
-# 4,607,835,174 (model.safetensors) + 11,422,654 (tokenizer.json)
-# + 2,776,833 (vocab.json) + 1,671,853 (merges.txt) + small configs.
-QWEN3_8B_4BIT = Model(
-    name="Qwen3-8B-4bit",
-    hf_repo_id="mlx-community/Qwen3-8B-4bit",
-    expected_size_bytes=4_623_784_971,  # ~4.31 GiB / 4.62 GB
+# Qwen3-14B at MLX 4-bit (~7-8 GB on disk). The native Qwen3 chat template
+# supports `enable_thinking=True`; the wrapper (llm/qwen_engine.py) strips the
+# leading `<think>...</think>` block at the boundary so downstream code parses
+# clean JSON. Pre-adoption testing on a Persian-L1 transcript triple showed
+# the 14B family reached 7/7 recall and was the only candidate to distinguish
+# present continuous from present simple (vs Granite-4.1-8B and Ministral-3-
+# 14B-Instruct). 4-bit (not 6-bit) is the right precision for the M3 Pro 18 GB
+# target: the 6-bit variant (~12 GB on-disk, ~14 GB resident) exceeded unified
+# memory when loaded alongside the resident Whisper-large-v3-turbo encoder.
+# Research divergence (the original Qwen3.5-9B VLM trap) remains CLOSED —
+# doc/research_llm.md agrees with the manifest on the Qwen3 family at 14B.
+# TODO: replace expected_size_bytes with the measured byte sum from the HF
+# tree once the model is downloaded; the validator's ±25% tolerance
+# (installer/validator.py:22) covers the imprecision in the meantime.
+QWEN3_14B_4BIT = Model(
+    name="Qwen3-14B-4bit",
+    hf_repo_id="mlx-community/Qwen3-14B-4bit",
+    expected_size_bytes=8_000_000_000,  # ~8 GB; refine after first download.
     required_for_phase="C",
 )
 
@@ -76,7 +83,7 @@ PHASE_C_MODELS: list[Model] = [
     KOKORO_82M,
     WHISPER_LARGE_V3_TURBO,
     PARAKEET_TDT_06B_V3,
-    QWEN3_8B_4BIT,
+    QWEN3_14B_4BIT,
 ]
 
 

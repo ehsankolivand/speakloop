@@ -1,7 +1,0 @@
-id: case-018
-source: synthetic
-l1: persian
-transcripts:
-  - "I have worked as a backend engineer for eight years, mostly on payment systems. I enjoy designing reliable services and mentoring junior developers."
-gold_issues: []
-notes: "Correct, fluent English. Measures false alarms — the analyzer should report nothing."

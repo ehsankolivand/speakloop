@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-045
-source: synthetic
-l1: persian
-transcripts:
-- We shipped five feature last quarter. I am good in solving concurrency bugs. We use a message queue to decouple the components.
-- I prefer composition over deep inheritance hierarchies. The pipeline runs static analysis on each commit. I like my job even bigger than five years ago. The cache layer keeps the read path fast.
-- Where you deploy the new service? Our coroutine dispatcher batches the network calls. I enjoy designing reliable distributed systems. Yesterday I work on the deployment pipeline.

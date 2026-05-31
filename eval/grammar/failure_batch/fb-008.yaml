@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-008
-source: synthetic
-l1: persian
-transcripts:
-- The pipeline runs static analysis on each commit. We monitor latency and error rates on every endpoint.
-- I prefer composition over deep inheritance hierarchies. I reviewed three design document this week. I have worked as a backend engineer for several years. We use a message queue to decouple the components.

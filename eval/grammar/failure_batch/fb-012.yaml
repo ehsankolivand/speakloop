@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-012
-source: synthetic
-l1: persian
-transcripts:
-- We shipped the feature behind a flag and rolled it out slowly. We deploy to production twice a week with canaries. We monitor latency and error rates on every endpoint. I migrated the database without downtime last quarter.
-- I prefer composition over deep inheritance hierarchies. I fixed my friend brother laptop yesterday. I like to programming since university. I mentor junior developers on testing and design.

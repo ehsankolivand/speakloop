@@ -25,7 +25,10 @@ manifest (which model build each phase needs) and the consent flow. No engine pa
 
 ## File map
 
-- `manifest.py` — model definitions incl. the Qwen3-8B-vs-research rationale (lines 56-65).
+- `manifest.py` — model definitions incl. the Qwen3-14B-4bit entry and thinking-on
+  rationale (see `doc/research_llm.md` May 2026 update). 4-bit (not 6-bit) is the
+  right precision for the M3 Pro 18 GB target — the 6-bit variant exceeded unified
+  memory alongside the resident Whisper encoder.
 - `consent.py` — consent prompt with per-model size disclosure.
 - `downloader.py` — resumable `snapshot_download`.
 - `validator.py` — byte-size/presence validation.
@@ -39,8 +42,6 @@ manifest (which model build each phase needs) and the consent flow. No engine pa
 
 - **Byte-range resume MUST be passed through** to `snapshot_download` (`resume_download=True`) —
   Constitution Principle VI; the target user has unreliable internet.
-- The LLM build (`Qwen3-8B-4bit`) deviates from `doc/research_llm.md` on purpose
-  (`manifest.py:56-65`).
 
 ## Pointers
 

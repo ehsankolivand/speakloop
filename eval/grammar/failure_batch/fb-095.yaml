@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-095
-source: synthetic
-l1: persian
-transcripts:
-- Where you deploy the new service? The team reviews every pull request before merging. This approach is more better for our case. I migrated the database without downtime last quarter.
-- We monitor latency and error rates on every endpoint. I use library for the network layer. I write integration tests for the critical paths.
-- Our coroutine dispatcher batches the network calls. I document the trade-offs in a short design note. The worker process the queue slowly. We not use that framework anymore.

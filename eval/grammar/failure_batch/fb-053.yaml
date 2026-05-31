@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-053
-source: synthetic
-l1: persian
-transcripts:
-- I fixed my friend brother laptop yesterday. He is senior engineer on our team. I prefer composition over deep inheritance hierarchies. I fixed my friend brother laptop yesterday.
-- We deploy to production twice a week with canaries. I reviewed three design document this week. Right now I studying the trade-offs.
-- I enjoy designing reliable distributed systems. He is senior engineer on our team. I write integration tests for the critical paths.

@@ -1,11 +1,10 @@
 description: "Reasoning-model leak: a lone junk token before a quoted key (the live bug)."
 raw: |
-  {"patterns": [{"label": "gerund/infinitive confusion", "occurrence_count": 2, "evidence": [{"attempt_ordinal": 1, a "quote": "like to programming", "corrected": "like programming"}]}]}
+  {"errors": [{"attempt_ordinal": 1, a "quote": "like to programming", "corrected": "like programming", "error_type": "gerund/infinitive confusion", "explanation": "After like, use the -ing form."}]}
 expected:
-  patterns:
-    - label: "gerund/infinitive confusion"
-      occurrence_count: 2
-      evidence:
-        - attempt_ordinal: 1
-          quote: "like to programming"
-          corrected: "like programming"
+  errors:
+    - attempt_ordinal: 1
+      quote: "like to programming"
+      corrected: "like programming"
+      error_type: "gerund/infinitive confusion"
+      explanation: "After like, use the -ing form."

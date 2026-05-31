@@ -30,13 +30,13 @@ questions:
 
 _CANNED_LLM = json.dumps(
     {
-        "patterns": [
+        "errors": [
             {
-                "label": "3rd-person singular -s drop",
-                "occurrence_count": 3,
-                "evidence": [
-                    {"attempt_ordinal": 1, "quote": "He write a function", "corrected": "He writes a function"}
-                ],
+                "attempt_ordinal": 1,
+                "quote": "He write a function",
+                "corrected": "He writes a function",
+                "error_type": "3rd-person singular -s drop",
+                "explanation": "Third-person singular present verbs take -s.",
             }
         ]
     }

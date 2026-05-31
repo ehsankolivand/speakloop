@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-049
-source: synthetic
-l1: persian
-transcripts:
-- Where you deploy the new service? Where you deploy the new service?
-- We deploy to production twice a week with canaries. We not use that framework anymore. I like to programming since university.
-- I have eight year experience in mobile development. The team reviews every pull request before merging.

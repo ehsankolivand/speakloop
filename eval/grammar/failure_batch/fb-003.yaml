@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-003
-source: synthetic
-l1: persian
-transcripts:
-- We shipped the feature behind a flag and rolled it out slowly.
-- This approach is more better for our case. I like to programming since university. I profiled the code and reduced the tail latency. Our coroutine dispatcher batches the network calls.
-- She lead the platform team now. It is different of the old design. We not use that framework anymore.

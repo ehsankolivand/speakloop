@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-023
-source: synthetic
-l1: persian
-transcripts:
-- The team reviews every pull request before merging.
-- The system handle retries automatically. The team reviews every pull request before merging. I opened pull request for the fix.

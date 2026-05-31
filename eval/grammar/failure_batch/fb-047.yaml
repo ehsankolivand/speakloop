@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-047
-source: synthetic
-l1: persian
-transcripts:
-- I am good in solving concurrency bugs.
-- I mentor junior developers on testing and design. The Kotlin service retries with exponential backoff. I like to programming since university. I fixed my friend brother laptop yesterday.

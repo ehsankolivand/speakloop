@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-062
-source: synthetic
-l1: persian
-transcripts:
-- The Kotlin service retries with exponential backoff. Our service handles thousands of requests per second. I mentor junior developers on testing and design. I write integration tests for the critical paths.
-- The pipeline runs static analysis on each commit. We use a message queue to decouple the components.

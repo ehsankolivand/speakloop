@@ -10,7 +10,7 @@ patterns gets an explicit "no patterns" line (FR-009/T040).
 from __future__ import annotations
 
 from speakloop.feedback import frontmatter
-from speakloop.feedback.catalog import OPEN_BUCKET_IMPACT_RANK
+from speakloop.feedback.frontmatter import OPEN_BUCKET_IMPACT_RANK
 
 # Exact body strings (also asserted by tests / T040).
 PHASE_B_PLACEHOLDER = (
@@ -116,6 +116,26 @@ def _top_priority_section(session: frontmatter.Session) -> str | None:
     return f"## Top priority for next session\n\n{session.top_priority.strip()}"
 
 
+def _question_reference_section(session: frontmatter.Session) -> str | None:
+    """Static Question + Reference answer block for the human reader.
+
+    The reference answer is a verbatim copy of the Q&A file's ``ideal_answer``.
+    It is NOT a feedback dimension — no semantic-equivalence judging, no
+    scoring, no LLM input. The AI grammar analyzer sees only the transcripts.
+    Pre-feature reports (no ``ideal_answer``) skip this section entirely so the
+    output stays byte-identical to before.
+    """
+    question = (session.question_text or "").strip()
+    answer = (session.ideal_answer or "").strip()
+    if not answer:
+        return None
+    lines = ["## Question & reference answer", ""]
+    if question:
+        lines += [f"**Question:** {question}", ""]
+    lines += ["**Reference answer:**", "", answer]
+    return "\n".join(lines)
+
+
 def _transcripts_section(attempts: list[frontmatter.Attempt]) -> str:
     parts = ["## Transcripts"]
     for a in attempts:
@@ -129,6 +149,10 @@ def build(session: frontmatter.Session, *, title: str | None = None) -> str:
     narrative = session.cross_attempt_narrative or _cross_attempt_paragraph(session.attempts)
 
     parts = [fm, f"# {title}", ""]
+
+    qa_ref = _question_reference_section(session)
+    if qa_ref is not None:
+        parts += [qa_ref, ""]
 
     top_priority = _top_priority_section(session)
     if top_priority is not None:

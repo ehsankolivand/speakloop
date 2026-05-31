@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-120
-source: synthetic
-l1: persian
-transcripts:
-- I have worked as a backend engineer for several years.
-- We shipped five feature last quarter.
-- The pipeline runs static analysis on each commit. I have worked as a backend engineer for several years. We shipped five feature last quarter.

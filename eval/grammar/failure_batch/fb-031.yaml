@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-031
-source: synthetic
-l1: persian
-transcripts:
-- I document the trade-offs in a short design note. This approach is more better for our case. I have eight year experience in mobile development. I have worked as a backend engineer for several years.
-- I enjoy to build small tools on the weekend. Our coroutine dispatcher batches the network calls.

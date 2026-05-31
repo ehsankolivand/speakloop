@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-055
-source: synthetic
-l1: persian
-transcripts:
-- I profiled the code and reduced the tail latency.
-- Yesterday I work on the deployment pipeline. I profiled the code and reduced the tail latency. The pipeline runs static analysis on each commit. The Kotlin service retries with exponential backoff.
-- I am good in solving concurrency bugs.

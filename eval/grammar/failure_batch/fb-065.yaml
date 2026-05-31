@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-065
-source: synthetic
-l1: persian
-transcripts:
-- I prefer composition over deep inheritance hierarchies. We deploy to production twice a week with canaries. The Kotlin service retries with exponential backoff. It is different of the old design.
-- I write integration tests for the critical paths. The worker process the queue slowly. I like to programming since university.
-- The Kotlin service retries with exponential backoff.

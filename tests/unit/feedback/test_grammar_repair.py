@@ -22,9 +22,9 @@ pytestmark = pytest.mark.unit
 FIXTURES = Path(__file__).parent / "fixtures" / "bad_json"
 
 GOLDEN = (
-    '{"patterns": [{"label": "gerund/infinitive confusion", "occurrence_count": 2, '
-    '"evidence": [{"attempt_ordinal": 1, "quote": "like to programming", '
-    '"corrected": "like programming"}]}]}'
+    '{"errors": [{"attempt_ordinal": 1, "quote": "like to programming", '
+    '"corrected": "like programming", "error_type": "gerund/infinitive confusion", '
+    '"explanation": "After like, use the -ing form."}]}'
 )
 # A transcript that contains the evidence quote verbatim + coherently.
 TS = [Transcript(text="I like to programming every day at work here.", audio_duration_seconds=60.0)]
@@ -58,13 +58,13 @@ def test_golden_parses_with_zero_repair(monkeypatch):
 
     monkeypatch.setattr(ga.json_repair, "loads", boom)
     payload = ga._extract_json(GOLDEN)
-    assert payload["patterns"][0]["label"] == "gerund/infinitive confusion"
+    assert payload["errors"][0]["error_type"] == "gerund/infinitive confusion"
 
 
-def test_golden_yields_catalog_verified_pattern():
+def test_golden_yields_verified_pattern():
     patterns = ga.analyze(TS, _StubLLM(GOLDEN))
     assert len(patterns) == 1
-    assert patterns[0].catalog_id == "gerund-infinitive-confusion"
+    assert patterns[0].label == "gerund/infinitive confusion"
     assert patterns[0].evidence[0]["quote"] == "like to programming"
     assert patterns[0].evidence[0]["corrected"] == "like programming"
 
@@ -85,8 +85,8 @@ def test_fixture_yields_same_verified_patterns_as_clean(path):
     from_bad = ga.analyze(TS, _StubLLM(fx["raw"]))
     from_clean = ga.analyze(TS, _StubLLM(clean))
     assert _patterns_repr(from_bad) == _patterns_repr(from_clean)
-    # And the recovery actually produced a usable catalog pattern (not empty).
-    assert from_bad and from_bad[0].catalog_id == "gerund-infinitive-confusion"
+    # And the recovery actually produced a usable pattern (not empty).
+    assert from_bad and from_bad[0].label == "gerund/infinitive confusion"
 
 
 def test_corpus_is_non_trivial():

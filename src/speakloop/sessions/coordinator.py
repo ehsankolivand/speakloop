@@ -347,6 +347,7 @@ def run_session(
         started_at=started_at,
         question_id=question.id,
         question_text=question.question,
+        ideal_answer=question.ideal_answer,
         attempts=attempts,
         grammar_patterns=grammar_patterns,
         generated_by_phase=phase,

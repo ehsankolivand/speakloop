@@ -359,7 +359,7 @@ def _build_grammar_analyzer():
     """Return a callable `(transcripts) -> patterns` if Phase C LLM is installed; else None."""
     from speakloop.installer import manifest, validator
 
-    if not validator.validate(manifest.QWEN3_8B_4BIT).ok:
+    if not validator.validate(manifest.QWEN3_14B_4BIT).ok:
         return None
 
     from speakloop.feedback.grammar_analyzer import analyze

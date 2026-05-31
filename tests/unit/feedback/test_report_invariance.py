@@ -101,9 +101,14 @@ def test_section_set_and_order_unchanged():
 
 def test_no_new_feedback_dimension():
     report = report_builder.build(_session(patterns=[_gerund()], narrative="N", top_priority="T")).lower()
-    # FR-015 / I7: no ideal-answer / semantic-equivalence / scoring dimension crept in.
-    for forbidden in ("ideal answer", "semantic", "model answer", "## score", "similarity"):
+    # FR-015 / I7: no semantic-equivalence / scoring dimension crept in.
+    # Note: "ideal answer" / "reference answer" content is allowed as a static
+    # human-only reference copy (post-2026-05-25) — the AI never sees it. This
+    # session has no `ideal_answer` set, so the section must NOT render here.
+    for forbidden in ("semantic", "model answer", "## score", "similarity"):
         assert forbidden not in report
+    # And without an ideal_answer, the reference section is absent.
+    assert "## question & reference answer" not in report
 
 
 # --- V-R2: frontmatter round-trip + schema_version ---------------------------
@@ -126,6 +131,23 @@ def test_dump_parse_dump_is_idempotent():
 
 
 # --- V-R3: pre vs post CLEAN report — structural diff is empty ---------------
+
+
+def test_reference_answer_renders_when_set_and_round_trips():
+    """The static Q&A reference copy (post-2026-05-25): renders only when set,
+    and round-trips through `dump → parse → dump` (additive optional key)."""
+    s = _session(patterns=[_gerund()], narrative="N", top_priority="T")
+    s.ideal_answer = "A short reference answer.\nWith two lines."
+    report = report_builder.build(s)
+    assert "## Question & reference answer" in report
+    assert "A short reference answer." in report
+    # Frontmatter round-trip is idempotent and carries ideal_answer.
+    d1 = frontmatter.dump(s)
+    assert "ideal_answer: |" in d1
+    parsed = frontmatter.parse(d1)
+    assert parsed.ideal_answer is not None
+    assert parsed.ideal_answer.startswith("A short reference answer.")
+    assert frontmatter.dump(parsed) == d1
 
 
 def test_pre_and_post_clean_reports_have_identical_structure():

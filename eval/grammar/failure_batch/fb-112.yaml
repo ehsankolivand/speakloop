@@ -1,6 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-112
-source: synthetic
-l1: persian
-transcripts:
-- We shipped five feature last quarter. It is different of the old design.

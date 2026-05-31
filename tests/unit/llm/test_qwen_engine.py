@@ -1,4 +1,4 @@
-"""T082 — Qwen wrapper: think-tag stripping, response shape, error wrapping,
+"""Qwen wrapper: leading-`<think>` stripping, response shape, error wrapping,
 plus regressions for the real `mlx_lm==0.31.3` API surface (load path,
 sampler= kwarg, missing-model guard)."""
 
@@ -15,7 +15,10 @@ from speakloop.llm.qwen_engine import QwenEngine
 pytestmark = pytest.mark.unit
 
 
-def test_strip_artefacts_removes_think_blocks():
+# --- Leading-<think> strip (thinking mode ON; wrapper boundary) --------------
+
+
+def test_strip_artefacts_removes_leading_think_block():
     raw = "<think>plan plan plan</think>\nThe answer is forty-two."
     assert QwenEngine._strip_artefacts(raw) == "The answer is forty-two."
 
@@ -24,51 +27,44 @@ def test_strip_artefacts_handles_no_think():
     assert QwenEngine._strip_artefacts("Just text.") == "Just text."
 
 
-def test_strip_artefacts_handles_multiple_blocks():
+def test_strip_artefacts_strips_only_the_leading_block():
+    # Leading-only regex: a SECOND <think>...</think> mid-text survives.
     raw = "<think>a</think>x<think>b</think>y"
-    assert QwenEngine._strip_artefacts(raw) == "xy"
+    assert QwenEngine._strip_artefacts(raw) == "x<think>b</think>y"
 
 
-# --- Unclosed <think> hardening (truncated generation / ignored enable_thinking) --
+def test_strip_artefacts_closed_block_with_json_payload():
+    raw = '<think>reason here</think>{"errors": []}'
+    assert QwenEngine._strip_artefacts(raw) == '{"errors": []}'
 
 
-def test_strip_artefacts_closed_block():
-    # (i) closed block — removed, surrounding text kept.
-    raw = '<think>reason here</think>{"patterns": []}'
-    assert QwenEngine._strip_artefacts(raw) == '{"patterns": []}'
-
-
-def test_strip_artefacts_unclosed_at_start():
-    # (ii) unclosed <think> at the start, no </think> → strip to end (empty).
+def test_strip_artefacts_unclosed_at_start_passes_through():
+    # No </think> → not a match → original text passes through (modulo strip).
+    # Truncated thinking is left for the analyzer's bounded regenerate to catch.
     raw = "<think>the model kept reasoning and never closed the tag"
-    assert QwenEngine._strip_artefacts(raw) == ""
+    assert QwenEngine._strip_artefacts(raw) == raw
 
 
-def test_strip_artefacts_unclosed_mid_text():
-    # (iii) valid output, then a truncated unclosed <think> → keep the prefix,
-    # drop from the lone <think> to end of text.
-    raw = '{"patterns": []}\n<think>oops, ran out of tokens mid-thought'
-    assert QwenEngine._strip_artefacts(raw) == '{"patterns": []}'
+def test_strip_artefacts_unclosed_mid_text_passes_through():
+    # A trailing unclosed <think> after valid JSON is NOT auto-scrubbed under
+    # the leading-only regex (no leading <think> here at all).
+    raw = '{"errors": []}\n<think>oops, ran out of tokens mid-thought'
+    assert QwenEngine._strip_artefacts(raw) == raw
 
 
 def test_strip_artefacts_no_think_unchanged():
-    # (iv) no <think> at all → unchanged (modulo strip).
-    assert QwenEngine._strip_artefacts('{"patterns": []}') == '{"patterns": []}'
+    assert QwenEngine._strip_artefacts('{"errors": []}') == '{"errors": []}'
 
 
-def test_strip_artefacts_closed_then_unclosed():
+def test_strip_artefacts_leading_closed_then_trailing_unclosed():
+    # Leading closed block stripped; trailing unclosed block remains.
     raw = "<think>a</think>answer<think>b truncated"
-    assert QwenEngine._strip_artefacts(raw) == "answer"
+    assert QwenEngine._strip_artefacts(raw) == "answer<think>b truncated"
 
 
-def test_strip_artefacts_leaves_no_think_substring():
-    # The whole point: nothing that would trip analyze()'s leakage guard survives.
-    for raw in (
-        "<think>x</think> ok",
-        "<think>unclosed",
-        "prefix <think>unclosed tail",
-    ):
-        assert "<think>" not in QwenEngine._strip_artefacts(raw)
+def test_strip_artefacts_leading_closed_block_leaves_no_think_substring():
+    # The leading-closed case is the contract we DO promise.
+    assert "<think>" not in QwenEngine._strip_artefacts("<think>x</think> ok")
 
 
 def test_engine_failure_wraps_into_llm_engine_error(monkeypatch):
@@ -110,8 +106,6 @@ def _install_fake_mlx_lm(
         fake_mlx_lm.load = load_impl
     fake_sample_utils = types.ModuleType("mlx_lm.sample_utils")
     fake_sample_utils.make_sampler = make_sampler_impl
-    # The wrapper now also builds repetition logits processors (006); provide a
-    # default stub so callers that don't care about it still work.
     fake_sample_utils.make_logits_processors = make_logits_impl or (lambda **k: [])
     fake_mlx_lm.sample_utils = fake_sample_utils
     monkeypatch.setitem(sys.modules, "mlx_lm", fake_mlx_lm)
@@ -132,7 +126,6 @@ def test_generate_passes_sampler_not_temp_kwarg(monkeypatch):
 
     def fake_generate(model, tokenizer, **kwargs):
         captured_generate_kwargs.update(kwargs)
-        # Mirror the real generate_step strictness so future regressions are caught.
         if "temp" in kwargs or "temperature" in kwargs:
             raise TypeError(
                 "generate_step() got an unexpected keyword argument 'temp'"
@@ -169,11 +162,11 @@ def test_load_uses_manifest_local_path_not_parent(monkeypatch, tmp_path):
     """_load must pass the Qwen-specific subdirectory to mlx_lm.load, not the
     parent models_dir (which contains Kokoro/Parakeet/Qwen siblings)."""
     from speakloop.config import paths
-    from speakloop.installer.manifest import QWEN3_8B_4BIT
+    from speakloop.installer.manifest import QWEN3_14B_4BIT
 
     paths.set_models_dir(tmp_path / "models")
     try:
-        qwen_dir = QWEN3_8B_4BIT.local_path
+        qwen_dir = QWEN3_14B_4BIT.local_path
         qwen_dir.mkdir(parents=True, exist_ok=True)
         # Sanity: it must be a subdir of models_dir, not models_dir itself.
         assert qwen_dir.parent == paths.models_dir()
@@ -244,7 +237,47 @@ def test_build_prompt_falls_back_when_template_rejects_enable_thinking():
     rendered = QwenEngine._build_prompt(tok, "sys", "user")
 
     assert rendered == "FALLBACK_PROMPT"
-    # Two calls: first with enable_thinking=False, second without.
+    # Two calls: first with enable_thinking=True, second without.
     assert len(tok.calls) == 2
-    assert tok.calls[0].get("enable_thinking") is False
+    assert tok.calls[0].get("enable_thinking") is True
     assert "enable_thinking" not in tok.calls[1]
+
+
+# --- End-to-end strip verification through generate(...) ---------------------
+
+
+def test_generate_strips_leading_think_block(monkeypatch):
+    """A model response with a leading <think> block must come out clean."""
+    engine = QwenEngine()
+    monkeypatch.setattr(engine, "_load", lambda: ("FAKE_MODEL", _FakeTokenizer()))
+
+    def fake_generate(model, tokenizer, **kwargs):
+        return '<think>I will analyze this transcript carefully</think>{"errors": []}'
+
+    _install_fake_mlx_lm(
+        monkeypatch,
+        generate_impl=fake_generate,
+        make_sampler_impl=lambda **k: "S",
+    )
+
+    out = engine.generate("sys", "user")
+    assert out == '{"errors": []}'
+    assert "<think>" not in out
+
+
+def test_generate_passes_through_response_without_think_block(monkeypatch):
+    """A clean (think-free) response passes through unchanged (modulo strip)."""
+    engine = QwenEngine()
+    monkeypatch.setattr(engine, "_load", lambda: ("FAKE_MODEL", _FakeTokenizer()))
+
+    def fake_generate(model, tokenizer, **kwargs):
+        return '{"errors": []}'
+
+    _install_fake_mlx_lm(
+        monkeypatch,
+        generate_impl=fake_generate,
+        make_sampler_impl=lambda **k: "S",
+    )
+
+    out = engine.generate("sys", "user")
+    assert out == '{"errors": []}'

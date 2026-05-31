@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-113
-source: synthetic
-l1: persian
-transcripts:
-- I prefer composition over deep inheritance hierarchies.
-- I enjoy to build small tools on the weekend. I document the trade-offs in a short design note. She lead the platform team now.
-- The system handle retries automatically. Coroutine runs on dispatcher in the background. It is different of the old design.

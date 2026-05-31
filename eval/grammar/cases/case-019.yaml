@@ -1,8 +1,0 @@
-id: case-019
-source: synthetic
-l1: persian
-transcripts:
-  - "Our coroutine dispatcher batches the requests, and the Kotlin service handles retries with exponential backoff."
-  - "I profiled the allocator and reduced the tail latency by caching the serialized payloads."
-gold_issues: []
-notes: "Correct technical English. Jargon (coroutine, dispatcher, Kotlin, allocator) must not be mislabeled as error or garble."

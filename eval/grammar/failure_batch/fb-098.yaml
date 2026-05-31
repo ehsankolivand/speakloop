@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-098
-source: synthetic
-l1: persian
-transcripts:
-- Coroutine runs on dispatcher in the background. I profiled the code and reduced the tail latency. Our service handles thousands of requests per second. The worker process the queue slowly.
-- I write integration tests for the critical paths. I prefer composition over deep inheritance hierarchies.
-- He is senior engineer on our team. The Kotlin service retries with exponential backoff.

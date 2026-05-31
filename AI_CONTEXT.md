@@ -6,8 +6,8 @@ runtime: CLI (typer + rich), three local MLX AI models (TTS / ASR / LLM)
 platform: macOS on Apple Silicon (M-series)
 status: v1 (version 0.1.0)
 license: MIT
-last_updated: 2026-05-21
-version: 2
+last_updated: 2026-05-25
+version: 4
 generated_by: claude-code
 ---
 
@@ -98,7 +98,7 @@ unbuilt feature. Brainstorming should treat these as load-bearing constraints, n
 | `mlx-whisper` | `>=0.4.2` | **default ASR engine** (Whisper-large-v3-turbo) |
 | `parakeet-mlx` | `>=0.5.1` | **fallback ASR engine** (Parakeet-TDT) |
 | `silero-vad` | `>=5.1` | voice-activity detection (Whisper path) |
-| `mlx-lm` | `>=0.31.3` | **LLM engine** (Qwen3-8B 4-bit) |
+| `mlx-lm` | `>=0.31.3` | **LLM engine** (Qwen3-14B 4-bit; thinking ON, stripped at wrapper) |
 | `onnxruntime` | `>=1.20` | pinned but **never imported in `src/`** — transitive via `silero-vad` (divergence D-1) |
 | `torchaudio` | `<2.9` | capped: ≥2.11 moves decode to unbundled `torchcodec` and crashes live VAD (see Invariants/Trap) |
 
@@ -114,7 +114,7 @@ Each engine package is imported function-local inside exactly one wrapper file
 | Kokoro-82M | `mlx-community/Kokoro-82M-bf16` | ~170 MB | A |
 | Whisper-large-v3-turbo (default ASR) | `mlx-community/whisper-large-v3-turbo` | ~1.50 GiB | B |
 | Parakeet-TDT-0.6b-v3 (fallback ASR) | `mlx-community/parakeet-tdt-0.6b-v3` | ~2.34 GB | B |
-| Qwen3-8B-4bit (LLM) | `mlx-community/Qwen3-8B-4bit` | ~4.31 GiB | C |
+| Qwen3-14B-4bit (LLM) | `mlx-community/Qwen3-14B-4bit` | ~8 GB | C |
 
 ### Top-level repository layout
 
@@ -152,7 +152,7 @@ Every concrete timing or size already promised in code or docs, with its cite.
 | Kokoro-82M download | ~170 MB (Phase A) | `installer/manifest.py` |
 | Whisper-large-v3-turbo download | ~1.50 GiB (Phase B) | `installer/manifest.py` |
 | Parakeet-TDT-0.6b-v3 download | ~2.34 GB (Phase B, fallback) | `installer/manifest.py` |
-| Qwen3-8B-4bit download | ~4.31 GiB (Phase C) | `installer/manifest.py` |
+| Qwen3-14B-4bit download | ~8 GB (Phase C) | `installer/manifest.py` |
 
 ### Inferable bounds
 
@@ -242,11 +242,12 @@ Primary journey: **`uv run speakloop practice`** (a full 4/3/2 session). Listen-
     self_corrections. Deterministic, transcript-only, no LLM. → `coordinator._build_attempts:195–218`,
     `metrics/__init__.py`
 13. **Grammar analysis (Phase C).** `feedback.grammar_analyzer.analyze(transcripts, llm)`:
-    catalog-aware (Persian-L1 transfer-error catalog), coherence-filtered (drops
-    ASR-garble), verbatim-substring-guaranteed quotes, sorted by `impact_rank`. On any
-    exception the session records `phase_c_error` and falls back to Phase B.
-    → `coordinator.py:314–328`, `feedback/grammar_analyzer.py`, `feedback/catalog.py`,
-    `feedback/coherence.py`
+    **free-form** — the LLM returns its own `error_type` strings which become
+    `GrammarPattern.label`. Coherence-filtered (drops ASR-garble),
+    verbatim-substring-guaranteed quotes, no-op fixes suppressed, sorted by
+    `(-occurrence_count, label)` with `impact_rank` 1..N. On any exception the session
+    records `phase_c_error` and falls back to Phase B.
+    → `coordinator.py:314–328`, `feedback/grammar_analyzer.py`, `feedback/coherence.py`
 14. **Compose narrative + top priority.** `feedback.narrative.build_narrative` and
     `select_top_priority` produce deterministic, persisted prose (cross-attempt narrative
     + the single most-impactful fix). Computed for every phase. → `coordinator.py:355–356`
@@ -313,7 +314,7 @@ Primary journey: **`uv run speakloop practice`** (a full 4/3/2 session). Listen-
 | **`TranscriptionContext`** | The additive, optional biasing payload passed into `transcribe` (`initial_prompt`, `initial_prompt_sha256`, `use_vad`) (`asr/interface.py:45–60`). |
 | **Transcript / WordTiming** | Frozen ASR result: text + per-word start/end seconds + audio duration (`asr/interface.py:22–42`). |
 | **Fluency metrics** | Deterministic transcript-only signals: speech_rate_wpm, filler count + density, pause count + mean_pause_ms (250 ms threshold), self_corrections (`metrics/`). |
-| **Persian-L1 transfer-error catalog** | A curated catalog of grammar mistakes Persian speakers transfer into English (e.g. dropped articles), used to label and explain patterns (`feedback/catalog.py`). |
+| **Persian-L1 transfer-error catalog** | **Retired** May 2026. A curated catalog of grammar mistakes Persian speakers transfer into English, used through feature 006 to label and explain patterns. Replaced by free-form `error_type` strings from the LLM; the term no longer maps to any in-repo artifact. |
 | **Grammar pattern** | A labeled, evidence-cited grammar issue with `occurrence_count`, `explanation` ("Because:"), evidence quote + `corrected` ("Better:"), `suggested_fix`, and `impact_rank` (`feedback/frontmatter.py:14–33`). |
 | **`impact_rank`** | Deterministic 1-based ranking of grammar patterns by interview comprehensibility impact; 1 = highest. Drives render/read-aloud order. |
 | **`top_priority`** | The single most important fix next session, chosen across grammar + fluency by a most-impactful-wins rule; rendered as the debrief banner (`feedback/narrative.select_top_priority`). |
@@ -375,8 +376,8 @@ Sourced from `.specify/memory/constitution.md` (v1.0.0, wins on conflict), the r
 | `kokoro_mlx` is **not yet** covered by the import-isolation guard | Finding D-3 — coverage gap, not a passing guard. | CLAUDE.md Trap 2 |
 | **Don't bump `torchaudio` past `<2.9`** without `uv run pytest -m live_asr` | ≥2.11 moves decoding to unbundled `torchcodec`, crashing the first live VAD call. | `pyproject.toml:29`, `asr/CLAUDE.md`, commit `21dfb86`; CLAUDE.md Trap 1 |
 | **Report `schema_version` stays 1** | New keys are additive + optional; a bump breaks trends/back-compat. | `feedback/frontmatter.py:11`; CLAUDE.md Trap 6 |
-| LLM **intentionally diverges from research** | `doc/research_llm.md` chose Qwen3.5-9B, but that HF repo is a VLM incompatible with `mlx_lm.load()`; the code ships Qwen3-8B-4bit. Do not "fix" it back. | `installer/manifest.py:56–68`; `llm/CLAUDE.md`; CLAUDE.md Trap 3 |
-| Qwen **thinking mode stays disabled** | `<think>` leak guard. | `llm/CLAUDE.md`; `doc/research_llm.md` |
+| LLM and research **agree** on Qwen3-14B-6bit (closed divergence) | The prior Qwen3.5-9B-VLM divergence is retired; manifest and research both target Qwen3-14B-6bit (May 2026). | `installer/manifest.py`; `llm/CLAUDE.md`; `doc/research_llm.md` (May 2026 update) |
+| Qwen3-14B **thinking mode is enabled**; leading `<think>...</think>` stripped at the wrapper boundary | The Qwen3-14B chat template emits a reasoning prelude; the wrapper's leading-only regex strips it so callers see clean JSON. A truncated thinking pass triggers the analyzer's bounded regenerate path. | `llm/qwen_engine.py:_strip_artefacts`; `llm/CLAUDE.md`; `doc/research_llm.md` (May 2026) |
 | **No personal absolute paths** (`/Users/...`) in committed files | Path-portability audit fails CI otherwise. | `tests/integration/test_path_portability_audit.py`; CLAUDE.md Trap 4 |
 | Q&A precedence is `--qa-file → ~/.speakloop/qa.yaml → repo default`, **no auto-copy** | The home file is opt-in, never created for you. | `config/paths.py:103–124`; CLAUDE.md Trap 5 |
 | `metrics` must **never import `speakloop.llm`** or a model package | Metrics are deterministic + offline. | `metrics/self_corrections.py:3`; `metrics/CLAUDE.md` |
@@ -424,7 +425,7 @@ across this file are defined inline below.
 | **D-3**: `kokoro_mlx` import-isolation guard gap | The "no engine import at module top level" test covers `mlx_whisper`/`silero_vad`/`parakeet_mlx`/`mlx_lm` but **not** `kokoro_mlx`; a regression there would slip past CI. | `tests/integration/test_help_without_models.py`; CLAUDE.md Trap 2 |
 | **D-7**: `ruff check .` fails on committed code | Pre-existing lint findings mean `ruff check .` is **not** a listed passing command; fixing needs code edits, deferred. | CLAUDE.md "Commands"; `pyproject.toml [tool.ruff]` |
 | Recording loop can hang on the **final** 4/3/2 attempt | Known v1 bug; interim workaround is Ctrl-C (SIGINT cleans temp files). Underlying fix deferred. | README.md:251–258 |
-| LLM **intentionally diverges from research** (Qwen3-8B-4bit, not the researched Qwen3.5-9B VLM) | An agent "fixing" the manifest back to the research choice will break `mlx_lm.load()`. | `installer/manifest.py:56–68`; `llm/CLAUDE.md`; CLAUDE.md Trap 3 |
+| LLM and research **agree** on Qwen3-14B-6bit (closed divergence) | The prior Qwen3.5-9B-VLM trap was retired in May 2026; the manifest and research now both target Qwen3-14B-6bit. Don't reintroduce a divergence without a research-doc update. | `installer/manifest.py`; `llm/CLAUDE.md`; `doc/research_llm.md` (May 2026 update) |
 | `torchaudio` capped `<2.9` | Bumping to ≥2.11 moves decode to unbundled `torchcodec` and crashes the first live VAD call; only `-m live_asr` catches it (and it skips when deps absent). | `pyproject.toml:29`; commit `21dfb86`; CLAUDE.md Trap 1 |
 | Several `# noqa: BLE001` blanket-except swallows | Debrief audio (`audio_player.py:145,149`), grammar JSON parse (`grammar_analyzer.py:138,170`), and tty drain (`coordinator.py:89`) deliberately swallow exceptions so a session/debrief never hangs — but they also hide real errors. | `rg "noqa: BLE001"` |
 | Engine imports tagged `# noqa: PLC0415` | Function-local imports trip the linter's "import at top" rule on purpose; they must stay local (Principle V/VIII). Don't "clean up" by hoisting. | `asr/vad.py:81`, `asr/whisper_mlx_engine.py:77–159` |

@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-014
-source: synthetic
-l1: persian
-transcripts:
-- Right now I studying the trade-offs. The Kotlin service retries with exponential backoff. Always I check the logs first. We deploy to production twice a week with canaries.
-- I am good in solving concurrency bugs.
-- Yesterday I work on the deployment pipeline. Our service handles thousands of requests per second. We use a message queue to decouple the components.

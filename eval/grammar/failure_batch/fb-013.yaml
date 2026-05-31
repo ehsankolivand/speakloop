@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-013
-source: synthetic
-l1: persian
-transcripts:
-- I use library for the network layer. I mentor junior developers on testing and design.
-- Our coroutine dispatcher batches the network calls.
-- I manage two team in the company.

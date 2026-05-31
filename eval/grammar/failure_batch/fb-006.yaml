@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-006
-source: synthetic
-l1: persian
-transcripts:
-- Our service handles thousands of requests per second. I have eight year experience in mobile development.
-- I enjoy to build small tools on the weekend. This approach is more better for our case. Our coroutine dispatcher batches the network calls.

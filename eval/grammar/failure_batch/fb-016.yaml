@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-016
-source: synthetic
-l1: persian
-transcripts:
-- I enjoy designing reliable distributed systems. I reviewed three design document this week.
-- I reviewed three design document this week.
-- I mentor junior developers on testing and design.

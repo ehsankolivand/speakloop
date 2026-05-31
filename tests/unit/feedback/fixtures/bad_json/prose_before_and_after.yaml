@@ -1,13 +1,12 @@
 description: "Conversational prose before and after the JSON object."
 raw: |
   Sure! Here is the grammar analysis you asked for:
-  {"patterns": [{"label": "gerund/infinitive confusion", "occurrence_count": 2, "evidence": [{"attempt_ordinal": 1, "quote": "like to programming", "corrected": "like programming"}]}]}
+  {"errors": [{"attempt_ordinal": 1, "quote": "like to programming", "corrected": "like programming", "error_type": "gerund/infinitive confusion", "explanation": "After like, use the -ing form."}]}
   Let me know if you need anything else.
 expected:
-  patterns:
-    - label: "gerund/infinitive confusion"
-      occurrence_count: 2
-      evidence:
-        - attempt_ordinal: 1
-          quote: "like to programming"
-          corrected: "like programming"
+  errors:
+    - attempt_ordinal: 1
+      quote: "like to programming"
+      corrected: "like programming"
+      error_type: "gerund/infinitive confusion"
+      explanation: "After like, use the -ing form."

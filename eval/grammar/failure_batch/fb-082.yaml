@@ -1,6 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-082
-source: synthetic
-l1: persian
-transcripts:
-- He is senior engineer on our team. I migrated the database without downtime last quarter.

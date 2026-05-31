@@ -21,9 +21,9 @@ pytestmark = pytest.mark.unit
 TS = [Transcript(text="I like to programming every day at work here.", audio_duration_seconds=60.0)]
 
 GOOD = (
-    '{"patterns": [{"label": "gerund/infinitive confusion", "occurrence_count": 2, '
-    '"evidence": [{"attempt_ordinal": 1, "quote": "like to programming", '
-    '"corrected": "like programming"}]}]}'
+    '{"errors": [{"attempt_ordinal": 1, "quote": "like to programming", '
+    '"corrected": "like programming", "error_type": "gerund/infinitive confusion", '
+    '"explanation": "After like, use the -ing form."}]}'
 )
 # A degenerate repetition loop: the same token many times in a row (the classic
 # 4-bit stuck-loop), unparseable as JSON.
@@ -55,7 +55,7 @@ def test_loop_then_clean_triggers_exactly_one_regenerate():
     llm = _SequenceLLM([LOOP, GOOD])
     patterns = ga.analyze(TS, llm)
     assert llm.calls == 2  # one original + exactly one regenerate
-    assert patterns and patterns[0].catalog_id == "gerund-infinitive-confusion"
+    assert patterns and patterns[0].label == "gerund/infinitive confusion"
 
 
 def test_clean_first_response_does_not_regenerate():

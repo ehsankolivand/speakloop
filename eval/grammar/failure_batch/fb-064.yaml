@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-064
-source: synthetic
-l1: persian
-transcripts:
-- This approach is more better for our case. Yesterday I work on the deployment pipeline.
-- The worker process the queue slowly. Yesterday I work on the deployment pipeline. We shipped the feature behind a flag and rolled it out slowly.
-- We not use that framework anymore. I write integration tests for the critical paths.

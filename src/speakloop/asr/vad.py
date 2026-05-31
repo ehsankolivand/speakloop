@@ -21,6 +21,7 @@ on first VAD call; the <2.9 line keeps the in-tree FFmpeg/soundfile decode path.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -83,18 +84,27 @@ def segment(wav_path: Path) -> list[SpeechRegion]:
         raise ASREngineError("silero-vad is not installed.") from e
 
     try:
-        audio = silero_vad.read_audio(str(wav_path), sampling_rate=SAMPLE_RATE_HZ)
-        model = silero_vad.load_silero_vad(onnx=True)
-        stamps = silero_vad.get_speech_timestamps(
-            audio,
-            model,
-            threshold=SPEECH_THRESHOLD,
-            sampling_rate=SAMPLE_RATE_HZ,
-            min_speech_duration_ms=MIN_SPEECH_MS,
-            min_silence_duration_ms=MIN_SILENCE_MS,
-            speech_pad_ms=SPEECH_PAD_MS,
-            return_seconds=True,
-        )
+        # silero_vad's read_audio routes through torchaudio, which (on the
+        # <2.9 line we deliberately pin — see module docstring) emits
+        # deprecation UserWarnings for sox_effects and the 2.9 backend
+        # migration. We cannot upgrade past <2.9 (torchcodec crash), so
+        # these are unactionable noise on every transcription — silence
+        # them at the call site, scoped to torchaudio + silero_vad.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module=r"torchaudio\..*")
+            warnings.filterwarnings("ignore", category=UserWarning, module=r"silero_vad\..*")
+            audio = silero_vad.read_audio(str(wav_path), sampling_rate=SAMPLE_RATE_HZ)
+            model = silero_vad.load_silero_vad(onnx=True)
+            stamps = silero_vad.get_speech_timestamps(
+                audio,
+                model,
+                threshold=SPEECH_THRESHOLD,
+                sampling_rate=SAMPLE_RATE_HZ,
+                min_speech_duration_ms=MIN_SPEECH_MS,
+                min_silence_duration_ms=MIN_SILENCE_MS,
+                speech_pad_ms=SPEECH_PAD_MS,
+                return_seconds=True,
+            )
     except Exception as e:  # pragma: no cover — runtime VAD failure
         raise ASREngineError(f"VAD segmentation failed for {wav_path}: {e}") from e
 

@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-017
-source: synthetic
-l1: persian
-transcripts:
-- I am responsible of the backend services. Our service handles thousands of requests per second. I like to programming since university. The cache layer keeps the read path fast.
-- I use library for the network layer. We shipped the feature behind a flag and rolled it out slowly. The Kotlin service retries with exponential backoff. He is senior engineer on our team.

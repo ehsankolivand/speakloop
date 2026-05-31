@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-052
-source: synthetic
-l1: persian
-transcripts:
-- Our service handles thousands of requests per second. We use a message queue to decouple the components. We deploy to production twice a week with canaries.
-- I enjoy to build small tools on the weekend. Coroutine runs on dispatcher in the background.
-- I am good in solving concurrency bugs.

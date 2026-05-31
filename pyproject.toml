@@ -32,6 +32,7 @@ dependencies = [
     "silero-vad>=5.1",
     "onnxruntime>=1.20",
     "torchaudio<2.9",
+    "hf-transfer>=0.1.9",
 ]
 
 [project.scripts]

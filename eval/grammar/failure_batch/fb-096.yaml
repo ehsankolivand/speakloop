@@ -1,6 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-096
-source: synthetic
-l1: persian
-transcripts:
-- I am responsible of the backend services. Always I check the logs first. Right now I studying the trade-offs.

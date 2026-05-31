@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-106
-source: synthetic
-l1: persian
-transcripts:
-- Always I check the logs first.
-- I migrated the database without downtime last quarter.
-- I migrated the database without downtime last quarter. I migrated the database without downtime last quarter. The worker process the queue slowly.

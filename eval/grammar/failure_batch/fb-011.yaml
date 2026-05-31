@@ -1,8 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-011
-source: synthetic
-l1: persian
-transcripts:
-- Always I check the logs first.
-- We shipped the feature behind a flag and rolled it out slowly.
-- Always I check the logs first. I profiled the code and reduced the tail latency.

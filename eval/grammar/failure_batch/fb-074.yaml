@@ -1,7 +1,0 @@
-# Unlabeled failure-batch session (SC-001). Synthetic; no gold labels.
-id: fb-074
-source: synthetic
-l1: persian
-transcripts:
-- We shipped the feature behind a flag and rolled it out slowly. Coroutine runs on dispatcher in the background.
-- I have worked as a backend engineer for several years.
