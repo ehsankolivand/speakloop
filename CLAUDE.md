@@ -1,28 +1,39 @@
 <!-- SPECKIT START -->
 Active feature: 006-feedback-quality-reliability — make the existing AI-derived
   feedback (grammar suggestions, cross-attempt narrative, single top-priority)
-  reliably higher-quality. Same model family (Qwen3-8B); report format & schema_version
+  reliably higher-quality. LLM is now Qwen3-14B at MLX 4-bit (re-quantised down
+  from 6-bit for the M3 Pro 18 GB resident-RAM budget — see CHANGELOG 2026-05-25
+  and `doc/research_llm.md` Update — 2026-05-25); report format & schema_version
   stay 1; fully offline; no new AI feedback dimension (no ideal-answer JUDGING).
   Post-2026-05-25 addendum: the Q&A `ideal_answer` IS now copied verbatim into the
   report (additive optional frontmatter `ideal_answer:` + "## Question & reference
   answer" body section, both emitted only when set) as a static reference for the
-  human reader; the AI never reads it. Grammar
-  call site adopts vendor non-thinking config (temp 0.7) + repetition_penalty/stop +
-  json-repair recovery (one new dep); narrative & top-priority STAY deterministic.
-  Decisions: (1) single LLM call site, thinking off — no dual-mode; (2) stay 4-bit;
-  8-bit OUT OF SCOPE this sprint (no A/B, no threshold; Constitution VI/VII); (3)
-  json-repair now, Outlines deferred (its rep-penalty gap is RESOLVED — see research.md). New: eval/grammar/ held-out set +
-  offline harness (baseline→post) proves SC-001/SC-002. Iterative: US1 reliability (MVP)
-  → US2 grammar accuracy → US3 narrative + top-priority grounding.
+  human reader; the AI never reads it. Grammar uses a **free-form** prompt — the
+  model emits its own `error_type` strings which become `GrammarPattern.label`
+  verbatim (the Persian-L1 catalog was retired in May 2026 and `feedback/catalog.py`
+  / `persian_l1_catalog.yaml` were deleted). Wrapper config: thinking mode **ON**,
+  leading `<think>...</think>` stripped at the wrapper boundary; sampler top_p 0.8
+  / top_k 20 / min_p 0; repetition_penalty 1.05 / context 40; defensive `<|im_end|>`
+  stop; analyzer passes only `temperature=0.3` and `retry` intent. JSON recovery
+  uses `json-repair` (one dep) + one bounded regenerate; narrative & top-priority
+  stay deterministic. Decisions: (1) single LLM call site; (2) stay 4-bit; 8-bit
+  OUT OF SCOPE this sprint (no A/B, no threshold; Constitution VI/VII). The
+  eval/grammar/ held-out harness was deleted (catalog-shaped — needs a redesign
+  for free-form labels); SC-001/SC-002 are now demonstrated via the unit + integration
+  test suites and the real-session report. Iterative phases (US1 reliability MVP →
+  US2 grammar accuracy → US3 narrative + top-priority grounding) have all shipped.
 
 Plan: specs/006-feedback-quality-reliability/plan.md
 Spec: specs/006-feedback-quality-reliability/spec.md
-Research: specs/006-feedback-quality-reliability/research.md (lifts doc/QWEN_IMPROVMENT_RESEARCH.md)
+Research: specs/006-feedback-quality-reliability/research.md (lifts doc/QWEN_IMPROVMENT_RESEARCH.md — that file is
+  historical research on the older Qwen3-8B-4bit; the shipped sampler / rep-penalty /
+  stop values are the same, but thinking mode is now ON and the model is Qwen3-14B-4bit)
 Data model: specs/006-feedback-quality-reliability/data-model.md
 Contracts: specs/006-feedback-quality-reliability/contracts/ (grammar-output-schema · eval-set-format · report-invariance)
-Code touchpoints: llm/qwen_engine.py (sampler + rep-penalty + stop), feedback/grammar_analyzer.py
-  (json-repair + bounded regenerate; keep verbatim/coherence/no-op verification),
-  feedback/narrative.py (tighten deterministic grounding); + eval/grammar/; pyproject.toml (+json-repair).
+Code touchpoints: llm/qwen_engine.py (sampler + rep-penalty + stop + leading-think strip),
+  feedback/grammar_analyzer.py (free-form prompt + json-repair + bounded regenerate;
+  verbatim/coherence/no-op verification preserved),
+  feedback/narrative.py (deterministic grounding); pyproject.toml (+json-repair).
 
 Prior feature: 005-context-engineering-audit — audited & rewrote the CLAUDE.md layer
   (root + 13 module files) as a code-true deliverable; launch footprint ≤ 6000 tokens.
@@ -42,7 +53,8 @@ Prior feature: 003-asr-l2-accent-accuracy — faithful transcripts on Persian-L1
   Plan: specs/003-asr-l2-accent-accuracy/plan.md · Spec: specs/003-asr-l2-accent-accuracy/spec.md
 
 Prior feature: 002-post-session-debrief — educational LLM grammar feedback
-  (Persian-L1 catalog) + in-terminal interactive debrief.
+  (originally Persian-L1 catalog; the catalog was retired in May 2026 by 006
+  in favour of a free-form prompt) + in-terminal interactive debrief.
   Plan: specs/002-post-session-debrief/plan.md · Spec: specs/002-post-session-debrief/spec.md
   New module: src/speakloop/debrief/ (render + audio + menu).
 
@@ -52,9 +64,12 @@ Base feature: speakloop v1 — local English interview-practice CLI.
 Engine selections cite the in-repo research documents:
   doc/research_tts.md (Kokoro-82M),
   doc/research_asr.md (Parakeet-TDT-0.6b-v3),
-  doc/research_llm.md (Qwen3-8B 4-bit — deviates from the initial Qwen3.5-9B
-    research choice because that HF repo turned out to be a VLM incompatible
-    with mlx_lm.load(); see installer/manifest.py rationale comment).
+  doc/research_llm.md (Qwen3-14B 4-bit — the original survey recommended
+    Qwen3.5-9B but that HF repo was a VLM incompatible with `mlx_lm.load()`; the
+    code first shipped Qwen3-8B-4bit, then Qwen3-14B-6bit, and now Qwen3-14B-4bit
+    after the 6-bit variant exceeded the M3 Pro 18 GB resident-RAM budget. See
+    `doc/research_llm.md` Update — 2026-05-25 and `installer/manifest.py`
+    rationale comment).
 
 Constitution: .specify/memory/constitution.md (v1.0.0).
 Shipping order is three phases (A: listen-only, B: attempts + metrics, C: LLM feedback + trends);
@@ -172,10 +187,10 @@ same commit. No calendar cadence.
    `tests/integration/test_help_without_models.py::test_importing_cli_loads_no_engine_packages`
    asserts importing the CLI loads none of `mlx_whisper`, `silero_vad`, `parakeet_mlx`, `mlx_lm`;
    `kokoro_mlx` is not yet covered by that guard (finding D-3).
-3. **Research and manifest agree** on Qwen3-14B-6bit (May 2026). The prior
-   Qwen3.5-9B-VLM divergence is **closed**; the historical context lives in
-   `doc/research_llm.md`. Thinking mode is ON; the wrapper strips the leading
-   `<think>...</think>` block.
+3. **Research and manifest agree** on Qwen3-14B-4bit (May 2026). The prior
+   Qwen3.5-9B-VLM divergence is **closed**; the historical context (Qwen3.5-9B-VLM →
+   Qwen3-8B-4bit → Qwen3-14B-6bit → Qwen3-14B-4bit) lives in `doc/research_llm.md`.
+   Thinking mode is ON; the wrapper strips the leading `<think>...</think>` block.
 4. **No personal absolute paths** (`/Users/...`) in any committed file — the path-portability
    audit fails CI otherwise (`tests/integration/test_path_portability_audit.py`, `specs/004-…`).
 5. **Q&A precedence is `--qa-file → ~/.speakloop/qa.yaml → repo default`, no auto-copy** — the
@@ -183,13 +198,17 @@ same commit. No calendar cadence.
 6. **Never bump report `schema_version`** — add frontmatter keys additively only
    (`feedback/frontmatter.py:20,40,91`, specs 002/003).
 7. **Grammar uses a free-form prompt (no catalog).** `error_type` strings come straight
-   from the model and become `GrammarPattern.label`. JSON recovery is `json-repair`, not
-   hand-rolled regex — don't reintroduce the old repair regexes. The Qwen generation config
-   (sampler top_p 0.8 / top_k 20 / min_p 0; `repetition_penalty` 1.05 / context 40; defensive
-   `<|im_end|>` stop; `enable_thinking=True`; the `retry=True` bump to 1.15 / −0.1) lives
-   **only** in `llm/qwen_engine.py`; the analyzer passes intent (`retry`) and
-   `temperature=0.3`, never other engine config (`feedback/grammar_analyzer.py`). 6-bit is
-   the current ship; 8-bit stays out of scope.
+   from the model and become `GrammarPattern.label`. The Persian-L1 catalog was retired
+   in May 2026; `feedback/catalog.py` and `persian_l1_catalog.yaml` no longer exist. JSON
+   recovery is `json-repair`, not hand-rolled regex — don't reintroduce the old repair
+   regexes. The Qwen generation config (sampler top_p 0.8 / top_k 20 / min_p 0;
+   `repetition_penalty` 1.05 / context 40; defensive `<|im_end|>` stop;
+   `enable_thinking=True`; the `retry=True` bump to 1.15 / −0.1) lives **only** in
+   `llm/qwen_engine.py`; the analyzer passes intent (`retry`) and `temperature=0.3`,
+   never other engine config (`feedback/grammar_analyzer.py`). **4-bit at the 14B size
+   is the current ship** (`mlx-community/Qwen3-14B-4bit`); 6-bit at 14B exceeded the
+   M3 Pro 18 GB resident-memory budget alongside resident Whisper and was re-quantised
+   down to 4-bit (CHANGELOG 2026-05-25). 8-bit stays out of scope.
 
 ## Never do
 
@@ -203,7 +222,7 @@ same commit. No calendar cadence.
 ## Pointers
 
 - Per-module guidance: each `src/speakloop/<module>/CLAUDE.md` (loaded on-demand).
-- Specs: `specs/001`–`specs/005` (plan.md · spec.md per feature).
+- Specs: `specs/001`–`specs/006` (plan.md · spec.md per feature).
 - Engine research: `doc/research_tts.md`, `doc/research_asr.md`, `doc/research_llm.md`,
   `doc/research_methodology.md`; context-engineering reference: `doc/research_context_engineering.md`.
 - Governance: `.specify/memory/constitution.md` (v1.0.0) — wins on any conflict.

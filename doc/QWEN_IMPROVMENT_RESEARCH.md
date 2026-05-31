@@ -1,5 +1,22 @@
 # Getting the Highest-Quality Output from `mlx-community/Qwen3-8B-4bit` under `mlx-lm`
 
+> ## ⚠️ Historical — the shipped model is no longer Qwen3-8B-4bit
+>
+> This document is the deep-dive that informed the original 006 generation
+> config when the code shipped Qwen3-8B-4bit. The shipped model has since
+> moved to **`mlx-community/Qwen3-14B-4bit` with thinking mode ON** (see
+> `doc/research_llm.md` Updates 2026-05-24 and 2026-05-25 at the bottom of
+> that file). The wrapper-side config that ultimately landed —
+> top_p 0.8 / top_k 20 / min_p 0; `repetition_penalty` 1.05 / context 40;
+> defensive `<|im_end|>` stop; `json-repair` post-hoc recovery + one bounded
+> regenerate — is unchanged from the recommendations here. The two things
+> that diverged: **`enable_thinking=True`** (this file argues for False, which
+> was right for 8B-4bit on a 2 s voice loop but wrong for 14B-4bit one-shot
+> grammar analysis at `temperature=0.3`), and the catalog/prompt direction
+> (the Persian-L1 catalog was retired in favour of a free-form
+> model-emitted-`error_type` prompt). Source of truth for the live config is
+> `src/speakloop/llm/qwen_engine.py` + `src/speakloop/feedback/grammar_analyzer.py`.
+
 ## TL;DR
 - For thinking mode use `temperature=0.6, top_p=0.95, top_k=20, min_p=0`; for non-thinking use `temperature=0.7, top_p=0.8, top_k=20, min_p=0`; never use greedy decoding — these are vendor-mandated values from the official Qwen3-8B model card (verified).
 - Use mlx-lm **v0.31.3** (released 22 Apr 2026) and avoid mlx==0.30.4 for any Qwen3 weights — a known regression produces garbage output past ~1000 tokens (issue #844, closed). For grammar checking, disable thinking (`enable_thinking=False`) and keep outputs short; thinking mode wastes tokens for shallow edit tasks.

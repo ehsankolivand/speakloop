@@ -1,5 +1,30 @@
 # Best Local Open-Weight LLMs for a Mock-Interviewer Voice Loop on M3 Pro 18GB (May 2026)
 
+> ## ⚠️ Current state (read this first)
+>
+> **The shipped LLM is `mlx-community/Qwen3-14B-4bit`** (~8 GB on disk, ~9–10 GB
+> resident with KV cache) with **thinking mode ON** — the wrapper
+> (`src/speakloop/llm/qwen_engine.py`) strips only the leading
+> `<think>...</think>` block. The grammar analyzer calls it at `temperature=0.3`
+> with a **free-form prompt** (no Persian-L1 catalog; that catalog and
+> `feedback/catalog.py` / `persian_l1_catalog.yaml` were deleted in May 2026).
+> Sampler config (top_p 0.8 / top_k 20 / min_p 0; repetition_penalty 1.05 /
+> context 40; defensive `<|im_end|>` stop) lives entirely in the wrapper.
+>
+> The body of this document is the **original** May-2026 survey, which
+> recommended Qwen3.5-9B. The model identity then evolved
+> Qwen3.5-9B-VLM → Qwen3-8B-4bit → Qwen3-14B-6bit → **Qwen3-14B-4bit**.
+> The two "Update — 2026-05-2x" sections at the bottom record each step;
+> they supersede the TL;DR below on conflict. Source of truth: the live
+> source (`src/speakloop/installer/manifest.py`,
+> `src/speakloop/llm/qwen_engine.py`) and the CHANGELOG entries dated
+> 2026-05-25.
+>
+> **Hardware-budget rule (from the 2026-05-25 OOM fix).** Future LLM swaps on
+> the M3 Pro 18 GB target MUST sanity-check resident size against ≈10 GB
+> (18 GB unified − ~5 GB macOS+Python − ~3 GB resident ASR encoder). 8-bit
+> Qwen quant stays out of scope.
+
 ## TL;DR
 
 - **Top pick: Qwen3.5-9B at MLX 4-bit** (`mlx-community/Qwen3.5-9B-MLX-4bit`, ~5.1 GB download, model released March 2, 2026). Highest IFEval / IFBench in the size class, native MLX streaming, Apache 2.0, and — critically — Qwen3.5's "small series" ships with thinking mode disabled by default, sidestepping the documented `<think>`-leak bug that disqualifies the base Qwen3-8B.
@@ -258,7 +283,7 @@ technical interview for a Senior Android Engineer role. Remote-first company.
 
 ---
 
-## Update — 2026-05-22 (feature 006: shipped generation config + 4-bit-only decision)
+## Update — 2026-05-22 (feature 006: shipped generation config + 4-bit-only decision) — model since superseded; see 2026-05-25 update at the bottom
 
 This document is the *original* model survey; it recommended Qwen3.5-9B. The code instead
 ships **`mlx-community/Qwen3-8B-4bit`** because the `Qwen3.5-9B` MLX repo turned out to be a
@@ -295,7 +320,7 @@ own sprint decision record (`specs/006-…/research.md` Decision 2 / M3).
 
 ---
 
-## Update — 2026-05-24 (model swap to Qwen3-14B-6bit + thinking ON + free-form prompt)
+## Update — 2026-05-24 (model swap to Qwen3-14B-6bit + thinking ON + free-form prompt) — 6-bit re-quantised to 4-bit on 2026-05-25 (next section)
 
 The code now ships **`mlx-community/Qwen3-14B-6bit`** (replacing the prior
 `mlx-community/Qwen3-8B-4bit`), with the Qwen3 chat template's `enable_thinking`

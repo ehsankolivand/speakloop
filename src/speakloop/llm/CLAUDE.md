@@ -42,8 +42,10 @@ LLM engine wrapper for educational grammar/coherence feedback [Phase C]. Ships *
 ## Traps
 
 - **Research and manifest agree.** The prior Qwen3.5-9B-VLM divergence is **closed**;
-  `doc/research_llm.md` (May 2026 update) and `installer/manifest.py` both target
-  Qwen3-14B-6bit. Do not reintroduce divergence without a fresh research entry.
+  `doc/research_llm.md` (Update — 2026-05-25) and `installer/manifest.py` both target
+  **Qwen3-14B at MLX 4-bit** (re-quantised down from 6-bit because the 6-bit variant
+  exceeded the M3 Pro 18 GB resident-RAM budget alongside resident Whisper). Do not
+  reintroduce divergence without a fresh research entry.
 - **Thinking mode is enabled; `<think>...</think>` blocks are stripped at the wrapper
   boundary.** The strip is leading-only (regex
   `^\s*<think>.*?</think>\s*`). A truncated thinking pass (missing `</think>`) is NOT

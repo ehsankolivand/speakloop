@@ -7,6 +7,14 @@
 > denoiser is deferred / out of scope** (no `asr/denoise.py`). As built, domain
 > biasing also mines the question's *ideal answer* (not just the prompt). See
 > `specs/003-asr-l2-accent-accuracy/spec.md` for the authoritative scope.
+>
+> **LLM-line update (post-2026-05-25).** Every memory-math reference below to
+> "Qwen3-8B-4bit ≈4.5 GB" reflects the LLM at the time of this brief. The shipped
+> LLM is now **`mlx-community/Qwen3-14B-4bit`** (~8 GB on disk, ~9–10 GB resident
+> with KV cache); recompute the resident-RAM totals accordingly. The codified
+> M3-Pro-18-GB budget rule lives in `doc/research_llm.md` (Update — 2026-05-25):
+> LLM resident ceiling ≈10 GB after subtracting macOS + Python overhead and the
+> resident ASR encoder.
 
 ## A. Executive Summary
 
