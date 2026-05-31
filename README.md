@@ -42,6 +42,7 @@ and deliberately so.
 You need [`uv`](https://docs.astral.sh/uv/) and a microphone.
 
 ```bash
+brew install aria2        # Recommended for faster, more resilient downloads on slow links — without it, speakloop falls back to a single-connection download.
 git clone https://github.com/ehsankolivand/speakloop.git
 cd speakloop
 uv sync

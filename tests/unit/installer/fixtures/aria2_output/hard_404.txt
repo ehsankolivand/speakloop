@@ -1,0 +1,13 @@
+
+12/01 14:37:01 [NOTICE] Downloading 1 item(s)
+
+12/01 14:37:01 [ERROR] CUID#1 - Download aborted. URI=https://huggingface.co/example/resolve/main/nonexistent.safetensors
+Exception: [AbstractCommand.cc:351] errorCode=22 URI=https://huggingface.co/example/resolve/main/nonexistent.safetensors
+  -> [HttpResponse.cc:104] errorCode=22 Resource not found. HTTP status=404
+
+Download Results:
+gid   |stat|avg speed  |path/URI
+======+====+===========+=======================================================
+def456|ERR |       0B/s|/Users/example/.speakloop/models/x/nonexistent.safetensors
+
+errorCode=22 HTTP response not OK.

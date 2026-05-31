@@ -1,39 +1,51 @@
 <!-- SPECKIT START -->
-Active feature: 006-feedback-quality-reliability — make the existing AI-derived
-  feedback (grammar suggestions, cross-attempt narrative, single top-priority)
-  reliably higher-quality. LLM is now Qwen3-14B at MLX 4-bit (re-quantised down
-  from 6-bit for the M3 Pro 18 GB resident-RAM budget — see CHANGELOG 2026-05-25
-  and `doc/research_llm.md` Update — 2026-05-25); report format & schema_version
-  stay 1; fully offline; no new AI feedback dimension (no ideal-answer JUDGING).
-  Post-2026-05-25 addendum: the Q&A `ideal_answer` IS now copied verbatim into the
-  report (additive optional frontmatter `ideal_answer:` + "## Question & reference
-  answer" body section, both emitted only when set) as a static reference for the
-  human reader; the AI never reads it. Grammar uses a **free-form** prompt — the
-  model emits its own `error_type` strings which become `GrammarPattern.label`
-  verbatim (the Persian-L1 catalog was retired in May 2026 and `feedback/catalog.py`
-  / `persian_l1_catalog.yaml` were deleted). Wrapper config: thinking mode **ON**,
-  leading `<think>...</think>` stripped at the wrapper boundary; sampler top_p 0.8
-  / top_k 20 / min_p 0; repetition_penalty 1.05 / context 40; defensive `<|im_end|>`
-  stop; analyzer passes only `temperature=0.3` and `retry` intent. JSON recovery
-  uses `json-repair` (one dep) + one bounded regenerate; narrative & top-priority
-  stay deterministic. Decisions: (1) single LLM call site; (2) stay 4-bit; 8-bit
-  OUT OF SCOPE this sprint (no A/B, no threshold; Constitution VI/VII). The
-  eval/grammar/ held-out harness was deleted (catalog-shaped — needs a redesign
-  for free-form labels); SC-001/SC-002 are now demonstrated via the unit + integration
-  test suites and the real-session report. Iterative phases (US1 reliability MVP →
-  US2 grammar accuracy → US3 narrative + top-priority grounding) have all shipped.
+Active feature: 007-robust-model-download — replace the single-connection
+  `huggingface_hub.snapshot_download(...)` call in `installer/downloader.py` with
+  a Python port of `download_aria.sh`: aria2c for the multi-GB shards
+  (16-connection split, `--continue=true`, `--max-tries=0`, 30 s connect-timeout)
+  + curl for the small metadata files + `model.safetensors.index.json` shard
+  discovery (only the listed shards — no alternate weight formats) + caffeinate
+  `-dimsu -w <pid>` for the duration of `ensure_models(...)`. Anonymous by
+  default; token order = `$HF_TOKEN` > `~/.cache/huggingface/token` (HF CLI's
+  standard location — no new speakloop auth file) > anonymous. Missing aria2 on
+  PATH ⇒ one-line Rich warning + auto-fallback to today's snapshot_download
+  path (clarification Q1 → Option B). aria2 stdout parsed line-by-line into a
+  Rich `Progress`; on a transient drop, one yellow "Connection lost — retrying
+  in 10s…" line then the bar resumes from the prior byte offset (FR-020).
+  Validation, consent prompt, manifest, on-disk layout, `schema_version`, and
+  the offline-after-download guarantee all UNCHANGED. Constitution VIII friction
+  (`brew install aria2` prereq) is justified in plan.md's Complexity Tracking;
+  `hf-transfer` dep is dropped (inactive, redundant with the new path).
 
-Plan: specs/006-feedback-quality-reliability/plan.md
-Spec: specs/006-feedback-quality-reliability/spec.md
-Research: specs/006-feedback-quality-reliability/research.md (lifts doc/QWEN_IMPROVMENT_RESEARCH.md — that file is
-  historical research on the older Qwen3-8B-4bit; the shipped sampler / rep-penalty /
-  stop values are the same, but thinking mode is now ON and the model is Qwen3-14B-4bit)
-Data model: specs/006-feedback-quality-reliability/data-model.md
-Contracts: specs/006-feedback-quality-reliability/contracts/ (grammar-output-schema · eval-set-format · report-invariance)
-Code touchpoints: llm/qwen_engine.py (sampler + rep-penalty + stop + leading-think strip),
-  feedback/grammar_analyzer.py (free-form prompt + json-repair + bounded regenerate;
-  verbatim/coherence/no-op verification preserved),
-  feedback/narrative.py (deterministic grounding); pyproject.toml (+json-repair).
+Plan: specs/007-robust-model-download/plan.md
+Spec: specs/007-robust-model-download/spec.md
+Clarifications: spec.md §Clarifications (Session 2026-05-31): fallback behavior,
+  credential file location, progress-display shape all resolved.
+Research: specs/007-robust-model-download/research.md (9 decisions: aria2 vs
+  hf_transfer vs snapshot_download; curl-for-metadata split; subprocess Popen
+  over RPC; caffeinate scope; token precedence; shard discovery; fallback path;
+  SC-001 ≥ 2× speedup target; drop hf-transfer).
+Data model: specs/007-robust-model-download/data-model.md (mechanism-only — no
+  schema change; new private in-memory types `ResolvedToken`, `ShardList`,
+  `Aria2Progress`, `Aria2Outcome` + four typed `InstallFailedError` subclasses).
+Contracts: specs/007-robust-model-download/contracts/ (downloader-cli-contract ·
+  token-resolution-contract · progress-bridge-contract — each pins constants
+  and test invariants).
+Code touchpoints: installer/downloader.py (rewritten orchestrator), installer/
+  aria.py (NEW — subprocess + progress parser), installer/tokens.py (NEW —
+  env > file > anon), installer/shards.py (NEW — index.json parser),
+  installer/__init__.py (+ 4 typed exceptions), installer/CLAUDE.md (updated
+  traps + new file map), pyproject.toml (−hf-transfer), README (+`brew install
+  aria2`). Existing `ensure_models(...)` signature unchanged so all installer
+  callers (asr, cli, llm, tts) and the integration tests stay green.
+
+Prior feature: 006-feedback-quality-reliability — made the existing AI-derived
+  feedback (grammar suggestions, cross-attempt narrative, single top-priority)
+  reliably higher-quality. LLM is Qwen3-14B at MLX 4-bit; report format &
+  schema_version stay 1; fully offline; Persian-L1 catalog retired (free-form
+  grammar prompt); JSON recovery via `json-repair` + one bounded regenerate;
+  thinking mode ON, leading `<think>...</think>` stripped at wrapper boundary.
+  Plan: specs/006-feedback-quality-reliability/plan.md · Spec: specs/006-feedback-quality-reliability/spec.md
 
 Prior feature: 005-context-engineering-audit — audited & rewrote the CLAUDE.md layer
   (root + 13 module files) as a code-true deliverable; launch footprint ≤ 6000 tokens.

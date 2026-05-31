@@ -1,0 +1,7 @@
+
+12/01 14:45:01 [NOTICE] Downloading 1 item(s)
+
+[#abc111 0B/170MiB(0%) CN:1 DL:0B]
+[#abc111 256KiB/170MiB(0%) CN:8 SD:8 DL:512KiB]
+[#abc111 1.2MiB/170MiB(0%) CN:16 SD:16 DL:1.4MiB]
+[#abc111 4.5MiB/170MiB(2%) CN:16 SD:16 DL:3.2MiB ETA:53s]

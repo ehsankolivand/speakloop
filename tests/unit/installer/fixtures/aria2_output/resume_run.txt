@@ -1,0 +1,14 @@
+
+12/01 14:30:01 [NOTICE] Downloading 1 item(s)
+
+12/01 14:30:01 [NOTICE] Allocating disk space.
+[#4d5e6f 95.0MiB/170MiB(55%) CN:16 SD:16 DL:6.0MiB ETA:12s]
+[#4d5e6f 110.0MiB/170MiB(64%) CN:16 SD:16 DL:6.6MiB ETA:9s]
+[#4d5e6f 145.0MiB/170MiB(85%) CN:16 SD:16 DL:7.0MiB ETA:3s]
+[#4d5e6f 170.0MiB/170MiB(100%) CN:16 SD:16 DL:7.1MiB]
+12/01 14:30:14 [NOTICE] Download complete: /Users/example/.speakloop/models/x/model.safetensors
+
+Download Results:
+gid   |stat|avg speed  |path/URI
+======+====+===========+=======================================================
+4d5e6f|OK  |   6.8MiB/s|/Users/example/.speakloop/models/x/model.safetensors
