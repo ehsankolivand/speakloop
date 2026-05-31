@@ -1,0 +1,13 @@
+
+12/01 14:40:01 [NOTICE] Downloading 1 item(s)
+
+12/01 14:40:01 [ERROR] CUID#1 - Download aborted. URI=https://huggingface.co/example/resolve/main/model.safetensors
+Exception: [AbstractCommand.cc:351] errorCode=9 URI=https://huggingface.co/example/resolve/main/model.safetensors
+  -> [AbstractDiskWriter.cc:235] errorCode=9 Failed to write to disk. cause: No space left on device.
+
+Download Results:
+gid   |stat|avg speed  |path/URI
+======+====+===========+=======================================================
+fff999|ERR |       0B/s|/Users/example/.speakloop/models/x/model.safetensors
+
+errorCode=9 Not enough disk space.

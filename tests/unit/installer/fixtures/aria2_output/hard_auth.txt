@@ -1,0 +1,13 @@
+
+12/01 14:35:01 [NOTICE] Downloading 1 item(s)
+
+12/01 14:35:01 [ERROR] CUID#1 - Download aborted. URI=https://huggingface.co/private/resolve/main/model.safetensors
+Exception: [AbstractCommand.cc:351] errorCode=22 URI=https://huggingface.co/private/resolve/main/model.safetensors
+  -> [HttpResponse.cc:104] errorCode=22 Authorization failed. HTTP status=401
+
+Download Results:
+gid   |stat|avg speed  |path/URI
+======+====+===========+=======================================================
+abc123|ERR |       0B/s|/Users/example/.speakloop/models/x/model.safetensors
+
+errorCode=22 HTTP authorization failed.

@@ -1,0 +1,19 @@
+
+12/01 14:23:01 [NOTICE] Downloading 1 item(s)
+
+12/01 14:23:01 [NOTICE] Allocating disk space. Use --file-allocation=none to disable it. See man page for more details.
+[#1a2b3c 0B/170MiB(0%) CN:1 DL:0B]
+[#1a2b3c 8.2MiB/170MiB(4%) CN:16 SD:16 DL:6.4MiB ETA:25s]
+[#1a2b3c 32.0MiB/170MiB(18%) CN:16 SD:16 DL:7.2MiB ETA:18s]
+[#1a2b3c 85.0MiB/170MiB(50%) CN:16 SD:16 DL:7.5MiB ETA:11s]
+[#1a2b3c 135.0MiB/170MiB(79%) CN:16 SD:16 DL:7.8MiB ETA:4s]
+[#1a2b3c 170.0MiB/170MiB(100%) CN:16 SD:16 DL:7.9MiB]
+12/01 14:23:23 [NOTICE] Download complete: /Users/example/.speakloop/models/x/model.safetensors
+
+Download Results:
+gid   |stat|avg speed  |path/URI
+======+====+===========+=======================================================
+1a2b3c|OK  |   7.5MiB/s|/Users/example/.speakloop/models/x/model.safetensors
+
+Status Legend:
+(OK):download completed.

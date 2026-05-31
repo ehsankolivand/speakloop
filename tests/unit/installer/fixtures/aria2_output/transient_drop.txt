@@ -1,0 +1,17 @@
+
+12/01 14:33:01 [NOTICE] Downloading 1 item(s)
+
+[#7a8b9c 5.0MiB/170MiB(2%) CN:16 SD:16 DL:6.2MiB ETA:26s]
+[#7a8b9c 25.0MiB/170MiB(14%) CN:16 SD:16 DL:6.9MiB ETA:20s]
+12/01 14:33:14 [ERROR] CUID#1 - Download aborted. URI=https://huggingface.co/example/resolve/main/model.safetensors
+Exception: [AbstractCommand.cc:351] errorCode=1 URI=https://huggingface.co/example/resolve/main/model.safetensors
+  -> [SocketCore.cc:1018] errorCode=1 Connection failed.
+[#7a8b9c 40.0MiB/170MiB(23%) CN:16 SD:16 DL:5.8MiB ETA:22s]
+[#7a8b9c 90.0MiB/170MiB(52%) CN:16 SD:16 DL:6.5MiB ETA:12s]
+
+Download Results:
+gid   |stat|avg speed  |path/URI
+======+====+===========+=======================================================
+7a8b9c|ERR |   5.5MiB/s|/Users/example/.speakloop/models/x/model.safetensors
+
+errorCode=1 An error occurred.

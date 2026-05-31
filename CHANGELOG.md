@@ -18,6 +18,81 @@ constitution-touching decisions belong here; routine refactors do not.
 
 ---
 
+## 2026-05-31 — Robust model downloads via aria2 (port `download_aria.sh`)
+
+### What changed
+
+| Area | Before | After | Files |
+|---|---|---|---|
+| Download mechanism | Single-connection `huggingface_hub.snapshot_download(resume_download=True)` | `aria2c` with 16 parallel byte-range streams + indefinite outer-loop retry + `--continue=true` resume, for the multi-GB safetensors shards; `curl` for the small metadata files. Auto-fallback to today's `snapshot_download` when `aria2c` is missing on PATH | `src/speakloop/installer/downloader.py` (rewritten orchestrator) |
+| Sleep prevention | None — closing the lid could interrupt a multi-hour download | `caffeinate -dimsu -w <pid>` spawned at `download_model` entry; terminated in `finally` on every exit path (success, hard failure, generic exception) | `src/speakloop/installer/downloader.py` |
+| Shard discovery | `snapshot_download` fetched the whole repo (risk of pulling alternate weight formats) | `model.safetensors.index.json` parsed into `sorted(set(weight_map.values()))`; single-file repos return `["model.safetensors"]` | `src/speakloop/installer/shards.py` (NEW) |
+| Progress display | `snapshot_download`'s built-in lines | Rich `Progress` per shard via `aria2c` stdout parser; on a drop, the bar freezes, a single yellow "Connection lost — retrying in 10s…" line prints, and the bar resumes from the prior offset (FR-020) | `src/speakloop/installer/aria.py` (NEW) |
+| Optional credential | Not consumed by the downloader | `$HF_TOKEN` → `~/.cache/huggingface/token` → anonymous resolution, threaded into curl `-H "Authorization: Bearer …"`, aria2c `--header=Authorization: Bearer …`, and `snapshot_download(token=…)` fallback. Anonymous is the default; no speakloop-owned credential file | `src/speakloop/installer/tokens.py` (NEW) |
+| Typed errors | `InstallFailedError` only | + four `InstallFailedError` subclasses: `DownloadAuthError`, `DownloadNotFoundError`, `DownloadDiskError`, `ShardDiscoveryError`. `installer/__init__.py` re-exports them | `src/speakloop/installer/__init__.py` |
+| `speakloop doctor` | 4 rows (Python, models, audio, sessions_dir) | + "Install accelerator" row with `aria2c --version` when present, `WARN` + `brew install aria2` hint when absent | `src/speakloop/cli/doctor.py` |
+| Path-portability audit | One leak pattern (`/Users/<name>/`, …) | + HF-token leak detector (`hf_[A-Za-z0-9]{20,}` outside `doc/`, `specs/`, `tests/`) | `tests/integration/test_path_portability_audit.py` |
+| Default test suite | included `live_download` (would have done real network) | `addopts = "-ra -m 'not live_download'"` excludes the live aria2 smoke test, mirroring the contract intent | `pyproject.toml` |
+| Python dependency list | `hf-transfer>=0.1.9` declared (never activated) | dep removed; chosen mechanism is aria2 (research §Decision 9) | `pyproject.toml`, `uv.lock` |
+| Prerequisites | `uv` | `uv` + `brew install aria2` (optional — fallback covers the no-aria2 case at parity with today) | `README.md` |
+| Research | implicit in `download_aria.sh` header | Explicit `doc/research_install.md` decision record (Article X) | `doc/research_install.md` (NEW) |
+
+`schema_version` stays **1**. Public `installer.ensure_models(...)` signature is unchanged.
+`consent.py`, `manifest.py`, and `validator.py` are untouched (UNCHANGED per plan).
+
+### Why
+
+The user is on a slow / unstable home connection on a Mac. The existing
+`snapshot_download(resume_download=True)` path leaves the user with a download that never
+finishes on a flaky link: a single connection underuses the bandwidth, transient drops
+return a hard error after the SDK's retry budget exhausts, and a closed lid mid-download
+sleeps the machine. The user's own pre-validated `download_aria.sh` script demonstrated
+that `aria2c` + `caffeinate` solve all three of these on the actual target hardware
+(5–10× wall-clock improvement on Qwen3-14B-4bit per the script header). This feature
+ports the script into the Python installer so users get the same benefit without a
+manual one-off shell run, and adds a graceful fallback so machines without `aria2`
+still install at parity with today.
+
+### Constitution impact
+
+| Principle / trap | Effect |
+|---|---|
+| **II (Offline-First) / XV (No telemetry)** | Honoured. Only outbound traffic remains the model fetch itself; `--help` and `doctor` still load no engine packages. |
+| **VI (Resumable Model Downloads)** | **Strengthened**: aria2's `--continue=true --max-tries=0` plus the outer Python loop is strictly stronger than `snapshot_download(resume_download=True)`'s bounded internal retry. |
+| **VII (Apple Silicon primary target)** | aria2 + caffeinate are first-class on macOS; FR-019 fallback covers any machine missing aria2. |
+| **VIII (Easy install)** | Justified friction (`brew install aria2`). Mitigations: FR-019 auto-fallback, `doctor` reports the missing tool with the exact install command, README prerequisite. See `plan.md § Complexity Tracking`. |
+| **X (Research lives in the repo)** | `doc/research_install.md` records the aria2-vs-hf_transfer-vs-snapshot_download decision and links back to the spec. |
+| **Token no-leak** | `ResolvedToken.__repr__` is redacted; the token value never appears in logs, exception messages, or committed files; a literal-token audit (`hf_[A-Za-z0-9]{20,}`) is enforced by `tests/integration/test_path_portability_audit.py`. |
+| **Closed trap — `resume_download=True`** | Superseded by aria2's `--continue=true` on the primary path; still passed on the fallback path. |
+
+### Tests touched
+
+- **NEW** `tests/unit/installer/test_shards.py` — `discover_shards` over index.json / single-file / malformed / empty-weight-map (5 tests).
+- **NEW** `tests/unit/installer/test_aria.py` — `_parse_size`, `_parse_eta`, `_parse_progress`, `_classify_exit` against all 7 captured stdout fixtures (`tests/unit/installer/fixtures/aria2_output/`); 27 tests.
+- **REPLACED** `tests/unit/installer/test_downloader.py` — caffeinate spawn / 8 pinned aria2 constants / snapshot_download fallback / transient-→-respawn / hard-→-raise (5 tests).
+- **NEW** `tests/unit/installer/test_tokens.py` — env-vs-file precedence + 5 negative tests from `contracts/token-resolution-contract.md §6` (9 tests).
+- **NEW** `tests/integration/test_aria_fallback.py` — consent + snapshot_download path under missing aria2 (1 test).
+- **NEW** `tests/integration/test_caffeinate_lifecycle.py` — caffeinate spawned first, terminated in finally on all 3 exit paths (4 tests).
+- **NEW** `tests/integration/test_anonymous_download.py` — no Authorization header on curl / aria2; no diagnostic line (1 test).
+- **EXTENDED** `tests/integration/test_path_portability_audit.py` — HF-token leak scan with positive + negative self-tests (3 new tests).
+- **NEW** `tests/live_download_test.py` (marker `live_download`, excluded from default suite) — one real download against a small public artifact + Content-Length check.
+
+### Out of scope (deliberate)
+
+- No change to the report pipeline, schema_version, or `feedback/` / `debrief/` / engine wrappers.
+- No new top-level user command (FR-017).
+- No SC-001 hardware A/B measurement during implementation — deferred to a post-merge run on the real shaped link (research §Decision 8, ≥ 2× speedup target).
+- No edits to `installer/consent.py`, `installer/manifest.py`, or `installer/validator.py` (marked UNCHANGED in the plan).
+
+### Live documentation updated alongside this entry
+
+- `README.md` — `brew install aria2` prerequisite (one line, beside `uv`).
+- `src/speakloop/installer/CLAUDE.md` — Purpose, Public interface, File map, Traps, Principle VIII justification.
+- `doc/research_install.md` — new install-mechanism decision record.
+- `specs/007-robust-model-download/tasks.md` — all 30 task checkboxes marked `[X]` as they landed.
+
+---
+
 ## 2026-05-25 (still later) — Copy Q&A `ideal_answer` into the session report (human-only reference)
 
 ### What changed
@@ -349,7 +424,7 @@ uv sync                      # reinstall all deps from uv.lock
 Verification (post-fix):
 ```
 exec:        .../.venv/bin/python3
-base_prefix: /Users/ehsankolivans/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none
+base_prefix: ~/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none
 ```
 All four previously-clashing imports now load cleanly in the same process: `mlx_whisper`,
 `silero_vad`, `torchaudio`, `mlx_lm`. `uv run speakloop doctor` shows all 8 rows OK

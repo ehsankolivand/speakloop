@@ -32,7 +32,6 @@ dependencies = [
     "silero-vad>=5.1",
     "onnxruntime>=1.20",
     "torchaudio<2.9",
-    "hf-transfer>=0.1.9",
 ]
 
 [project.scripts]
@@ -82,5 +81,6 @@ markers = [
     "repro: local-only acceptance gate against the user's own recordings; skips when audio is absent (FR-010)",
     "live_asr: thin smoke test exercising the REAL silero-vad + torchaudio audio I/O; skips when the deps are absent (catches transitive-dep breakage)",
     "live_llm: on-device measurement exercising the REAL local Qwen3-8B model (mlx_lm); skips when the model/deps are absent; excluded from the default suite (Constitution Dev Guidelines, mirrors live_asr)",
+    "live_download: opt-in real-network smoke test for the aria2 downloader; mirrors live_asr / live_llm; excluded from the default suite",
 ]
-addopts = "-ra"
+addopts = "-ra -m 'not live_download'"

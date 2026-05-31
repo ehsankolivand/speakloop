@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import platform
+import shutil
+import subprocess
 import sys
 from dataclasses import asdict, dataclass
 
@@ -82,6 +84,36 @@ def _audio_devices() -> list[CheckRow]:
     return [out_row, in_row]
 
 
+def _aria2() -> CheckRow:
+    """007: report whether the parallel-download accelerator is on PATH."""
+    binpath = shutil.which("aria2c")
+    if binpath is None:
+        return CheckRow(
+            section="Install accelerator",
+            label="aria2c",
+            status="WARN",
+            detail="not on PATH — falling back to single-connection downloader",
+            remediation="install with 'brew install aria2' for faster, more resilient downloads",
+        )
+    try:
+        out = subprocess.run(
+            [binpath, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        version_line = (out.stdout or out.stderr).splitlines()[0] if (out.stdout or out.stderr) else binpath
+    except (OSError, subprocess.SubprocessError):
+        version_line = binpath
+    return CheckRow(
+        section="Install accelerator",
+        label="aria2c",
+        status="OK",
+        detail=version_line,
+        remediation="",
+    )
+
+
 def _sessions_dir() -> CheckRow:
     sd = paths.sessions_dir()
     sd.mkdir(parents=True, exist_ok=True)
@@ -98,7 +130,7 @@ def _sessions_dir() -> CheckRow:
 
 
 def _collect() -> list[CheckRow]:
-    return [_python_runtime(), *_models(), *_audio_devices(), _sessions_dir()]
+    return [_python_runtime(), *_models(), *_audio_devices(), _sessions_dir(), _aria2()]
 
 
 def _any_fail(rows: list[CheckRow]) -> bool:
