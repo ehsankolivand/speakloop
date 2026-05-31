@@ -8,6 +8,6 @@ Exception: [AbstractCommand.cc:351] errorCode=9 URI=https://huggingface.co/examp
 Download Results:
 gid   |stat|avg speed  |path/URI
 ======+====+===========+=======================================================
-fff999|ERR |       0B/s|/Users/example/.speakloop/models/x/model.safetensors
+fff999|ERR |       0B/s|/Users/<name>/.speakloop/models/x/model.safetensors
 
 errorCode=9 Not enough disk space.

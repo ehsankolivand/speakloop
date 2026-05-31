@@ -8,6 +8,6 @@ Exception: [AbstractCommand.cc:351] errorCode=22 URI=https://huggingface.co/priv
 Download Results:
 gid   |stat|avg speed  |path/URI
 ======+====+===========+=======================================================
-abc123|ERR |       0B/s|/Users/example/.speakloop/models/x/model.safetensors
+abc123|ERR |       0B/s|/Users/<name>/.speakloop/models/x/model.safetensors
 
 errorCode=22 HTTP authorization failed.

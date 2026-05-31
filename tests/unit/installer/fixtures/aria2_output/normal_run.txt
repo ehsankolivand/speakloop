@@ -8,12 +8,12 @@
 [#1a2b3c 85.0MiB/170MiB(50%) CN:16 SD:16 DL:7.5MiB ETA:11s]
 [#1a2b3c 135.0MiB/170MiB(79%) CN:16 SD:16 DL:7.8MiB ETA:4s]
 [#1a2b3c 170.0MiB/170MiB(100%) CN:16 SD:16 DL:7.9MiB]
-12/01 14:23:23 [NOTICE] Download complete: /Users/example/.speakloop/models/x/model.safetensors
+12/01 14:23:23 [NOTICE] Download complete: /Users/<name>/.speakloop/models/x/model.safetensors
 
 Download Results:
 gid   |stat|avg speed  |path/URI
 ======+====+===========+=======================================================
-1a2b3c|OK  |   7.5MiB/s|/Users/example/.speakloop/models/x/model.safetensors
+1a2b3c|OK  |   7.5MiB/s|/Users/<name>/.speakloop/models/x/model.safetensors
 
 Status Legend:
 (OK):download completed.

@@ -8,6 +8,6 @@ Exception: [AbstractCommand.cc:351] errorCode=22 URI=https://huggingface.co/exam
 Download Results:
 gid   |stat|avg speed  |path/URI
 ======+====+===========+=======================================================
-def456|ERR |       0B/s|/Users/example/.speakloop/models/x/nonexistent.safetensors
+def456|ERR |       0B/s|/Users/<name>/.speakloop/models/x/nonexistent.safetensors
 
 errorCode=22 HTTP response not OK.

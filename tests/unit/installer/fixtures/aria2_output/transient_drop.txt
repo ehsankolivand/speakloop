@@ -12,6 +12,6 @@ Exception: [AbstractCommand.cc:351] errorCode=1 URI=https://huggingface.co/examp
 Download Results:
 gid   |stat|avg speed  |path/URI
 ======+====+===========+=======================================================
-7a8b9c|ERR |   5.5MiB/s|/Users/example/.speakloop/models/x/model.safetensors
+7a8b9c|ERR |   5.5MiB/s|/Users/<name>/.speakloop/models/x/model.safetensors
 
 errorCode=1 An error occurred.
