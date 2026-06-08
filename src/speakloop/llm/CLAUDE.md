@@ -3,7 +3,8 @@
 ## Purpose
 
 LLM engine wrapper for educational grammar/coherence feedback [Phase C]. Ships **Qwen3-14B
-(MLX 4-bit)** behind a stable interface so the model can be swapped in one file (Principle V).
+(MLX 4-bit)** as the local default, plus an **opt-in OpenRouter cloud engine** (008), both
+behind one stable interface so the model can be swapped in one file (Principle V).
 
 ## Public interface
 
@@ -14,7 +15,11 @@ LLM engine wrapper for educational grammar/coherence feedback [Phase C]. Ships *
 
 - **Engine package owned here (Principle V — function-local):** `mlx_lm` → `qwen_engine.py`.
   `qwen_engine.py` is the ONLY file in the repo that imports `mlx_lm`.
-- Internal: `speakloop.installer` (model paths/manifest).
+- **Cloud engine (008):** `openrouter_engine.py` is the ONLY file that talks to OpenRouter,
+  over **stdlib `urllib`** (no new dependency). `openrouter_config.py` reads the model id from
+  `~/.speakloop/openrouter.yaml` (`pyyaml`, already a dep); `openrouter_credentials.py` is a
+  pure token resolver (env > file).
+- Internal: `speakloop.installer` (model paths/manifest), `speakloop.config` (cloud paths).
 
 ## Consumers
 
@@ -32,11 +37,24 @@ LLM engine wrapper for educational grammar/coherence feedback [Phase C]. Ships *
   min_p 0; `make_logits_processors` applies repetition_penalty 1.05 / context 40.
   `retry=True` raises repetition_penalty → 1.15 and lowers temperature by 0.1 for the
   analyzer's one bounded regenerate.
+- `openrouter_engine.py` (008) — `OpenRouterEngine(LLMEngine)` over stdlib `urllib`; POSTs to
+  OpenRouter's OpenAI-compatible `/chat/completions`, returns `choices[0].message.content`.
+  Adds `OpenRouterAuthError(LLMEngineError)` for 401/403 (so the CLI fails fast at preflight)
+  and `check_auth()` (`GET /key`). `retry=True` nudges the USER message (STRICT-JSON reminder)
+  + lowers temperature, keeping the **system** message verbatim. The token is never logged.
+- `openrouter_credentials.py` (008) — `resolve_token()` (env `OPENROUTER_API_KEY` >
+  `~/.speakloop/openrouter_token` > None) + `store_token()` (0600). No interactive/import-time
+  I/O (interactive prompt lives in `cli/practice.py`).
+- `openrouter_config.py` (008) — `resolve_model()` reads the `model:` key from
+  `~/.speakloop/openrouter.yaml` (default `qwen/qwen3.7-max`); absent/malformed → default.
 
 ## Common modification patterns
 
 - **Swap the LLM**: implement `LLMEngine` in a new `*_engine.py`, keep its package import
   function-local, point the model id at the manifest entry. Touch no other module.
+- **Cloud is engine-only**: cloud mode reuses the entire `feedback/grammar_analyzer.py`
+  verify/rank pipeline; the only difference is which engine + which system prompt
+  `analyze(...)` receives. The local Qwen flow is untouched by cloud mode.
 - **Change the model build**: edit the manifest entry in `installer/manifest.py`, not here.
 
 ## Traps
@@ -64,6 +82,9 @@ LLM engine wrapper for educational grammar/coherence feedback [Phase C]. Ships *
 ## Never do
 
 - Import `mlx_lm` anywhere but `qwen_engine.py`, or at module top level (Principle V/VIII).
+- Talk to OpenRouter from any file but `openrouter_engine.py`; add a non-stdlib HTTP client
+  (stdlib `urllib` is the chosen transport); log the token; or make the cloud network call on
+  any non-`--cloud` path (Principle II — the default stays offline; 008).
 
 ## Pointers
 

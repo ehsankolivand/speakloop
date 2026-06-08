@@ -251,7 +251,12 @@ def _verify_and_enrich(
 
 
 def _generate_and_parse(
-    transcripts: list[Transcript], llm: LLMEngine, max_tokens: int, *, retry: bool
+    transcripts: list[Transcript],
+    llm: LLMEngine,
+    max_tokens: int,
+    system_prompt: str,
+    *,
+    retry: bool,
 ) -> tuple[dict | None, str]:
     """One generate+parse pass. Returns (payload | None, raw_text).
 
@@ -260,9 +265,13 @@ def _generate_and_parse(
     structured-output tasks; the Protocol default remains 0.7 for compatibility.
     The wrapper strips any leading ``<think>`` block before returning, so the raw
     text here is the post-think payload.
+
+    ``system_prompt`` is supplied by ``analyze(...)``: the local ``_SYSTEM_PROMPT``
+    by default, or the cloud prompt in cloud mode (008) — the verify/rank pipeline
+    is identical either way.
     """
     raw = llm.generate(
-        _SYSTEM_PROMPT,
+        system_prompt,
         _user_prompt(transcripts),
         max_tokens=max_tokens,
         temperature=0.3,
@@ -279,6 +288,7 @@ def analyze(
     llm: LLMEngine,
     *,
     max_tokens: int = 2048,
+    system_prompt: str | None = None,
 ) -> list[GrammarPattern]:
     """Run the free-form grammar analyzer; return verified, ranked findings.
 
@@ -287,13 +297,21 @@ def analyze(
     On a parse failure OR a detected repetition loop, ONE bounded regenerate is
     attempted; on terminal failure the existing graceful path runs (caller
     records ``phase_c_error`` and renders the Phase-B report; the session never
-    crashes)."""
+    crashes).
+
+    ``system_prompt`` is additive (008): when ``None`` (every local/existing
+    caller) the module-local ``_SYSTEM_PROMPT`` is used and behavior is
+    byte-for-byte unchanged; cloud mode passes its own prompt so it never
+    references the local one (FR-012)."""
     if not transcripts:
         return []
 
-    payload, raw = _generate_and_parse(transcripts, llm, max_tokens, retry=False)
+    prompt = _SYSTEM_PROMPT if system_prompt is None else system_prompt
+    payload, raw = _generate_and_parse(transcripts, llm, max_tokens, prompt, retry=False)
     if payload is None or _looks_like_repetition_loop(raw):
-        payload_retry, raw_retry = _generate_and_parse(transcripts, llm, max_tokens, retry=True)
+        payload_retry, raw_retry = _generate_and_parse(
+            transcripts, llm, max_tokens, prompt, retry=True
+        )
         if payload_retry is not None:
             payload, raw = payload_retry, raw_retry
         elif payload is None:

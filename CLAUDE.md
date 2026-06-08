@@ -1,43 +1,54 @@
 <!-- SPECKIT START -->
-Active feature: 007-robust-model-download — replace the single-connection
-  `huggingface_hub.snapshot_download(...)` call in `installer/downloader.py` with
-  a Python port of `download_aria.sh`: aria2c for the multi-GB shards
-  (16-connection split, `--continue=true`, `--max-tries=0`, 30 s connect-timeout)
-  + curl for the small metadata files + `model.safetensors.index.json` shard
-  discovery (only the listed shards — no alternate weight formats) + caffeinate
-  `-dimsu -w <pid>` for the duration of `ensure_models(...)`. Anonymous by
-  default; token order = `$HF_TOKEN` > `~/.cache/huggingface/token` (HF CLI's
-  standard location — no new speakloop auth file) > anonymous. Missing aria2 on
-  PATH ⇒ one-line Rich warning + auto-fallback to today's snapshot_download
-  path (clarification Q1 → Option B). aria2 stdout parsed line-by-line into a
-  Rich `Progress`; on a transient drop, one yellow "Connection lost — retrying
-  in 10s…" line then the bar resumes from the prior byte offset (FR-020).
-  Validation, consent prompt, manifest, on-disk layout, `schema_version`, and
-  the offline-after-download guarantee all UNCHANGED. Constitution VIII friction
-  (`brew install aria2` prereq) is justified in plan.md's Complexity Tracking;
-  `hf-transfer` dep is dropped (inactive, redundant with the new path).
+Active feature: 008-openrouter-cloud-provider — add an OPT-IN cloud mode
+  (`speakloop practice --cloud`) that routes ONLY the Phase-C grammar/coherence
+  feedback step to an OpenRouter-hosted model instead of loading the local
+  Qwen3-14B weights — for users who can't fit the local LLM in RAM. Speech
+  (Kokoro) + transcription (Whisper/Parakeet) stay local. Textbook Principle V:
+  new `OpenRouterEngine` implements the existing `LLMEngine` Protocol, so the
+  engine-agnostic grammar pipeline (`feedback/grammar_analyzer.py`) is REUSED;
+  the only shared-code touch is one additive, defaulted
+  `analyze(..., system_prompt=None)` param so cloud supplies its OWN prompt and
+  never references the local `_SYSTEM_PROMPT`. Transport = stdlib `urllib`, NO
+  new dep. Token: env `OPENROUTER_API_KEY` > `~/.speakloop/openrouter_token`
+  (0600, prompted once then silent); model id: `model:` key in
+  `~/.speakloop/openrouter.yaml` (YAML per clarify 2026-06-08, no env var) >
+  default `qwen/qwen3.7-max`; cloud prompt: `~/.speakloop/openrouter_prompt.txt`
+  (seeded from packaged `feedback/openrouter_prompt_default.txt`). Auth fails
+  FAST via a preflight `GET /key` before the timed session (actionable error +
+  re-prompt); transient API failures degrade gracefully through the coordinator's
+  existing `phase_c_error` seam. Default (no `--cloud`) is BYTE-FOR-BYTE
+  unchanged + offline. Report layout/`schema_version` (1) UNCHANGED. Network +
+  transcript-text-to-third-party are opt-in deviations from Principles II/III,
+  justified in plan.md Complexity Tracking (opt-in + one-time disclosure).
 
-Plan: specs/007-robust-model-download/plan.md
-Spec: specs/007-robust-model-download/spec.md
-Clarifications: spec.md §Clarifications (Session 2026-05-31): fallback behavior,
-  credential file location, progress-display shape all resolved.
-Research: specs/007-robust-model-download/research.md (9 decisions: aria2 vs
-  hf_transfer vs snapshot_download; curl-for-metadata split; subprocess Popen
-  over RPC; caffeinate scope; token precedence; shard discovery; fallback path;
-  SC-001 ≥ 2× speedup target; drop hf-transfer).
-Data model: specs/007-robust-model-download/data-model.md (mechanism-only — no
-  schema change; new private in-memory types `ResolvedToken`, `ShardList`,
-  `Aria2Progress`, `Aria2Outcome` + four typed `InstallFailedError` subclasses).
-Contracts: specs/007-robust-model-download/contracts/ (downloader-cli-contract ·
-  token-resolution-contract · progress-bridge-contract — each pins constants
-  and test invariants).
-Code touchpoints: installer/downloader.py (rewritten orchestrator), installer/
-  aria.py (NEW — subprocess + progress parser), installer/tokens.py (NEW —
-  env > file > anon), installer/shards.py (NEW — index.json parser),
-  installer/__init__.py (+ 4 typed exceptions), installer/CLAUDE.md (updated
-  traps + new file map), pyproject.toml (−hf-transfer), README (+`brew install
-  aria2`). Existing `ensure_models(...)` signature unchanged so all installer
-  callers (asr, cli, llm, tts) and the integration tests stay green.
+Plan: specs/008-openrouter-cloud-provider/plan.md
+Spec: specs/008-openrouter-cloud-provider/spec.md
+Research: specs/008-openrouter-cloud-provider/research.md (9 decisions:
+  LLMEngine-reuse seam; additive `system_prompt` override; `--cloud` flag shape;
+  token location/precedence; model-id env setting; prompt-file seeding;
+  stdlib-urllib transport; preflight-auth vs graceful-degradation; privacy
+  disclosure).
+Data model: specs/008-openrouter-cloud-provider/data-model.md (no schema change;
+  new config artifacts + private types `OpenRouterEngine`, `OpenRouterAuthError`,
+  token resolve/store, cloud-prompt loader; token-lifecycle state diagram).
+Contracts: specs/008-openrouter-cloud-provider/contracts/ (openrouter-engine ·
+  credential-and-config · cloud-analyzer-bridge — each pins constants + test
+  invariants).
+Code touchpoints: llm/openrouter_engine.py (NEW — only file touching OpenRouter),
+  llm/openrouter_credentials.py (NEW — env>file token resolve/store),
+  llm/openrouter_config.py (NEW — reads ~/.speakloop/openrouter.yaml `model:`),
+  feedback/cloud_prompt.py + openrouter_prompt_default.txt (NEW), config/paths.py
+  (+3 path accessors), feedback/grammar_analyzer.py (+`system_prompt` param, local
+  default unchanged), cli/main.py (+`--cloud`), cli/practice.py
+  (`_build_cloud_grammar_analyzer`), cli/doctor.py (+cloud section), 4 module
+  CLAUDE.md + doc/research_llm.md + README updated. pyproject.toml UNCHANGED.
+  Local Qwen flow + `ensure_models(...)` untouched.
+
+Prior feature: 007-robust-model-download — resilient model downloads: Python port
+  of `download_aria.sh` (aria2c parallel shards + curl metadata + caffeinate),
+  env `$HF_TOKEN` > `~/.cache/huggingface/token` > anon, auto-fallback to
+  snapshot_download when aria2 absent. Validation/consent/manifest/schema_version
+  unchanged. Plan: specs/007-robust-model-download/plan.md
 
 Prior feature: 006-feedback-quality-reliability — made the existing AI-derived
   feedback (grammar suggestions, cross-attempt narrative, single top-priority)

@@ -114,6 +114,47 @@ def _aria2() -> CheckRow:
     )
 
 
+def _cloud() -> list[CheckRow]:
+    """008: report optional cloud-mode configuration (never FAILs — it's opt-in).
+
+    Imports are function-local so the module stays light. These resolvers touch
+    only stdlib + pyyaml (already a dependency)."""
+    from speakloop.llm import openrouter_config, openrouter_credentials
+
+    model = openrouter_config.resolve_model()
+    cfg = paths.openrouter_config_path()
+    prompt = paths.openrouter_prompt_path()
+    token_present = openrouter_credentials.resolve_token() is not None
+
+    return [
+        CheckRow(
+            section="Cloud (OpenRouter)",
+            label="model id",
+            status="OK",
+            detail=f"{model} (from {cfg if cfg.exists() else 'default'})",
+            remediation=("" if cfg.exists() else f"edit `model:` in {cfg} to change (optional)."),
+        ),
+        CheckRow(
+            section="Cloud (OpenRouter)",
+            label="API token",
+            status="OK" if token_present else "WARN",
+            detail="present (env or stored file)" if token_present else "not configured",
+            remediation=(
+                ""
+                if token_present
+                else "set OPENROUTER_API_KEY or run `speakloop practice --cloud` to be prompted."
+            ),
+        ),
+        CheckRow(
+            section="Cloud (OpenRouter)",
+            label="system prompt",
+            status="OK",
+            detail=f"{prompt}" + ("" if prompt.exists() else " (seeded on first cloud run)"),
+            remediation="",
+        ),
+    ]
+
+
 def _sessions_dir() -> CheckRow:
     sd = paths.sessions_dir()
     sd.mkdir(parents=True, exist_ok=True)
@@ -130,7 +171,14 @@ def _sessions_dir() -> CheckRow:
 
 
 def _collect() -> list[CheckRow]:
-    return [_python_runtime(), *_models(), *_audio_devices(), _sessions_dir(), _aria2()]
+    return [
+        _python_runtime(),
+        *_models(),
+        *_audio_devices(),
+        _sessions_dir(),
+        _aria2(),
+        *_cloud(),
+    ]
 
 
 def _any_fail(rows: list[CheckRow]) -> bool:

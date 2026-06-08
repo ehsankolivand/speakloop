@@ -131,6 +131,28 @@ def tts_cache_dir() -> Path:
     return _speakloop_home() / "cache" / "tts"
 
 
+# --- OpenRouter cloud mode (008) — PATHS ONLY ------------------------------
+# These are pure path accessors (no reads), so the config leaf stays stdlib-only
+# (see this module's CLAUDE.md "Never do"). The token file is the secret; the
+# YAML holds the `model:` setting (read in llm/openrouter_config.py via pyyaml);
+# the prompt file is the editable cloud system prompt.
+
+
+def openrouter_token_path() -> Path:
+    """The stored OpenRouter API token (``~/.speakloop/openrouter_token``)."""
+    return _speakloop_home() / "openrouter_token"
+
+
+def openrouter_config_path() -> Path:
+    """The cloud settings YAML (``~/.speakloop/openrouter.yaml``; `model:` key)."""
+    return _speakloop_home() / "openrouter.yaml"
+
+
+def openrouter_prompt_path() -> Path:
+    """The editable cloud system prompt (``~/.speakloop/openrouter_prompt.txt``)."""
+    return _speakloop_home() / "openrouter_prompt.txt"
+
+
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path

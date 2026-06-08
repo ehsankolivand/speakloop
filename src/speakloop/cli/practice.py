@@ -228,6 +228,7 @@ def run(
     listen_only: bool = False,
     no_audio: bool = False,
     asr_engine_choice: str | None = None,
+    cloud: bool = False,
     tts_engine=None,
     play_fn=None,
     audio_devices=devices,
@@ -311,7 +312,9 @@ def run(
             f"[yellow]ASR: requested engine unavailable "
             f"({selection.fallback_reason}); falling back to Parakeet.[/yellow]"
         )
-    grammar_analyzer = _build_grammar_analyzer()
+    grammar_analyzer = (
+        _build_cloud_grammar_analyzer(console) if cloud else _build_grammar_analyzer()
+    )
 
     current = chosen
     need_listen = True
@@ -369,5 +372,104 @@ def _build_grammar_analyzer():
 
     def _runner(transcripts):
         return analyze(transcripts, qwen)
+
+    return _runner
+
+
+# --- Cloud mode (008) ------------------------------------------------------
+
+_CLOUD_DISCLOSURE = (
+    "Cloud mode sends your attempt transcripts to OpenRouter for analysis. "
+    "Your audio recordings and session reports never leave your device."
+)
+
+
+def _prompt_for_token(console: Console, *, input_fn=input) -> str:
+    """First-run capture: disclose, prompt once, store. Exit 1 if declined.
+
+    Invoking `--cloud` is the consent; this prints the one-time privacy
+    disclosure (FR-018) and never blocks on a separate y/N confirmation."""
+    from speakloop.llm import openrouter_credentials
+
+    console.print(f"[yellow]{_CLOUD_DISCLOSURE}[/yellow]")
+    console.print(
+        "Enter your OpenRouter API token (https://openrouter.ai/keys), or press "
+        "Enter to cancel and run without --cloud:"
+    )
+    raw = input_fn("OpenRouter token: ").strip()
+    if not raw:
+        console.print(
+            "[red]No token provided.[/red] Set OPENROUTER_API_KEY, save the token to "
+            f"{openrouter_credentials.token_path()}, or run `speakloop practice` "
+            "without --cloud to use the local model."
+        )
+        raise typer.Exit(1)
+    openrouter_credentials.store_token(raw)
+    return raw
+
+
+def _validated_token(console: Console, token: str, model: str, *, input_fn=input) -> str:
+    """Preflight the token before the timed session (fail fast, FR-006).
+
+    On rejection: actionable error naming both remediation paths, ONE re-prompt,
+    re-store, re-check; still bad → exit. On no-connectivity → exit."""
+    from speakloop.llm import openrouter_credentials
+    from speakloop.llm.interface import LLMEngineError
+    from speakloop.llm.openrouter_engine import OpenRouterAuthError, OpenRouterEngine
+
+    for attempt in range(2):
+        try:
+            OpenRouterEngine(model=model, token=token).check_auth()
+            return token
+        except OpenRouterAuthError:
+            console.print(
+                "[red]OpenRouter rejected the token.[/red] Update it (set "
+                f"OPENROUTER_API_KEY or edit {openrouter_credentials.token_path()}), "
+                "or run `speakloop practice` without --cloud to use the local model."
+            )
+            if attempt == 0:
+                token = _prompt_for_token(console, input_fn=input_fn)
+                continue
+            raise typer.Exit(1) from None
+        except LLMEngineError as e:
+            console.print(
+                f"[red]Could not reach OpenRouter:[/red] {e} Check your connection, "
+                "or run `speakloop practice` without --cloud."
+            )
+            raise typer.Exit(1) from None
+    raise typer.Exit(1)
+
+
+def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input):
+    """Return a callable `(transcripts) -> patterns` backed by OpenRouter.
+
+    Resolves the token (env > stored file; first-run prompt + store + disclosure),
+    validates it once up front, loads the dedicated cloud prompt, and builds an
+    `OpenRouterEngine`. Does NOT require or load the local Qwen model, so cloud
+    mode works on machines that cannot fit it (US1/SC-002). Engine imports are
+    function-local so `speakloop --help` stays model-free."""
+    from speakloop.feedback import cloud_prompt as _cloud_prompt
+    from speakloop.feedback.grammar_analyzer import analyze
+    from speakloop.llm import openrouter_config, openrouter_credentials
+    from speakloop.llm.openrouter_engine import OpenRouterEngine
+
+    model = openrouter_config.resolve_model()
+
+    token = openrouter_credentials.resolve_token()
+    if token is None:
+        token = _prompt_for_token(console, input_fn=input_fn)
+    token = _validated_token(console, token, model, input_fn=input_fn)
+
+    cloud_system_prompt, prompt_path = _cloud_prompt.load_cloud_prompt()
+    engine = OpenRouterEngine(model=model, token=token)
+
+    console.print(
+        f"[cyan]Cloud mode[/cyan]: feedback via OpenRouter model [bold]{model}[/bold]. "
+        "Your attempt transcripts are sent to OpenRouter (audio and reports stay local)."
+    )
+    console.print(f"[dim]Cloud prompt: {prompt_path} — edit to tune cloud feedback.[/dim]")
+
+    def _runner(transcripts):
+        return analyze(transcripts, engine, system_prompt=cloud_system_prompt)
 
     return _runner

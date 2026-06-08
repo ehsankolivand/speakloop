@@ -74,6 +74,11 @@ def practice_cmd(
         "--asr-engine",
         help="ASR engine: 'whisper' (default) or 'parakeet'. Whisper falls back to Parakeet on load failure.",
     ),
+    cloud: bool = typer.Option(
+        False,
+        "--cloud",
+        help="Use the OpenRouter cloud model for feedback instead of the local Qwen model.",
+    ),
 ) -> None:
     """Run a practice session."""
     from speakloop.cli import practice as _practice  # local import; engine touch is deferred.
@@ -83,6 +88,7 @@ def practice_cmd(
         listen_only=listen_only,
         no_audio=no_audio,
         asr_engine_choice=asr_engine,
+        cloud=cloud,
     )
 
 
