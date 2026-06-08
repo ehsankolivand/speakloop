@@ -55,6 +55,29 @@ def test_help_does_not_load_engine_packages_during_invocation():
     assert proc.returncode == 0, f"engine packages loaded during --help: {proc.stdout}{proc.stderr}"
 
 
+def test_practice_help_lists_cloud_flag():
+    """008: the `--cloud` opt-in is discoverable and `practice --help` stays
+    model-free."""
+    result = CliRunner().invoke(app, ["practice", "--help"])
+    assert result.exit_code == 0
+    assert "--cloud" in result.output
+
+
+def test_importing_openrouter_engine_loads_no_engine_packages():
+    """008: the cloud engine is stdlib-only (urllib) — importing it must pull in
+    none of the local engine packages, so the `--help` model-free guarantee holds
+    even with the cloud path present."""
+    code = (
+        "import sys; import speakloop.llm.openrouter_engine; "
+        "engine = {'mlx_whisper', 'silero_vad', 'parakeet_mlx', 'mlx_lm'}; "
+        "leaked = engine & set(sys.modules); "
+        "print('LEAKED', sorted(leaked)); "
+        "sys.exit(1 if leaked else 0)"
+    )
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert proc.returncode == 0, f"engine packages imported via openrouter_engine: {proc.stdout}{proc.stderr}"
+
+
 def test_importing_grammar_analyzer_loads_no_engine_packages():
     """T-G5 (006): the json-repair swap must keep `mlx_lm` function-local. Importing the
     changed grammar_analyzer module must pull NO engine package — it depends only on the

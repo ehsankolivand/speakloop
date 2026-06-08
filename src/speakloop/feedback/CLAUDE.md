@@ -45,6 +45,14 @@ grammar/coherence analysis that feeds the report. The "what the user reads after
   (recovers single quotes, trailing commas, junk tokens, AND truncation) → one bounded
   regenerate on parse-fail/loop (`retry=True`) → graceful `phase_c_error` fallback.
   Grouping by `error_type` does dedupe naturally. Calls the LLM with `temperature=0.3`.
+  **008:** `analyze(...)` takes an additive optional `system_prompt=None` → `None` uses the
+  module-local `_SYSTEM_PROMPT` (local behavior byte-identical); cloud mode passes its own
+  prompt so it never references the local one (FR-012). The verify/rank pipeline is shared.
+- `cloud_prompt.py` (008) — `load_cloud_prompt()` seeds `~/.speakloop/openrouter_prompt.txt`
+  from the packaged `openrouter_prompt_default.txt` on first use, then reads it verbatim;
+  returns `(text, path)`. Never imports/reads `grammar_analyzer._SYSTEM_PROMPT`.
+- `openrouter_prompt_default.txt` (008) — packaged default cloud system prompt (its OWN
+  content; read via `Path(__file__).parent`, like `common_words.txt`).
 - `coherence.py`, `narrative.py` — garble filter, narrative + top priority selection.
 
 ## Common modification patterns

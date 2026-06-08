@@ -234,3 +234,42 @@ def test_suggested_fix_is_none_for_free_form_patterns():
     )
     patterns = grammar_analyzer.analyze(TS, _StubLLM(payload))
     assert patterns[0].suggested_fix is None
+
+
+# --- 008: additive `system_prompt` override (cloud mode) --------------------
+
+
+class _CapturingLLM:
+    """Stub that records the system prompt it was handed."""
+
+    def __init__(self, response: str) -> None:
+        self._r = response
+        self.system_prompts: list[str] = []
+
+    def generate(self, system_prompt, user_prompt, max_tokens=2048, temperature=0.7, retry=False):
+        self.system_prompts.append(system_prompt)
+        return self._r
+
+
+def test_analyze_defaults_to_local_system_prompt():
+    llm = _CapturingLLM(_payload())
+    grammar_analyzer.analyze(TS, llm)
+    assert llm.system_prompts == [grammar_analyzer._SYSTEM_PROMPT]
+
+
+def test_analyze_forwards_explicit_system_prompt():
+    llm = _CapturingLLM(_payload())
+    grammar_analyzer.analyze(TS, llm, system_prompt="CLOUD-PROMPT")
+    assert llm.system_prompts == ["CLOUD-PROMPT"]
+    assert grammar_analyzer._SYSTEM_PROMPT not in llm.system_prompts
+
+
+def test_explicit_system_prompt_used_on_bounded_regenerate():
+    # A repetition-loop raw triggers ONE regenerate; both passes must use the
+    # supplied cloud prompt, never the local one. Unparseable both times → the
+    # existing terminal LLMEngineError is raised after the two attempts.
+    looping = " ".join(["word"] * 12)  # trips _looks_like_repetition_loop
+    llm = _CapturingLLM(looping)
+    with pytest.raises(LLMEngineError):
+        grammar_analyzer.analyze(TS, llm, system_prompt="CLOUD-PROMPT")
+    assert llm.system_prompts == ["CLOUD-PROMPT", "CLOUD-PROMPT"]

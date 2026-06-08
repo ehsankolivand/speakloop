@@ -395,3 +395,34 @@ check resident size against 18 GB unified memory minus ~3 GB for the resident
 ASR encoder minus ~5 GB for macOS + Python overhead — i.e. an LLM resident
 ceiling of roughly 10 GB. This is the working budget for the M3 Pro 18 GB
 target user.
+
+---
+
+## Cloud provider option (008 — OpenRouter, opt-in)
+
+**Decision.** Add an **opt-in** OpenRouter cloud engine as an alternative to the
+local Qwen for the grammar/coherence feedback step, selected with `speakloop
+practice --cloud`. Default model id `qwen/qwen3.7-max`, configured by a single
+`model:` key in `~/.speakloop/openrouter.yaml`. Local mode is the unchanged
+default; cloud mode swaps **only the LLM** (speech + transcription stay local).
+
+**Why.** The 10 GB resident ceiling above is exactly the constraint some users
+cannot meet — a Mac with less unified memory cannot load Qwen3-14B-4bit at all.
+The local-quantisation lever is exhausted (4-bit is the usable floor for this
+model/quality), so the only way to give RAM-constrained users grammar feedback
+is a remote model. OpenRouter gives access to many models behind one
+OpenAI-compatible endpoint with a single key.
+
+**Engineering.** Implemented behind the existing `LLMEngine` Protocol
+(Principle V), so the whole `feedback/grammar_analyzer.py` verify/rank pipeline
+is reused — cloud differs only in *which engine* and *which system prompt*
+`analyze(...)` gets. Transport is stdlib `urllib` (no new dependency). The cloud
+system prompt is its own editable file (`~/.speakloop/openrouter_prompt.txt`),
+separate from the local `_SYSTEM_PROMPT`.
+
+**Constitution trade-off.** Cloud mode makes network calls (Principle II) and
+sends attempt-transcript text to a third party (Principle III). Both are
+**opt-in only** (the `--cloud` flag), disclosed at first-run token capture, and
+never taken on the default path — see
+`specs/008-openrouter-cloud-provider/plan.md` Complexity Tracking. Audio and
+reports never leave the device by any code path.

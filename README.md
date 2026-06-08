@@ -74,6 +74,36 @@ report is a few minutes once the models are downloaded.
 The questions you practice with ship in the repo — see
 [Where things live](#where-things-live) — so a fresh clone is ready to use immediately.
 
+## Cloud mode (optional)
+
+If your Mac can't run the local Qwen feedback model (it needs ~10 GB of free unified
+memory), you can route **just the grammar feedback step** to an OpenRouter-hosted model
+instead. Speech and transcription stay local; the default offline experience is unchanged
+if you don't pass `--cloud`.
+
+> Privacy note: cloud mode sends your **attempt transcript text** to OpenRouter for
+> analysis. Your audio recordings and saved reports never leave your machine. The default
+> (local) mode sends nothing anywhere.
+
+```bash
+# Get a key at https://openrouter.ai/keys, then:
+uv run speakloop practice --cloud
+# First run prompts once for your token and stores it at ~/.speakloop/openrouter_token.
+# Prefer an env var? export OPENROUTER_API_KEY=sk-or-... (it takes precedence, no prompt).
+```
+
+- **Change the model** (default `qwen/qwen3.7-max`) — edit one line in
+  `~/.speakloop/openrouter.yaml`:
+  ```yaml
+  model: anthropic/claude-3.5-sonnet
+  ```
+- **Tune cloud feedback** — edit `~/.speakloop/openrouter_prompt.txt` (seeded on first cloud
+  run; separate from local mode's prompt).
+- **Check status** — `uv run speakloop doctor` shows the active model id, whether a token is
+  configured, and the prompt-file path.
+- **Bad/missing token?** The error tells you how to update the token or just drop `--cloud`
+  to use the local model.
+
 ## What you get: an example report
 
 Every session writes a Markdown file with a YAML frontmatter block. Here is a
