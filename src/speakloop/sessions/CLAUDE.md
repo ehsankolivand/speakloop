@@ -9,7 +9,10 @@ content, feedback, and metrics together for one session.
 ## Public interface
 
 - `coordinator.run_session(...)` — state machine
-  `listening → attempt_1..3 → analyzing → reporting → done`.
+  `listening → attempt_1..3 → analyzing → reporting → done`. Takes injected `grammar_analyzer`
+  and (009) an optional `coach` callable: the coach runs ONLY after a SUCCESSFUL grammar
+  analysis (cloud only; `None` in local mode), sets `session.coaching`, and degrades gracefully
+  to a non-fatal `coach_error` on any failure — never blocking the grammar report.
 - `timer.run(budget_seconds, early_exit_event)` — `rich.progress` countdown.
 - `abort.install_signal_handler(sessions_dir)` — SIGINT cleanup; removes `*.tmp`; exit 130.
 

@@ -15,7 +15,14 @@ grammar/coherence analysis that feeds the report. The "what the user reads after
 - `report_builder.build(session) -> str` — composes frontmatter + body (optional "Question &
   reference answer" copy of the Q&A `ideal_answer` when present, Top-priority section,
   cross-attempt narrative, `You said / Better / Because` fixes in `impact_rank` order, with
-  Phase-B and "no actionable patterns" fallbacks).
+  Phase-B and "no actionable patterns" fallbacks). **009:** when `session.coaching` is set
+  (cloud only), the free-form coaching Markdown is appended verbatim AFTER the grammar section
+  and BEFORE the transcripts; absent → byte-identical to before.
+- `coach.coach(question_text, transcripts, patterns, llm, *, system_prompt) -> str` [009, cloud
+  only] — the SECOND cloud call: free-form Markdown teaching section (corrected answer + focused
+  habits + Anki cards). Reuses the OpenRouter engine; **never** parsed by the verify pipeline;
+  the ideal answer is deliberately NOT passed in. Raises `LLMEngineError` on empty/failed
+  response (coordinator degrades gracefully → `coach_error`).
 - `grammar_analyzer.analyze(transcripts, llm) -> list[GrammarPattern]` [Phase C] — **free-form
   prompt**: the model returns its own `error_type` strings which become `GrammarPattern.label`
   verbatim. Grouped by `error_type`, verbatim-substring guaranteed on `quote`,
@@ -37,7 +44,10 @@ grammar/coherence analysis that feeds the report. The "what the user reads after
 ## File map
 
 - `frontmatter.py` — `Session` model + schema (`schema_version` 1; additive keys preserved;
-  `OPEN_BUCKET_IMPACT_RANK` constant for legacy parse fallback).
+  `OPEN_BUCKET_IMPACT_RANK` constant for legacy parse fallback). **009:** `Session.coaching`
+  is BODY-only (rendered into the report body, NOT serialized to frontmatter — like the attempt
+  transcripts); `Session.coach_error` is an additive optional frontmatter key (round-trips like
+  `phase_c_error`).
 - `markdown_writer.py` — atomic write.
 - `report_builder.py` — report composition.
 - `grammar_analyzer.py` — free-form LLM grammar analysis (the only file here touching
@@ -48,11 +58,19 @@ grammar/coherence analysis that feeds the report. The "what the user reads after
   **008:** `analyze(...)` takes an additive optional `system_prompt=None` → `None` uses the
   module-local `_SYSTEM_PROMPT` (local behavior byte-identical); cloud mode passes its own
   prompt so it never references the local one (FR-012). The verify/rank pipeline is shared.
-- `cloud_prompt.py` (008) — `load_cloud_prompt()` seeds `~/.speakloop/openrouter_prompt.txt`
+- `cloud_prompt.py` (008/009) — `load_cloud_prompt()` seeds `~/.speakloop/openrouter_prompt.txt`
   from the packaged `openrouter_prompt_default.txt` on first use, then reads it verbatim;
-  returns `(text, path)`. Never imports/reads `grammar_analyzer._SYSTEM_PROMPT`.
+  returns `(text, path)`. **009:** `load_coach_prompt()` is the parallel loader for the coaching
+  prompt (`~/.speakloop/openrouter_coach_prompt.txt` ← `openrouter_coach_prompt_default.txt`).
+  Neither imports/reads `grammar_analyzer._SYSTEM_PROMPT`; the caller (cli/practice.py) prints
+  each returned path once.
 - `openrouter_prompt_default.txt` (008) — packaged default cloud system prompt (its OWN
   content; read via `Path(__file__).parent`, like `common_words.txt`).
+- `coach.py` (009) — the only file that builds the coach prompt + makes the coach call.
+  `build_user_prompt(question, transcripts, patterns)` (excludes the ideal answer) +
+  `coach(...)`. Free-form Markdown; reuses the injected `LLMEngine`; cloud-only.
+- `openrouter_coach_prompt_default.txt` (009) — packaged default coaching system prompt (its OWN
+  content; the three teaching headings + Anki-card format).
 - `coherence.py`, `narrative.py` — garble filter, narrative + top priority selection.
 
 ## Common modification patterns

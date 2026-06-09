@@ -16,7 +16,8 @@ resolution, no I/O beyond `mkdir -p`.
   `~/.speakloop/qa.yaml` if present → `content/questions.yaml` if present → `None`).
 - `paths.tts_cache_dir()` → `~/.speakloop/cache/tts/`.
 - `paths.openrouter_token_path()` / `openrouter_config_path()` / `openrouter_prompt_path()`
-  (008) → `~/.speakloop/openrouter_token` · `openrouter.yaml` · `openrouter_prompt.txt`.
+  (008) → `~/.speakloop/openrouter_token` · `openrouter.yaml` · `openrouter_prompt.txt`;
+  `openrouter_coach_prompt_path()` (009) → `~/.speakloop/openrouter_coach_prompt.txt`.
   **PATHS ONLY** — the YAML is *read* in `llm/openrouter_config.py` (via `pyyaml`), so this
   leaf stays stdlib-only and does no I/O.
 

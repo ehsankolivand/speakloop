@@ -124,6 +124,7 @@ def _cloud() -> list[CheckRow]:
     model = openrouter_config.resolve_model()
     cfg = paths.openrouter_config_path()
     prompt = paths.openrouter_prompt_path()
+    coach_prompt = paths.openrouter_coach_prompt_path()
     token_present = openrouter_credentials.resolve_token() is not None
 
     return [
@@ -150,6 +151,14 @@ def _cloud() -> list[CheckRow]:
             label="system prompt",
             status="OK",
             detail=f"{prompt}" + ("" if prompt.exists() else " (seeded on first cloud run)"),
+            remediation="",
+        ),
+        CheckRow(
+            section="Cloud (OpenRouter)",
+            label="coach prompt",
+            status="OK",
+            detail=f"{coach_prompt}"
+            + ("" if coach_prompt.exists() else " (seeded on first cloud run)"),
             remediation="",
         ),
     ]

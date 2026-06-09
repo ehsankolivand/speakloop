@@ -19,7 +19,11 @@ module that wires every other module together for a run.
     (`_build_cloud_grammar_analyzer`): resolve token (env > file; first-run prompt + privacy
     disclosure + store), preflight `check_auth()` (fail fast on a bad token), load the cloud
     prompt, build `OpenRouterEngine`. The local Qwen model is never validated/loaded in cloud
-    mode. Default (no `--cloud`) is byte-for-byte unchanged + offline.
+    mode. Default (no `--cloud`) is byte-for-byte unchanged + offline. **009:**
+    `_build_cloud_grammar_analyzer` now returns `(grammar_runner, coach_runner)` over ONE shared
+    engine (also loads the coach prompt + prints its path once); `run()` passes `coach=` into
+    `run_session` (the local branch passes `coach=None`). The coach is a SECOND cloud call run
+    after a successful grammar analysis; its free-form Markdown is appended to the report.
   - `doctor` — environment + model health check (`cli/doctor.py`); includes a "Cloud
     (OpenRouter)" section (model id, token present?, prompt path).
   - `trends` — Phase C dashboard.

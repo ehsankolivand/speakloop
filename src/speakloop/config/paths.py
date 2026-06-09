@@ -153,6 +153,15 @@ def openrouter_prompt_path() -> Path:
     return _speakloop_home() / "openrouter_prompt.txt"
 
 
+def openrouter_coach_prompt_path() -> Path:
+    """The editable cloud coaching prompt (``~/.speakloop/openrouter_coach_prompt.txt``; 009).
+
+    Separate from ``openrouter_prompt_path()`` (the strict grammar prompt): the
+    coaching layer is a SECOND, additive cloud call that emits a free-form
+    teaching section, so it gets its own independently tunable prompt file."""
+    return _speakloop_home() / "openrouter_coach_prompt.txt"
+
+
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path

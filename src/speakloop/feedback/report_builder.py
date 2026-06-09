@@ -136,6 +136,19 @@ def _question_reference_section(session: frontmatter.Session) -> str | None:
     return "\n".join(lines)
 
 
+def _coaching_section(session: frontmatter.Session) -> str | None:
+    """The cloud coaching Markdown (009), appended verbatim between the grammar
+    section and the transcripts.
+
+    The coach model already emits level-2 headings ("## Your answer, improved",
+    "## What to focus on", "## Anki cards"), so it is rendered as-is — never
+    re-wrapped or re-formatted. Body-only and additive: absent (local mode, or a
+    coach call that degraded) → the report is byte-identical to the pre-009
+    layout."""
+    coaching = (session.coaching or "").strip()
+    return coaching or None
+
+
 def _transcripts_section(attempts: list[frontmatter.Attempt]) -> str:
     parts = ["## Transcripts"]
     for a in attempts:
@@ -168,7 +181,13 @@ def build(session: frontmatter.Session, *, title: str | None = None) -> str:
         narrative,
         "",
         _grammar_section(session),
-        "",
-        _transcripts_section(session.attempts),
     ]
+
+    # 009: cloud coaching section, AFTER grammar and BEFORE transcripts. When
+    # absent, the join below is byte-identical to the pre-009 layout.
+    coaching = _coaching_section(session)
+    if coaching is not None:
+        parts += ["", coaching]
+
+    parts += ["", _transcripts_section(session.attempts)]
     return "\n".join(parts)

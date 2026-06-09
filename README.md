@@ -81,9 +81,15 @@ memory), you can route **just the grammar feedback step** to an OpenRouter-hoste
 instead. Speech and transcription stay local; the default offline experience is unchanged
 if you don't pass `--cloud`.
 
+Cloud mode also adds a **coaching section** to the report: a clean rewrite of *your own*
+answer, the 2–3 highest-impact habits to fix (with a rule and a self-check cue), and 4–8
+paste-ready cloze **Anki cards** — so the report teaches you everything without a second tool.
+The coaching is best-effort: if that step fails, you still get the full grammar report.
+
 > Privacy note: cloud mode sends your **attempt transcript text** to OpenRouter for
 > analysis. Your audio recordings and saved reports never leave your machine. The default
-> (local) mode sends nothing anywhere.
+> (local) mode sends nothing anywhere. (The coaching step sends the same transcripts to the
+> same provider — and never your question's reference answer.)
 
 ```bash
 # Get a key at https://openrouter.ai/keys, then:
@@ -99,8 +105,10 @@ uv run speakloop practice --cloud
   ```
 - **Tune cloud feedback** — edit `~/.speakloop/openrouter_prompt.txt` (seeded on first cloud
   run; separate from local mode's prompt).
+- **Tune the coaching section** — edit `~/.speakloop/openrouter_coach_prompt.txt` (also seeded
+  on first cloud run; independent of the grammar prompt above).
 - **Check status** — `uv run speakloop doctor` shows the active model id, whether a token is
-  configured, and the prompt-file path.
+  configured, and both prompt-file paths.
 - **Bad/missing token?** The error tells you how to update the token or just drop `--cloud`
   to use the local model.
 

@@ -1,48 +1,55 @@
 <!-- SPECKIT START -->
-Active feature: 008-openrouter-cloud-provider — add an OPT-IN cloud mode
-  (`speakloop practice --cloud`) that routes ONLY the Phase-C grammar/coherence
-  feedback step to an OpenRouter-hosted model instead of loading the local
-  Qwen3-14B weights — for users who can't fit the local LLM in RAM. Speech
-  (Kokoro) + transcription (Whisper/Parakeet) stay local. Textbook Principle V:
-  new `OpenRouterEngine` implements the existing `LLMEngine` Protocol, so the
-  engine-agnostic grammar pipeline (`feedback/grammar_analyzer.py`) is REUSED;
-  the only shared-code touch is one additive, defaulted
-  `analyze(..., system_prompt=None)` param so cloud supplies its OWN prompt and
-  never references the local `_SYSTEM_PROMPT`. Transport = stdlib `urllib`, NO
-  new dep. Token: env `OPENROUTER_API_KEY` > `~/.speakloop/openrouter_token`
-  (0600, prompted once then silent); model id: `model:` key in
-  `~/.speakloop/openrouter.yaml` (YAML per clarify 2026-06-08, no env var) >
-  default `qwen/qwen3.7-max`; cloud prompt: `~/.speakloop/openrouter_prompt.txt`
-  (seeded from packaged `feedback/openrouter_prompt_default.txt`). Auth fails
-  FAST via a preflight `GET /key` before the timed session (actionable error +
-  re-prompt); transient API failures degrade gracefully through the coordinator's
-  existing `phase_c_error` seam. Default (no `--cloud`) is BYTE-FOR-BYTE
-  unchanged + offline. Report layout/`schema_version` (1) UNCHANGED. Network +
-  transcript-text-to-third-party are opt-in deviations from Principles II/III,
-  justified in plan.md Complexity Tracking (opt-in + one-time disclosure).
+Active feature: 009-cloud-coaching-feedback — add a richer COACHING layer to
+  cloud-mode (`speakloop practice --cloud`) feedback so the report itself teaches
+  the learner: a corrected version of their OWN answer, focused teaching of their
+  top habits, and paste-ready Anki cards — no copy-paste into another tool.
+  ADDITIVE + cloud-only. Implemented as a SECOND OpenRouter call ("coach") that
+  runs AFTER the existing grammar analyzer, reusing the SAME `OpenRouterEngine`
+  instance (same model/token). The coach gets the question + 3 transcripts + the
+  verified/grouped grammar patterns (label + each `quote→corrected`) — NOT the
+  ideal/reference answer (so it fixes the speaker's own words, never parrots the
+  model answer). Its output is FREE-FORM Markdown, never parsed by the V1–V3
+  verify pipeline, so it cannot break the grammar findings or the verbatim
+  guarantee. Appended to the report AFTER the grammar/cross-attempt section and
+  BEFORE Transcripts, verbatim (`max_tokens` 2048). Coach prompt is its OWN file:
+  `~/.speakloop/openrouter_coach_prompt.txt` seeded from packaged
+  `feedback/openrouter_coach_prompt_default.txt` (mirrors the 008 cloud-prompt
+  pattern; separate from the grammar cloud prompt AND the local `_SYSTEM_PROMPT`).
+  Runs ONLY after a SUCCESSFUL grammar analysis (skipped on `phase_c_error`); any
+  `LLMEngineError`/empty response degrades gracefully — no coaching section, a
+  non-fatal `coach_error` frontmatter note, grammar report intact. `coaching`
+  text is BODY-only (not serialized to frontmatter, like the transcripts);
+  `coach_error` is an additive optional key. Report `schema_version` (1) and the
+  default (non-cloud) path UNCHANGED. Call 1 (grammar) + local mode are
+  BYTE-IDENTICAL. pyproject.toml UNCHANGED (reuses stdlib `urllib`).
 
-Plan: specs/008-openrouter-cloud-provider/plan.md
-Spec: specs/008-openrouter-cloud-provider/spec.md
-Research: specs/008-openrouter-cloud-provider/research.md (9 decisions:
-  LLMEngine-reuse seam; additive `system_prompt` override; `--cloud` flag shape;
-  token location/precedence; model-id env setting; prompt-file seeding;
-  stdlib-urllib transport; preflight-auth vs graceful-degradation; privacy
-  disclosure).
-Data model: specs/008-openrouter-cloud-provider/data-model.md (no schema change;
-  new config artifacts + private types `OpenRouterEngine`, `OpenRouterAuthError`,
-  token resolve/store, cloud-prompt loader; token-lifecycle state diagram).
-Contracts: specs/008-openrouter-cloud-provider/contracts/ (openrouter-engine ·
-  credential-and-config · cloud-analyzer-bridge — each pins constants + test
-  invariants).
-Code touchpoints: llm/openrouter_engine.py (NEW — only file touching OpenRouter),
-  llm/openrouter_credentials.py (NEW — env>file token resolve/store),
-  llm/openrouter_config.py (NEW — reads ~/.speakloop/openrouter.yaml `model:`),
-  feedback/cloud_prompt.py + openrouter_prompt_default.txt (NEW), config/paths.py
-  (+3 path accessors), feedback/grammar_analyzer.py (+`system_prompt` param, local
-  default unchanged), cli/main.py (+`--cloud`), cli/practice.py
-  (`_build_cloud_grammar_analyzer`), cli/doctor.py (+cloud section), 4 module
-  CLAUDE.md + doc/research_llm.md + README updated. pyproject.toml UNCHANGED.
-  Local Qwen flow + `ensure_models(...)` untouched.
+Plan: specs/009-cloud-coaching-feedback/plan.md
+Spec: specs/009-cloud-coaching-feedback/spec.md
+Code touchpoints: feedback/coach.py (NEW — only file building/making the coach
+  call), feedback/openrouter_coach_prompt_default.txt (NEW packaged default),
+  feedback/cloud_prompt.py (+`load_coach_prompt()`), config/paths.py
+  (+`openrouter_coach_prompt_path()`), feedback/frontmatter.py (`Session.coaching`
+  body-only + additive `coach_error`), feedback/report_builder.py
+  (+`_coaching_section`, placed grammar→coaching→transcripts), sessions/coordinator.py
+  (+`coach=None` param; run after successful grammar, graceful degradation),
+  cli/practice.py (`_build_cloud_grammar_analyzer` now returns
+  `(grammar_runner, coach_runner)` over one shared engine; local path returns
+  `coach=None`), cli/doctor.py (+"coach prompt" row). Local Qwen flow +
+  `ensure_models(...)` untouched.
+
+Prior feature: 008-openrouter-cloud-provider — OPT-IN cloud mode
+  (`speakloop practice --cloud`) routing ONLY the Phase-C grammar/coherence step
+  to an OpenRouter model instead of the local Qwen3-14B weights (for users who
+  can't fit the local LLM in RAM). Speech (Kokoro) + transcription
+  (Whisper/Parakeet) stay local. New `OpenRouterEngine` implements the existing
+  `LLMEngine` Protocol (Principle V) so `feedback/grammar_analyzer.py` is REUSED
+  via one additive `analyze(..., system_prompt=None)` param; transport = stdlib
+  `urllib` (no new dep). Token env `OPENROUTER_API_KEY` > `~/.speakloop/openrouter_token`
+  (0600); model id `model:` in `~/.speakloop/openrouter.yaml` > default
+  `qwen/qwen3.7-max`; cloud prompt `~/.speakloop/openrouter_prompt.txt`. Preflight
+  `GET /key` fails fast; transient failures degrade through `phase_c_error`.
+  Default (no `--cloud`) byte-for-byte unchanged + offline.
+  Plan: specs/008-openrouter-cloud-provider/plan.md · Spec: specs/008-openrouter-cloud-provider/spec.md
 
 Prior feature: 007-robust-model-download — resilient model downloads: Python port
   of `download_aria.sh` (aria2c parallel shards + curl metadata + caffeinate),

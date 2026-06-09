@@ -324,9 +324,14 @@ def run(
             f"[yellow]ASR: requested engine unavailable "
             f"({selection.fallback_reason}); falling back to Parakeet.[/yellow]"
         )
-    grammar_analyzer = (
-        _build_cloud_grammar_analyzer(console) if cloud else _build_grammar_analyzer()
-    )
+    # Cloud mode (008/009) builds the grammar analyzer AND the additive coaching
+    # runner over one shared OpenRouterEngine; local mode keeps its byte-identical
+    # build and has no coach. Built once, before the loop, reused per session.
+    if cloud:
+        grammar_analyzer, coach_runner = _build_cloud_grammar_analyzer(console)
+    else:
+        grammar_analyzer = _build_grammar_analyzer()
+        coach_runner = None
 
     current = chosen
     need_listen = True
@@ -343,6 +348,7 @@ def run(
             asr_engine=asr_engine,
             console=console,
             grammar_analyzer=grammar_analyzer,
+            coach=coach_runner,
             asr_engine_name=asr_engine_name,
             asr_model_id=asr_model_id,
             asr_fell_back=selection.fell_back,
@@ -453,14 +459,20 @@ def _validated_token(console: Console, token: str, model: str, *, input_fn=input
 
 
 def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input):
-    """Return a callable `(transcripts) -> patterns` backed by OpenRouter.
+    """Return ``(grammar_runner, coach_runner)``, both backed by OpenRouter.
 
     Resolves the token (env > stored file; first-run prompt + store + disclosure),
-    validates it once up front, loads the dedicated cloud prompt, and builds an
-    `OpenRouterEngine`. Does NOT require or load the local Qwen model, so cloud
-    mode works on machines that cannot fit it (US1/SC-002). Engine imports are
-    function-local so `speakloop --help` stays model-free."""
+    validates it once up front, loads the dedicated cloud prompts, and builds ONE
+    `OpenRouterEngine` reused by both calls. Does NOT require or load the local
+    Qwen model, so cloud mode works on machines that cannot fit it (US1/SC-002).
+    Engine imports are function-local so `speakloop --help` stays model-free.
+
+    `grammar_runner(transcripts) -> patterns` is the existing strict grammar
+    analysis (unchanged). `coach_runner(question_text, transcripts, patterns) ->
+    markdown` is the additive 009 coaching call; the coordinator runs it only
+    after a successful grammar analysis and degrades gracefully on failure."""
     from speakloop.feedback import cloud_prompt as _cloud_prompt
+    from speakloop.feedback import coach as _coach
     from speakloop.feedback.grammar_analyzer import analyze
     from speakloop.llm import openrouter_config, openrouter_credentials
     from speakloop.llm.openrouter_engine import OpenRouterEngine
@@ -473,6 +485,7 @@ def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input):
     token = _validated_token(console, token, model, input_fn=input_fn)
 
     cloud_system_prompt, prompt_path = _cloud_prompt.load_cloud_prompt()
+    coach_system_prompt, coach_prompt_path = _cloud_prompt.load_coach_prompt()
     engine = OpenRouterEngine(model=model, token=token)
 
     console.print(
@@ -480,8 +493,20 @@ def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input):
         "Your attempt transcripts are sent to OpenRouter (audio and reports stay local)."
     )
     console.print(f"[dim]Cloud prompt: {prompt_path} — edit to tune cloud feedback.[/dim]")
+    console.print(
+        f"[dim]Coach prompt: {coach_prompt_path} — edit to tune the coaching section.[/dim]"
+    )
 
-    def _runner(transcripts):
+    def _grammar_runner(transcripts):
         return analyze(transcripts, engine, system_prompt=cloud_system_prompt)
 
-    return _runner
+    def _coach_runner(question_text, transcripts, patterns):
+        return _coach.coach(
+            question_text,
+            transcripts,
+            patterns,
+            engine,
+            system_prompt=coach_system_prompt,
+        )
+
+    return _grammar_runner, _coach_runner

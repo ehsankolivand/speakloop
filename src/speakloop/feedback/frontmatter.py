@@ -105,6 +105,17 @@ class Session:
     # session fell back to Phase B (so the failure is diagnosable from the saved
     # report alone, not just transient console output). Emitted only when present.
     phase_c_error: str | None = None
+    # --- Additive cloud coaching layer (009-cloud-coaching-feedback) ----------
+    # The free-form coaching Markdown (corrected answer + focused teaching + Anki
+    # cards) from the cloud coach call. BODY-only: rendered into the report body
+    # between the grammar section and the transcripts, NOT serialized to
+    # frontmatter (like the per-attempt transcript text). Cloud-only; None in
+    # local mode and when the coach call degraded.
+    coaching: str | None = None
+    # The coach call's exception message when it raised and coaching was skipped
+    # (graceful degradation — the grammar report is unaffected). Emitted into
+    # frontmatter only when present; round-trips like phase_c_error.
+    coach_error: str | None = None
 
 
 class _LiteralStr(str):
@@ -195,6 +206,10 @@ def dump(session: Session) -> str:
         payload["asr"] = _asr_to_dict(session.asr)
     if session.phase_c_error:
         payload["phase_c_error"] = _LiteralStr(session.phase_c_error.strip())
+    # 009: a non-fatal note when the cloud coach call failed. The coaching text
+    # itself lives in the report body, not here.
+    if session.coach_error:
+        payload["coach_error"] = _LiteralStr(session.coach_error.strip())
     body = yaml.dump(payload, sort_keys=False, allow_unicode=True, default_flow_style=False)
     return f"---\n{body}---\n"
 
@@ -321,4 +336,7 @@ def parse(text: str) -> Session:
         top_priority=_opt_str(data.get("top_priority")),
         asr=_asr_from_dict(data["asr"]) if isinstance(data.get("asr"), dict) else None,
         phase_c_error=_opt_str(data.get("phase_c_error")),
+        # `coaching` is not serialized to frontmatter (it lives in the report
+        # body), so it does not round-trip here — like the attempt transcripts.
+        coach_error=_opt_str(data.get("coach_error")),
     )

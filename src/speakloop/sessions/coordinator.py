@@ -239,6 +239,7 @@ def run_session(
     asr_engine: ASREngine | None = None,
     record_fn: Callable | None = None,
     grammar_analyzer=None,
+    coach=None,
     console: Console | None = None,
     sessions_dir: Path | None = None,
     scratch_dir: Path | None = None,
@@ -326,6 +327,23 @@ def run_session(
                 f"[yellow]Grammar analyzer failed: {e}. Falling back to Phase-B interim report.[/yellow]"
             )
 
+    # 009: cloud coaching — a SECOND, additive call after the grammar analyzer.
+    # Runs ONLY after a SUCCESSFUL grammar analysis (phase == "C"); a degraded
+    # grammar step (phase_c_error) skips coaching too. `coach` is None in local
+    # mode, so this whole block is a no-op off the --cloud path. Any failure
+    # degrades gracefully: no coaching section, a non-fatal `coach_error` note,
+    # the rest of the report intact — the grammar report is never blocked.
+    coaching: str | None = None
+    coach_error: str | None = None
+    if coach is not None and phase == "C":
+        try:
+            coaching = coach(question.question, transcripts, grammar_patterns)
+        except Exception as e:  # noqa: BLE001 — coaching is best-effort; never crash
+            coach_error = f"{type(e).__name__}: {e}"
+            console.print(
+                f"[yellow]Coaching step failed: {e}. The grammar report is unaffected.[/yellow]"
+            )
+
     # ASR provenance (FR-007), recorded additively only when the caller names the
     # engine that ran (the CLI / engine selection supplies engine_name + model_id
     # + fell_back). Legacy callers omit these → asr stays None → report unchanged.
@@ -357,6 +375,8 @@ def run_session(
         top_priority=narrative.select_top_priority(grammar_patterns, attempts),
         asr=asr_provenance,
         phase_c_error=phase_c_error,
+        coaching=coaching,
+        coach_error=coach_error,
     )
     body = report_builder.build(session)
     markdown_writer.write_atomic(report_path, body)

@@ -16,6 +16,8 @@ from speakloop.config import paths
 
 # Packaged default, read the same way `coherence.py` reads `common_words.txt`.
 _DEFAULT_ASSET = Path(__file__).parent / "openrouter_prompt_default.txt"
+# Packaged default for the cloud coaching prompt (009 — its OWN content).
+_DEFAULT_COACH_ASSET = Path(__file__).parent / "openrouter_coach_prompt_default.txt"
 
 
 def load_cloud_prompt() -> tuple[str, Path]:
@@ -28,4 +30,20 @@ def load_cloud_prompt() -> tuple[str, Path]:
     if not target.exists():
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(_DEFAULT_ASSET.read_text(encoding="utf-8"), encoding="utf-8")
+    return target.read_text(encoding="utf-8"), target
+
+
+def load_coach_prompt() -> tuple[str, Path]:
+    """Return ``(prompt_text, user_path)`` for the cloud coaching prompt (009).
+
+    Parallel to :func:`load_cloud_prompt`: on first use the packaged coach
+    default is copied to ``paths.openrouter_coach_prompt_path()`` so the editable
+    surface is discoverable; thereafter the user's (possibly edited) file is read
+    verbatim and sent as the coach system prompt. The caller prints the returned
+    path once so the user knows where to tune the teaching section. Wholly
+    separate from the grammar prompt and from the local ``_SYSTEM_PROMPT``."""
+    target = paths.openrouter_coach_prompt_path()
+    if not target.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(_DEFAULT_COACH_ASSET.read_text(encoding="utf-8"), encoding="utf-8")
     return target.read_text(encoding="utf-8"), target
