@@ -12,7 +12,9 @@ module that wires every other module together for a run.
     phase; `--no-audio` skips reading the debrief aloud; `--asr-engine {whisper,parakeet}`
     picks the ASR engine (default `whisper`, falls back to Parakeet on load failure). The ASR
     engine is resolved once via `asr.build_engine(...)` and injected per session so a debrief
-    **replay** re-enters the same question with no model reload (< 3 s). **`--cloud`** (008)
+    **replay** re-enters the same question with no model reload (< 3 s). **`--speed`** sets the
+    Kokoro playback multiplier (default `0.85`, clamped to 0.5–2.0; lower = slower, for
+    shadowing) and is fixed into the one injected `KokoroEngine` instance. **`--cloud`** (008)
     routes ONLY the grammar feedback step to OpenRouter instead of the local Qwen model
     (`_build_cloud_grammar_analyzer`): resolve token (env > file; first-run prompt + privacy
     disclosure + store), preflight `check_auth()` (fail fast on a bad token), load the cloud

@@ -24,13 +24,24 @@ from speakloop.tts.interface import TTSEngineError
 
 # Engine's own default — used when the caller passes voice=None.
 DEFAULT_VOICE = "af_heart"
+# Kokoro's native playback-speed multiplier. 1.0 = engine default; values
+# below 1.0 slow the speech down (helpful for shadowing / focused listening).
+DEFAULT_SPEED = 1.0
 
 
 class KokoroEngine:
-    """Kokoro-82M synthesizer with content-addressed disk caching (FR-004)."""
+    """Kokoro-82M synthesizer with content-addressed disk caching (FR-004).
 
-    def __init__(self, default_voice: str = DEFAULT_VOICE) -> None:
+    ``speed`` is Kokoro's native multiplier (1.0 = default cadence; < 1.0 =
+    slower). It is fixed per engine instance and folded into the clip cache key
+    so clips at different speeds never collide.
+    """
+
+    def __init__(
+        self, default_voice: str = DEFAULT_VOICE, speed: float = DEFAULT_SPEED
+    ) -> None:
         self._default_voice = default_voice
+        self._speed = speed
         self._tts = None  # lazy KokoroTTS instance
 
     def _load(self):
@@ -64,7 +75,7 @@ class KokoroEngine:
             raise TTSEngineError("Cannot synthesize empty text.")
         voice = voice or self._default_voice
 
-        cached = cache.lookup(voice, text)
+        cached = cache.lookup(voice, text, self._speed)
         if cached is not None:
             return cached
 
@@ -72,16 +83,16 @@ class KokoroEngine:
         # Write directly to the cache target using KokoroTTS.save (which
         # internally generates + writes a WAV file).
         cache_dir = paths.ensure_dir(paths.tts_cache_dir())
-        scratch = cache_dir / f".tmp-{cache.cache_key(voice, text)}.wav"
+        scratch = cache_dir / f".tmp-{cache.cache_key(voice, text, self._speed)}.wav"
         try:
-            tts.save(text, str(scratch), voice=voice)
+            tts.save(text, str(scratch), voice=voice, speed=self._speed)
         except Exception as e:  # pragma: no cover — engine-specific failures
             if scratch.exists():
                 scratch.unlink()
             raise TTSEngineError(f"Kokoro synthesis failed: {e}") from e
 
         try:
-            return cache.store(voice, text, scratch)
+            return cache.store(voice, text, scratch, self._speed)
         finally:
             if scratch.exists():
                 scratch.unlink()

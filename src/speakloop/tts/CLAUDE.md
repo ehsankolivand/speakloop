@@ -24,14 +24,18 @@ stable interface so the TTS engine can be swapped in one file (Principle V).
 
 - `interface.py` — `TTSEngine` Protocol + `TTSEngineError`.
 - `kokoro_engine.py` — `KokoroEngine`; the only `import kokoro_mlx`.
-- `cache.py` — content-addresses synthesised clips by `sha256(voice|text)` under
-  `~/.speakloop/cache/tts/<key>.wav`.
+- `cache.py` — content-addresses synthesised clips by `sha256(voice|[speed|]text)` under
+  `~/.speakloop/cache/tts/<key>.wav`. `speed` is folded into the key ONLY when it differs from
+  `1.0`, so default-speed entries keep the historical formula and stay hot.
 
 ## Common modification patterns
 
 - **Swap TTS engine**: implement `TTSEngine` in a new `*_engine.py`, keep the package import
   function-local. Touch no other module.
 - **Change cache keying/location**: edit `cache.py` only.
+- **Change playback speed**: `KokoroEngine(speed=...)` (Kokoro's native multiplier, forwarded to
+  `KokoroTTS.save`); the `--speed` flag wires it from the CLI. The `TTSEngine` Protocol
+  `synthesize` signature stays stable — speed is fixed per engine instance, not per call.
 
 ## Never do
 

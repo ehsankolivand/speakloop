@@ -79,6 +79,14 @@ def practice_cmd(
         "--cloud",
         help="Use the OpenRouter cloud model for feedback instead of the local Qwen model.",
     ),
+    speed: float = typer.Option(
+        0.85,
+        "--speed",
+        help=(
+            "TTS playback speed multiplier (1.0 = normal). Lower is slower — good "
+            "for shadowing. Default 0.85; try 0.7 for very slow."
+        ),
+    ),
 ) -> None:
     """Run a practice session."""
     from speakloop.cli import practice as _practice  # local import; engine touch is deferred.
@@ -89,6 +97,7 @@ def practice_cmd(
         no_audio=no_audio,
         asr_engine_choice=asr_engine,
         cloud=cloud,
+        speed=speed,
     )
 
 

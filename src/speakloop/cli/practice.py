@@ -229,12 +229,24 @@ def run(
     no_audio: bool = False,
     asr_engine_choice: str | None = None,
     cloud: bool = False,
+    speed: float = 1.0,
     tts_engine=None,
     play_fn=None,
     audio_devices=devices,
 ) -> None:
     """Entry point for `speakloop practice`."""
     console = Console()
+
+    # Keep the TTS speed inside a sane range so the engine never gets a
+    # nonsensical multiplier (e.g. 0 or negative). Out-of-range values are
+    # clamped with one English notice rather than failing the run.
+    clamped = max(0.5, min(2.0, speed))
+    if clamped != speed:
+        console.print(
+            f"[yellow]--speed {speed} is out of range; using {clamped} "
+            f"(allowed 0.5–2.0).[/yellow]"
+        )
+    speed = clamped
 
     qa_path = _resolve_qa_file(console)
     try:
@@ -273,7 +285,7 @@ def run(
     if tts_engine is None:
         from speakloop.tts.kokoro_engine import KokoroEngine
 
-        tts_engine = KokoroEngine()
+        tts_engine = KokoroEngine(speed=speed)
     if play_fn is None:
         play_fn = playback.play
 
