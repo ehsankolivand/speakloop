@@ -54,3 +54,31 @@ def test_blank_models_fall_back_to_defaults():
     c = loop_config.load()
     assert c.claude_fast_model == "haiku"
     assert c.claude_strong_model == "sonnet"
+
+
+# --- 012: autoplay toggle + analysis concurrency -----------------------------
+
+
+def test_012_defaults_when_absent():
+    c = loop_config.load()
+    assert c.autoplay_ideal_answer is True
+    assert c.analysis_concurrency == 3
+
+
+def test_012_reads_autoplay_and_concurrency():
+    _write("autoplay_ideal_answer: false\nanalysis_concurrency: 5\n")
+    c = loop_config.load()
+    assert c.autoplay_ideal_answer is False
+    assert c.analysis_concurrency == 5
+
+
+def test_012_concurrency_clamped_to_at_least_one():
+    _write("analysis_concurrency: 0\n")
+    assert loop_config.load().analysis_concurrency == 1
+
+
+def test_012_invalid_values_fall_back():
+    _write("autoplay_ideal_answer: maybe\nanalysis_concurrency: lots\n")
+    c = loop_config.load()
+    assert c.autoplay_ideal_answer is True
+    assert c.analysis_concurrency == 3

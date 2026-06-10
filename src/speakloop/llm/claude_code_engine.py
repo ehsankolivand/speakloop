@@ -178,6 +178,10 @@ class ClaudeCodeEngine:
     verbatim — mirroring ``OpenRouterEngine``.
     """
 
+    # 012: each call spawns a separate `claude` subprocess (process isolation), so
+    # analysis calls are safe to run concurrently (contract analysis-concurrency.md).
+    parallel_safe = True
+
     def __init__(
         self,
         *,

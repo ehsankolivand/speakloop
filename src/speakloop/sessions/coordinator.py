@@ -516,6 +516,9 @@ def run_session(
     asr_engine_name: str | None = None,
     asr_model_id: str | None = None,
     asr_fell_back: bool = False,
+    analysis_parallel_safe: bool = False,
+    analysis_concurrency: int = 1,
+    timings_display: bool = False,
 ) -> SessionResult:
     """Run a full session for one Question; return the report path + Session.
 

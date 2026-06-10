@@ -37,6 +37,9 @@ class OpenRouterEngine:
     depends only on that interface.
     """
 
+    # 012: independent HTTP requests — safe to run analysis calls concurrently.
+    parallel_safe = True
+
     def __init__(
         self,
         *,

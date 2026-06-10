@@ -262,6 +262,7 @@ def run(
     cloud: bool = False,
     engine: str | None = None,
     speed: float = 1.0,
+    timings: bool = False,
     tts_engine=None,
     play_fn=None,
     audio_devices=devices,
@@ -405,6 +406,7 @@ def run(
             asr_engine_name=asr_engine_name,
             asr_model_id=asr_model_id,
             asr_fell_back=selection.fell_back,
+            timings_display=timings,
         )
 
         choice = debrief.run(

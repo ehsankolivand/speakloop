@@ -92,10 +92,14 @@ class KokoroEngine:
             raise TTSEngineError(f"Kokoro synthesis failed: {e}") from e
 
         try:
-            return cache.store(voice, text, scratch, self._speed)
+            stored = cache.store(voice, text, scratch, self._speed)
         finally:
             if scratch.exists():
                 scratch.unlink()
+        # 012: keep the content-addressed cache under its size cap; never evict the clip
+        # we just stored (it is about to be played).
+        cache.prune(keep=stored)
+        return stored
 
     def available_voices(self) -> list[str]:
         # Querying the live engine costs a model load; return the engine's

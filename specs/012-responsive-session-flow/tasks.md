@@ -13,7 +13,7 @@ spec user story. Foundational/Setup/Polish tasks carry no story label.
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm baseline green (`uv run pytest -q`) and record the count in the commit body;
+- [x] T001 Confirm baseline green (`uv run pytest -q`) and record the count in the commit body;
   create empty test modules `tests/unit/test_keyboard.py`, `tests/unit/test_timings.py`,
   `tests/unit/test_cache_prune.py`, `tests/unit/test_session_ui.py`,
   `tests/integration/test_analysis_equivalence.py` as placeholders for the phases below.
@@ -22,43 +22,43 @@ spec user story. Foundational/Setup/Polish tasks carry no story label.
 
 ## Phase 2: Foundational (blocking prerequisites — no story-specific behavior yet)
 
-- [ ] T002 [P] Add `StageTimer` in `src/speakloop/feedback/timings.py`: ordered `(name, seconds,
+- [x] T002 [P] Add `StageTimer` in `src/speakloop/feedback/timings.py`: ordered `(name, seconds,
   overlapped)` records, injectable `clock=time.perf_counter`, `stage(name, overlapped=False)`
   context manager, manual `start/stop` for overlapped stages, `to_frontmatter() -> dict` (the
   `timings` block per contracts/loop-config-and-timings.md), `render() -> rich.Table`.
-- [ ] T003 [P] Unit-test `StageTimer` in `tests/unit/test_timings.py` with a fake clock:
+- [x] T003 [P] Unit-test `StageTimer` in `tests/unit/test_timings.py` with a fake clock:
   ordering, overlapped flag, `to_frontmatter` shape, zero-duration cache-hit case.
-- [ ] T004 [P] Add `Session.timings: dict | None` (additive optional) in
+- [x] T004 [P] Add `Session.timings: dict | None` (additive optional) in
   `src/speakloop/feedback/frontmatter.py`; emit in `dump` only when present; parse in `parse`
   (dict-guarded); confirm `schema_version` stays 1.
-- [ ] T005 [P] Round-trip test for `timings` in `tests/unit/` (existing frontmatter test file):
+- [x] T005 [P] Round-trip test for `timings` in `tests/unit/` (existing frontmatter test file):
   dump→parse→dump idempotent; a no-timings session is byte-identical to today (SC-009).
-- [ ] T006 [P] Implement `src/speakloop/sessions/keyboard.py`: `KeyReader` protocol +
+- [x] T006 [P] Implement `src/speakloop/sessions/keyboard.py`: `KeyReader` protocol +
   `RawKeyReader` (termios/tty cbreak on stdin-or-`/dev/tty`, `select` poll, drain-on-enter,
   restore-on-exit), `NullKeyReader` (poll→None, `raw_capable=False`), `FakeKeyReader` (scripted
   `[(delay,key)]` with injected clock). Canonical keys per contracts/keyboard-and-states.md.
-- [ ] T007 [P] Unit-test `keyboard.py` in `tests/unit/test_keyboard.py`: canonicalization
+- [x] T007 [P] Unit-test `keyboard.py` in `tests/unit/test_keyboard.py`: canonicalization
   (space/enter/r/s/q, Ctrl-C→q, unknown→None), `FakeKeyReader` timing, `NullKeyReader` always
   None. No real fd opened.
-- [ ] T008 [P] Add `prune(max_bytes)` to `src/speakloop/tts/cache.py`: LRU-by-mtime delete until
+- [x] T008 [P] Add `prune(max_bytes)` to `src/speakloop/tts/cache.py`: LRU-by-mtime delete until
   under cap; never delete the just-stored entry; tolerate a concurrent reader. Add a
   `TTS_CACHE_MAX_BYTES` constant (config). Call `prune` at the end of `KokoroEngine.synthesize`.
-- [ ] T009 [P] Tests for cache invalidation + prune in `tests/unit/test_cache_prune.py`: text
+- [x] T009 [P] Tests for cache invalidation + prune in `tests/unit/test_cache_prune.py`: text
   change → new key (invalidation); prune evicts oldest, keeps newest/just-stored, respects cap.
-- [ ] T010 [P] Add `play_interruptible(wav_path, *, should_stop, on_first_frame=None, _player=…)`
+- [x] T010 [P] Add `play_interruptible(wav_path, *, should_stop, on_first_frame=None, _player=…)`
   + `warm_output_device()` to `src/speakloop/audio/playback.py`. Extract a `_Player` seam
   (default sounddevice-backed) so the poll/stop control loop is testable without real audio;
   reuse the existing device-loss/resample recovery; keep blocking `play()` for the debrief.
-- [ ] T011 [P] Test `play_interruptible` control loop in `tests/unit/` with a fake `_Player`:
+- [x] T011 [P] Test `play_interruptible` control loop in `tests/unit/` with a fake `_Player`:
   stops within one poll when `should_stop` flips true; returns `interrupted` bool; runs to end
   when never stopped. No real audio device.
-- [ ] T012 [P] Add `parallel_safe` class attribute: `True` on `OpenRouterEngine`
+- [x] T012 [P] Add `parallel_safe` class attribute: `True` on `OpenRouterEngine`
   (`llm/openrouter_engine.py`) and `ClaudeCodeEngine` (`llm/claude_code_engine.py`), `False` on
   `QwenEngine` (`llm/qwen_engine.py`); test the three values.
-- [ ] T013 [P] Add `autoplay_ideal_answer: bool = True` and `analysis_concurrency: int = 3`
+- [x] T013 [P] Add `autoplay_ideal_answer: bool = True` and `analysis_concurrency: int = 3`
   to `LoopConfig` in `src/speakloop/config/loop_config.py` with defensive `load()` parsing
   (bool fallback; `max(1,int)`); test absent/invalid → defaults.
-- [ ] T014 Plumb `--timings` (default False) onto `practice` and `resume` in
+- [x] T014 Plumb `--timings` (default False) onto `practice` and `resume` in
   `src/speakloop/cli/main.py`; thread through `practice.run(...)` / `resume.run(...)` →
   `coordinator.run_session(... timings_display=...)`. Display-only; instrumentation always-on.
 

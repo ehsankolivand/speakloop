@@ -56,8 +56,11 @@ def _extract_attempt_transcripts(body: str) -> dict[int, str]:
     return out
 
 
-def run(*, cloud: bool = False, engine: str | None = None) -> None:
+def run(*, cloud: bool = False, engine: str | None = None, timings: bool = False) -> None:
     console = Console()
+    from speakloop.feedback.timings import StageTimer
+
+    timer = StageTimer()
     sessions_dir = paths.sessions_dir()
     if not sessions_dir.exists():
         console.print("[yellow]No sessions directory — nothing to resume.[/yellow]")
@@ -117,7 +120,8 @@ def run(*, cloud: bool = False, engine: str | None = None) -> None:
         ]
 
         try:
-            session.grammar_patterns = grammar_analyzer(transcripts)
+            with timer.stage(f"resume_grammar_{path.stem}"):
+                session.grammar_patterns = grammar_analyzer(transcripts)
         except Exception as e:  # noqa: BLE001 — still pending if it fails again
             console.print(f"[yellow]{path.name}: analysis still failing ({e}); left pending.[/yellow]")
             continue
@@ -158,6 +162,8 @@ def run(*, cloud: bool = False, engine: str | None = None) -> None:
         resolved += 1
 
     console.print(f"\nResumed {resolved} of {len(pending)} pending session(s).")
+    if timings:
+        console.print(timer.render())
 
 
 def _advance_schedule(session: frontmatter.Session, *, today) -> None:

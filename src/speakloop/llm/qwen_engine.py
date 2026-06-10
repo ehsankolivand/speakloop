@@ -42,6 +42,10 @@ class QwenEngine:
     at the wrapper boundary so downstream code parses a clean payload.
     """
 
+    # 012: a single in-process MLX model — concurrent calls would contend on one set of
+    # weights, so analysis MUST stay serial for this engine (contract analysis-concurrency.md).
+    parallel_safe = False
+
     # Defensive EOS (grammar-output-schema §B): mlx-lm's generation API has no
     # `stop=` parameter, so the stop marker is applied as wrapper-side
     # truncation — any text from "<|im_end|>" onward is cut.

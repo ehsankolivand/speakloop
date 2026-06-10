@@ -27,6 +27,10 @@ DEFAULT_CLAUDE_STRONG_MODEL = "sonnet"
 # full grammar prompt over 3 attempts can take well over 90s.
 DEFAULT_CLAUDE_TIMEOUT_SECONDS = 240
 
+# 012 (additive optional): ideal-answer autoplay toggle + analysis concurrency cap.
+DEFAULT_AUTOPLAY_IDEAL_ANSWER = True
+DEFAULT_ANALYSIS_CONCURRENCY = 3
+
 
 @dataclass(frozen=True)
 class LoopConfig:
@@ -38,6 +42,9 @@ class LoopConfig:
     claude_fast_model: str = DEFAULT_CLAUDE_FAST_MODEL
     claude_strong_model: str = DEFAULT_CLAUDE_STRONG_MODEL
     claude_timeout_seconds: int = DEFAULT_CLAUDE_TIMEOUT_SECONDS
+    # 012 (additive optional): never-forced-to-relisten toggle + concurrent-analysis cap.
+    autoplay_ideal_answer: bool = DEFAULT_AUTOPLAY_IDEAL_ANSWER
+    analysis_concurrency: int = DEFAULT_ANALYSIS_CONCURRENCY
 
 
 def _model(data: dict, key: str, default: str) -> str:
@@ -68,6 +75,13 @@ def load() -> LoopConfig:
         timeout = max(1, int(data.get("claude_timeout_seconds", DEFAULT_CLAUDE_TIMEOUT_SECONDS)))
     except (TypeError, ValueError):
         timeout = DEFAULT_CLAUDE_TIMEOUT_SECONDS
+    try:
+        concurrency = max(1, int(data.get("analysis_concurrency", DEFAULT_ANALYSIS_CONCURRENCY)))
+    except (TypeError, ValueError):
+        concurrency = DEFAULT_ANALYSIS_CONCURRENCY
+    autoplay = data.get("autoplay_ideal_answer", DEFAULT_AUTOPLAY_IDEAL_ANSWER)
+    if not isinstance(autoplay, bool):
+        autoplay = DEFAULT_AUTOPLAY_IDEAL_ANSWER
     return LoopConfig(
         daily_capacity=cap,
         warmup_enabled=bool(data.get("warmup_enabled", True)),
@@ -76,4 +90,6 @@ def load() -> LoopConfig:
         claude_fast_model=_model(data, "claude_fast_model", DEFAULT_CLAUDE_FAST_MODEL),
         claude_strong_model=_model(data, "claude_strong_model", DEFAULT_CLAUDE_STRONG_MODEL),
         claude_timeout_seconds=timeout,
+        autoplay_ideal_answer=autoplay,
+        analysis_concurrency=concurrency,
     )

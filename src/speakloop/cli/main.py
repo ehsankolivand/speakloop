@@ -96,6 +96,11 @@ def practice_cmd(
             "for shadowing. Default 0.85; try 0.7 for very slow."
         ),
     ),
+    timings: bool = typer.Option(
+        False,
+        "--timings",
+        help="Print a per-stage timing breakdown at the end of the session.",
+    ),
 ) -> None:
     """Run a practice session."""
     from speakloop.cli import practice as _practice  # local import; engine touch is deferred.
@@ -108,6 +113,7 @@ def practice_cmd(
         cloud=cloud,
         engine=engine,
         speed=speed,
+        timings=timings,
     )
 
 
@@ -177,11 +183,16 @@ def resume_cmd(
             "--engine openrouter."
         ),
     ),
+    timings: bool = typer.Option(
+        False,
+        "--timings",
+        help="Print a per-stage timing breakdown for the re-run analysis.",
+    ),
 ) -> None:
     """Finish any session left analysis-pending (re-runs analysis over the saved transcripts)."""
     from speakloop.cli import resume as _resume
 
-    _resume.run(cloud=cloud, engine=engine)
+    _resume.run(cloud=cloud, engine=engine, timings=timings)
 
 
 if __name__ == "__main__":

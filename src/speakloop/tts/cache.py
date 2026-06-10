@@ -8,6 +8,11 @@ from pathlib import Path
 
 from speakloop.config import paths
 
+# Default size cap for the clip cache (012). The cache is content-addressed and grows
+# one WAV per unique (voice, speed, text); without a cap it accreted unboundedly (409
+# entries observed). Pruned LRU-by-mtime after each store, never evicting an in-use clip.
+TTS_CACHE_MAX_BYTES = 512 * 1024 * 1024  # 512 MB
+
 
 def cache_key(voice: str | None, text: str, speed: float = 1.0) -> str:
     """Stable cache key derived from sha256(voice|[speed|]text).
@@ -40,6 +45,46 @@ def store(voice: str | None, text: str, source_wav: Path, speed: float = 1.0) ->
         return target
     shutil.copyfile(source_wav, target)
     return target
+
+
+def prune(max_bytes: int = TTS_CACHE_MAX_BYTES, *, keep: Path | None = None) -> int:
+    """Evict least-recently-modified cached WAVs until the cache is under ``max_bytes``.
+
+    Returns the number of files removed. Never evicts ``keep`` (the entry just stored, so a
+    freshly-synthesized clip is never deleted before it is played — FR-021). Tolerant of a
+    concurrent reader: a vanished file is skipped, and a read racing a delete surfaces the
+    normal ``PlaybackError`` upstream (handled as today). A no-op when already under cap.
+    """
+    cache_dir = paths.tts_cache_dir()
+    if not cache_dir.exists():
+        return 0
+    files: list[tuple[Path, int, float]] = []
+    for f in cache_dir.iterdir():
+        if not (f.is_file() and f.suffix == ".wav"):
+            continue
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        files.append((f, st.st_size, st.st_mtime))
+    total = sum(size for _, size, _ in files)
+    if total <= max_bytes:
+        return 0
+    keep_resolved = keep.resolve() if keep is not None else None
+    files.sort(key=lambda t: t[2])  # oldest mtime first
+    removed = 0
+    for f, size, _ in files:
+        if total <= max_bytes:
+            break
+        if keep_resolved is not None and f.resolve() == keep_resolved:
+            continue
+        try:
+            f.unlink()
+        except OSError:
+            continue
+        total -= size
+        removed += 1
+    return removed
 
 
 def purge() -> int:

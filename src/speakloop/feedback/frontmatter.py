@@ -137,6 +137,11 @@ class Session:
     # P2a: per-pattern occurrence trend strings for patterns shown this session
     # (label -> "10 → 4 → 1"), derived from the cross-session store (FR-008).
     pattern_trends: dict | None = None
+    # --- Additive per-stage timings (012-responsive-session-flow) --------------
+    # A machine-only wall-clock breakdown (StageTimer.to_frontmatter()); emitted only
+    # when present so a no-timings report is byte-identical to before. NOT rendered
+    # into the human body. schema_version STAYS 1 (additive optional key).
+    timings: dict | None = None
 
 
 class _LiteralStr(str):
@@ -255,6 +260,9 @@ def dump(session: Session) -> str:
         payload["triage_summary"] = session.triage_summary
     if session.pattern_trends:
         payload["pattern_trends"] = session.pattern_trends
+    # 012: per-stage timings — machine-only, additive optional (schema_version stays 1).
+    if session.timings:
+        payload["timings"] = session.timings
     body = yaml.dump(payload, sort_keys=False, allow_unicode=True, default_flow_style=False)
     return f"---\n{body}---\n"
 
@@ -401,4 +409,5 @@ def parse(text: str) -> Session:
         pattern_trends=(
             data.get("pattern_trends") if isinstance(data.get("pattern_trends"), dict) else None
         ),
+        timings=data.get("timings") if isinstance(data.get("timings"), dict) else None,
     )
