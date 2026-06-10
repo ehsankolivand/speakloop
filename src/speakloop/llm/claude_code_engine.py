@@ -29,8 +29,8 @@ import json
 import os
 import shutil
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from speakloop.llm.interface import LLMEngineError
 
@@ -132,7 +132,7 @@ class ClaudeCliResult:
 Runner = Callable[[list[str], str, float, "dict[str, str]"], ClaudeCliResult]
 
 
-def build_env(environ: "dict[str, str] | None" = None) -> "dict[str, str]":
+def build_env(environ: dict[str, str] | None = None) -> dict[str, str]:
     """Return a copy of the environment with billing-override vars removed (FR-007)."""
     base = dict(os.environ if environ is None else environ)
     for var in STRIPPED_ENV_VARS:
@@ -141,7 +141,7 @@ def build_env(environ: "dict[str, str] | None" = None) -> "dict[str, str]":
 
 
 def default_runner(
-    argv: list[str], stdin: str, timeout: float, env: "dict[str, str]"
+    argv: list[str], stdin: str, timeout: float, env: dict[str, str]
 ) -> ClaudeCliResult:
     """Spawn ``claude`` once. The ONLY subprocess spawn of the binary (Principle V).
 

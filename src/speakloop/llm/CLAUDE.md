@@ -10,6 +10,10 @@ behind one stable interface so the model can be swapped in one file (Principle V
 
 - `interface.LLMEngine` (Protocol) — the stable contract consumers depend on.
 - `interface.LLMEngineError`.
+- `claude_code_engine.ClaudeCodeEngine` (011) — a third engine driving the local Claude Code
+  CLI; `ClaudeCodeError` + subclasses (`ClaudeCodeNotInstalledError`, `…AuthError`,
+  `…RateLimitError`, `…TimeoutError`, `…BadOutputError`) all subclass `LLMEngineError`.
+  `doctor_probe()` is a credit-free version/auth check for `speakloop doctor`.
 
 ## Dependencies
 
@@ -19,7 +23,12 @@ behind one stable interface so the model can be swapped in one file (Principle V
   over **stdlib `urllib`** (no new dependency). `openrouter_config.py` reads the model id from
   `~/.speakloop/openrouter.yaml` (`pyyaml`, already a dep); `openrouter_credentials.py` is a
   pure token resolver (env > file).
-- Internal: `speakloop.installer` (model paths/manifest), `speakloop.config` (cloud paths).
+- **Claude Code engine (011):** `claude_code_engine.py` is the ONLY file that spawns the
+  `claude` subprocess (stdlib `subprocess`, no new dependency — mirrors the OpenRouter pattern).
+  Selected via `--engine claude` / `loop.yaml engine:`; subscription-billed; reuses the cloud
+  prompt files. NEVER imports an engine package.
+- Internal: `speakloop.installer` (model paths/manifest), `speakloop.config` (cloud paths +
+  loop config for the engine default + model tiers).
 
 ## Consumers
 
@@ -47,6 +56,16 @@ behind one stable interface so the model can be swapped in one file (Principle V
   I/O (interactive prompt lives in `cli/practice.py`).
 - `openrouter_config.py` (008) — `resolve_model()` reads the `model:` key from
   `~/.speakloop/openrouter.yaml` (default `qwen/qwen3.7-max`); absent/malformed → default.
+- `claude_code_engine.py` (011) — `ClaudeCodeEngine(LLMEngine)` driving the local Claude Code
+  CLI via stdlib `subprocess`. The ONLY file that spawns `claude`. Invocation pinned to observed
+  `claude 2.1.170` as named constants: `--print --output-format json --model <alias> --safe-mode
+  --tools "" --no-session-persistence --system-prompt`, user prompt on stdin. **Keys off
+  envelope `is_error`** (NOT `subtype`); returns `.result` (fences left for the recovery ladder).
+  `build_env()` strips `ANTHROPIC_API_KEY` + related override vars (billing safety: Claude Code
+  prefers the env key → pay-per-token). `generate()` IGNORES `max_tokens`/`temperature` (CLI has
+  neither); `retry=True` appends a STRICT-JSON reminder to the USER prompt (system verbatim).
+  Failures → `ClaudeCodeError` subclasses (all `LLMEngineError`) → coordinator `analysis_pending`.
+  `default_runner` is injectable (tests pass a fake; no test spawns the real binary).
 
 ## Common modification patterns
 
@@ -85,6 +104,10 @@ behind one stable interface so the model can be swapped in one file (Principle V
 - Talk to OpenRouter from any file but `openrouter_engine.py`; add a non-stdlib HTTP client
   (stdlib `urllib` is the chosen transport); log the token; or make the cloud network call on
   any non-`--cloud` path (Principle II — the default stays offline; 008).
+- Spawn the `claude` subprocess from any file but `claude_code_engine.py` (011). Don't switch it
+  to `--bare` (that forces `ANTHROPIC_API_KEY`/keychain auth and breaks subscription billing —
+  use `--safe-mode`); don't stop stripping the billing-override env vars; don't let an automated
+  test invoke the real `claude` binary (inject a fake runner).
 
 ## Pointers
 

@@ -77,7 +77,16 @@ def practice_cmd(
     cloud: bool = typer.Option(
         False,
         "--cloud",
-        help="Use the OpenRouter cloud model for feedback instead of the local Qwen model.",
+        help="Alias for --engine openrouter (use the OpenRouter cloud model for feedback).",
+    ),
+    engine: str = typer.Option(
+        None,
+        "--engine",
+        help=(
+            "Analysis engine: 'local' (default, offline Qwen), 'openrouter' (cloud), or "
+            "'claude' (your local Claude Code, subscription-billed). Overrides the loop-config "
+            "`engine:` default. --cloud is an alias for --engine openrouter."
+        ),
     ),
     speed: float = typer.Option(
         0.85,
@@ -97,6 +106,7 @@ def practice_cmd(
         no_audio=no_audio,
         asr_engine_choice=asr_engine,
         cloud=cloud,
+        engine=engine,
         speed=speed,
     )
 
@@ -156,13 +166,22 @@ def rebuild_cmd(
 @app.command("resume")
 def resume_cmd(
     cloud: bool = typer.Option(
-        False, "--cloud", help="Use the OpenRouter cloud model to re-run the analysis."
+        False, "--cloud", help="Alias for --engine openrouter (re-run analysis via OpenRouter)."
+    ),
+    engine: str = typer.Option(
+        None,
+        "--engine",
+        help=(
+            "Analysis engine for the re-run: 'local' (default), 'openrouter', or 'claude'. "
+            "Overrides the loop-config `engine:` default. --cloud is an alias for "
+            "--engine openrouter."
+        ),
     ),
 ) -> None:
     """Finish any session left analysis-pending (re-runs analysis over the saved transcripts)."""
     from speakloop.cli import resume as _resume
 
-    _resume.run(cloud=cloud)
+    _resume.run(cloud=cloud, engine=engine)
 
 
 if __name__ == "__main__":

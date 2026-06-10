@@ -217,6 +217,84 @@ def _interview_loop() -> list[CheckRow]:
     return rows
 
 
+def _claude_code() -> list[CheckRow]:
+    """011: report the Claude Code engine (opt-in; never FAILs the exit code).
+
+    Probes are credit-free (`claude --version` + `claude auth status --json`); the
+    whole probe is monkeypatched in tests so no automated test runs the real binary."""
+    from speakloop.config import loop_config
+    from speakloop.llm import claude_code_engine
+
+    info = claude_code_engine.doctor_probe()
+    cfg_engine = loop_config.load().engine
+    rows: list[CheckRow] = []
+
+    if info["installed"]:
+        rows.append(
+            CheckRow(section="Claude Code", label="CLI binary", status="OK", detail=info["binary"])
+        )
+        rows.append(
+            CheckRow(
+                section="Claude Code",
+                label="version",
+                status="OK" if info["version"] else "WARN",
+                detail=info["version"] or "unreadable",
+                remediation="" if info["version"] else "run `claude update`.",
+            )
+        )
+        if info["logged_in"]:
+            method = info.get("auth_method") or "?"
+            sub = info.get("subscription_type") or "?"
+            rows.append(
+                CheckRow(
+                    section="Claude Code",
+                    label="authentication",
+                    status="OK",
+                    detail=f"logged in ({method}, {sub})",
+                )
+            )
+        else:
+            rows.append(
+                CheckRow(
+                    section="Claude Code",
+                    label="authentication",
+                    status="WARN",
+                    detail="logged out",
+                    remediation="run `claude /login` to use `--engine claude`.",
+                )
+            )
+    else:
+        rows.append(
+            CheckRow(
+                section="Claude Code",
+                label="CLI binary",
+                status="WARN",
+                detail="not found on PATH",
+                remediation="install Claude Code to use `--engine claude` (optional).",
+            )
+        )
+
+    rows.append(
+        CheckRow(
+            section="Claude Code",
+            label="default engine",
+            status="OK",
+            detail=f"{cfg_engine} (loop.yaml `engine:`)",
+        )
+    )
+    if info.get("api_key_in_env"):
+        rows.append(
+            CheckRow(
+                section="Claude Code",
+                label="ANTHROPIC_API_KEY",
+                status="WARN",
+                detail="set in environment",
+                remediation="the claude engine strips it so calls bill to your subscription.",
+            )
+        )
+    return rows
+
+
 def _collect() -> list[CheckRow]:
     return [
         _python_runtime(),
@@ -226,6 +304,7 @@ def _collect() -> list[CheckRow]:
         _aria2(),
         *_cloud(),
         *_interview_loop(),
+        *_claude_code(),
     ]
 
 

@@ -45,25 +45,25 @@ the Claude Code rows. (Live equivalent verified in T017.)
   (key off `is_error`, return `.result` stripped), maps failures to the taxonomy, `retry=True`
   appends a STRICT-JSON reminder to the user prompt (system prompt verbatim), ignores
   `max_tokens`/`temperature` (documented in docstring).
-- [ ] T004 [P] [US1] Extend `LoopConfig` in `src/speakloop/config/loop_config.py` with additive
+- [X] T004 [P] [US1] Extend `LoopConfig` in `src/speakloop/config/loop_config.py` with additive
   optional keys `engine` (default `"local"`), `claude_fast_model` (`"haiku"`),
   `claude_strong_model` (`"sonnet"`) + tolerant parsing (invalid → default).
-- [ ] T005 [US1] Add an engine-selection resolver in `src/speakloop/cli/practice.py`
+- [X] T005 [US1] Add an engine-selection resolver in `src/speakloop/cli/practice.py`
   (`resolve_engine_choice(engine_flag, cloud_flag) -> str`): precedence explicit flag → `loop.yaml`
   `engine` → `"local"`; `--cloud` ⇒ `openrouter`; conflicting `--engine local|claude` + `--cloud`
   ⇒ clear error; unknown value ⇒ error listing valid choices.
-- [ ] T006 [US1] In `src/speakloop/cli/practice.py`: add `_build_claude_grammar_analyzer(console)`
+- [X] T006 [US1] In `src/speakloop/cli/practice.py`: add `_build_claude_grammar_analyzer(console)`
   mirroring `_build_cloud_grammar_analyzer` (build the claude engine, reuse the cloud grammar +
   coach prompt files, print the privacy disclosure + a `shutil.which` heads-up if absent/logged-out,
   return `(grammar_runner, coach_runner)` with `.runners` attached, **always non-None**); add an
   optional `fast_engine=None` kwarg to `_build_runners` (defaults to `engine` → byte-identical for
   local/openrouter); branch `run()` engine selection on the resolved choice (local/openrouter/claude).
-- [ ] T007 [US1] In `src/speakloop/cli/main.py`: add `--engine` option to `practice_cmd` and
+- [X] T007 [US1] In `src/speakloop/cli/main.py`: add `--engine` option to `practice_cmd` and
   `resume_cmd` (keep `--cloud`); thread the resolved engine into `_practice.run(...)` and
   `_resume.run(...)`.
-- [ ] T008 [US1] In `src/speakloop/cli/resume.py`: replace the `if cloud` branch with the resolved
+- [X] T008 [US1] In `src/speakloop/cli/resume.py`: replace the `if cloud` branch with the resolved
   engine selection (local/openrouter/claude), reusing the practice builders.
-- [ ] T009 [US1] In `src/speakloop/cli/doctor.py`: add a `_claude_code()` section returning rows for
+- [X] T009 [US1] In `src/speakloop/cli/doctor.py`: add a `_claude_code()` section returning rows for
   binary presence (`shutil.which`), version (`claude --version`), auth state
   (`claude auth status --json` → `loggedIn`/`authMethod`/`subscriptionType`), the configured default
   engine (`loop_config.load().engine`), and an informational WARN if `ANTHROPIC_API_KEY` is in the
@@ -76,13 +76,13 @@ the Claude Code rows. (Live equivalent verified in T017.)
   unknown-flag stderr), `retry=True` user-prompt nudge with system prompt unchanged, `max_tokens`/
   `temperature` ignored, success returns `.result`, fenced output passes through, and an assertion
   that the env handed to the runner **never contains `ANTHROPIC_API_KEY`** even when `os.environ` does.
-- [ ] T012 [P] [US1] Unit tests in `tests/unit/test_engine_selection.py` for the full precedence
+- [X] T012 [P] [US1] Unit tests in `tests/unit/test_engine_selection.py` for the full precedence
   matrix (flag wins over config wins over default; `--cloud` alias; conflict error; unknown error).
-- [ ] T013 [P] [US1] Integration tests: `tests/integration/test_claude_engine_degradation.py` (a
+- [X] T013 [P] [US1] Integration tests: `tests/integration/test_claude_engine_degradation.py` (a
   stubbed coordinator/run with a failing claude engine proves `analysis_pending` is set, recordings
   + deterministic report preserved, resumable) and `tests/integration/test_doctor_claude_rows.py`
   (monkeypatched probe → expected Claude Code rows, never FAIL).
-- [ ] T014 [US1] Update `src/speakloop/llm/CLAUDE.md` to document `claude_code_engine.py` as the
+- [X] T014 [US1] Update `src/speakloop/llm/CLAUDE.md` to document `claude_code_engine.py` as the
   third engine (the only `subprocess` claude spawn; `--safe-mode` not `--bare`; env-stripping;
   taxonomy; key off `is_error`).
 

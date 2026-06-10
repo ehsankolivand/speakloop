@@ -222,6 +222,37 @@ def _listen_loop(question, console: Console, tts_engine, play_fn) -> str:
             console.print(f"[red]Unknown key: {key!r}[/red]")
 
 
+class EngineSelectionError(ValueError):
+    """Bad ``--engine``/``--cloud`` combination (unknown value or conflicting flags)."""
+
+
+def resolve_engine_choice(engine: str | None, cloud: bool) -> str:
+    """Resolve the analysis engine (011).
+
+    Precedence: explicit ``--engine`` flag → loop-config ``engine:`` → built-in
+    ``"local"``. ``--cloud`` is an exact alias for ``--engine openrouter``. A
+    conflicting combination or an unknown value raises ``EngineSelectionError``."""
+    from speakloop.config.loop_config import VALID_ENGINES
+
+    if engine is not None:
+        chosen = engine.strip().lower()
+        if chosen not in VALID_ENGINES:
+            raise EngineSelectionError(
+                f"--engine must be one of {', '.join(VALID_ENGINES)} (got {engine!r})."
+            )
+        if cloud and chosen != "openrouter":
+            raise EngineSelectionError(
+                "--cloud is an alias for --engine openrouter and conflicts with "
+                f"--engine {chosen}."
+            )
+        return chosen
+    if cloud:
+        return "openrouter"
+    from speakloop.config import loop_config
+
+    return loop_config.load().engine
+
+
 def run(
     *,
     question: str | None = None,
@@ -229,6 +260,7 @@ def run(
     no_audio: bool = False,
     asr_engine_choice: str | None = None,
     cloud: bool = False,
+    engine: str | None = None,
     speed: float = 1.0,
     tts_engine=None,
     play_fn=None,
@@ -236,6 +268,12 @@ def run(
 ) -> None:
     """Entry point for `speakloop practice`."""
     console = Console()
+
+    try:
+        engine_choice = resolve_engine_choice(engine, cloud)
+    except EngineSelectionError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(2) from None
 
     # Keep the TTS speed inside a sane range so the engine never gets a
     # nonsensical multiplier (e.g. 0 or negative). Out-of-range values are
@@ -324,12 +362,16 @@ def run(
             f"[yellow]ASR: requested engine unavailable "
             f"({selection.fallback_reason}); falling back to Parakeet.[/yellow]"
         )
-    # Cloud mode (008/009) builds the grammar analyzer AND the additive coaching
-    # runner over one shared OpenRouterEngine; local mode keeps its byte-identical
-    # build and has no coach. Built once, before the loop, reused per session.
-    if cloud:
+    # Engine selection (011): local Qwen (default, offline), OpenRouter (--cloud /
+    # --engine openrouter), or Claude Code (--engine claude). Cloud + Claude build
+    # the grammar analyzer AND the additive coaching runner over one shared engine;
+    # local keeps its byte-identical build and has no coach. Built once, before the
+    # loop, reused per session.
+    if engine_choice == "openrouter":
         grammar_analyzer, coach_runner = _build_cloud_grammar_analyzer(console)
-    else:
+    elif engine_choice == "claude":
+        grammar_analyzer, coach_runner = _build_claude_grammar_analyzer(console)
+    else:  # local
         grammar_analyzer = _build_grammar_analyzer()
         coach_runner = None
     # 010: the Interview Loop runner bundle rides on the grammar-runner callable
@@ -409,13 +451,21 @@ def _build_grammar_analyzer():
     return _runner
 
 
-def _build_runners(engine):
-    """Build the Interview Loop LLM runners over ONE shared engine (010, FR-039).
+def _build_runners(engine, *, fast_engine=None):
+    """Build the Interview Loop LLM runners over the injected engine(s) (010, FR-039).
 
     Every new LLM call (mishearing triage, artifact consistency, follow-up
     generation) goes through the injected engine — no new engine client code
     (Principle V). Each loads its own seeded prompt. Returns a coordinator.Runners.
+
+    011 model tiering: ``fast_engine`` (defaults to ``engine``) backs the cheap,
+    mechanical calls — mishearing classification and drill generation — while the
+    reasoning-heavy calls stay on ``engine``. For the local/OpenRouter engines
+    ``fast_engine`` is left None → both tiers are the same instance → byte-identical
+    to before; only the Claude Code builder passes a distinct fast engine.
     """
+    if fast_engine is None:
+        fast_engine = engine
     from speakloop.coverage import keypoints as _kp
     from speakloop.coverage import scoring as _cov
     from speakloop.coverage.prompts import load_coverage_prompt, load_keypoints_prompt
@@ -434,8 +484,8 @@ def _build_runners(engine):
     keypoints_prompt, _ = load_keypoints_prompt()
     coverage_prompt, _ = load_coverage_prompt()
 
-    def _mishearing(real_text):
-        return _mis.detect_mishearings(real_text, engine, system_prompt=triage_prompt)
+    def _mishearing(real_text):  # cheap/mechanical → fast tier
+        return _mis.detect_mishearings(real_text, fast_engine, system_prompt=triage_prompt)
 
     def _consistency(artifact, ideal_answer):
         verdict = _cons.check_artifact(artifact, ideal_answer, engine, system_prompt=consistency_prompt)
@@ -444,8 +494,8 @@ def _build_runners(engine):
     def _followups(question_text, transcripts):
         return _fu.generate_followups(question_text, transcripts, engine, system_prompt=followups_prompt)
 
-    def _drill_runner(top_error_label):
-        return _drill.generate_drill(top_error_label, engine, system_prompt=drill_prompt)
+    def _drill_runner(top_error_label):  # cheap/mechanical → fast tier
+        return _drill.generate_drill(top_error_label, fast_engine, system_prompt=drill_prompt)
 
     def _keypoints(question_text, ideal_answer, question_type):
         return _kp.derive_key_points(
@@ -585,5 +635,65 @@ def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input):
 
     # 010: the Interview Loop runners reuse the SAME OpenRouter engine (FR-039),
     # attached to the grammar runner so the (grammar, coach) return type is unchanged.
+    _grammar_runner.runners = _build_runners(engine)
+    return _grammar_runner, _coach_runner
+
+
+# --- Claude Code mode (011) ------------------------------------------------
+
+
+def _build_claude_grammar_analyzer(console: Console):
+    """Return ``(grammar_runner, coach_runner)`` backed by the local Claude Code CLI.
+
+    Mirrors :func:`_build_cloud_grammar_analyzer` but drives the subscription-billed
+    Claude Code product via subprocess (``ClaudeCodeEngine``). Reuses the SAME
+    editable cloud prompt files (no new prompts) and the same shared seeded
+    interview-loop prompts. Requires no token and makes no network preflight.
+
+    ALWAYS returns a non-None analyzer: if Claude Code is absent or logged out, each
+    analysis call raises an ``LLMEngineError`` subclass which the coordinator catches
+    → ``analysis_pending`` (the session still records audio + transcripts + the
+    deterministic report, resumable via ``speakloop resume --engine claude``). It does
+    NOT silently fall back to the local model — matching the OpenRouter engine. Engine
+    imports are function-local so ``speakloop --help`` stays model-free.
+    """
+    import shutil
+
+    from speakloop.config import loop_config
+    from speakloop.feedback import cloud_prompt as _cloud_prompt
+    from speakloop.feedback import coach as _coach
+    from speakloop.feedback.grammar_analyzer import analyze
+    from speakloop.llm.claude_code_engine import ClaudeCodeEngine
+
+    cfg = loop_config.load()
+    engine = ClaudeCodeEngine(model=cfg.claude_strong_model)
+
+    cloud_system_prompt, prompt_path = _cloud_prompt.load_cloud_prompt()
+    coach_system_prompt, coach_prompt_path = _cloud_prompt.load_coach_prompt()
+
+    console.print(
+        f"[cyan]Claude Code engine[/cyan]: analysis runs through your local Claude Code "
+        f"(model [bold]{cfg.claude_strong_model}[/bold]), billed to your subscription. "
+        "Your attempt transcripts are sent to Claude Code (audio and reports stay local)."
+    )
+    if shutil.which("claude") is None:
+        console.print(
+            "[yellow]Claude Code CLI not found on PATH.[/yellow] The session will still record "
+            "and save your transcripts; analysis will be left pending. Install Claude Code and "
+            "run `speakloop resume --engine claude` later."
+        )
+    console.print(f"[dim]Grammar prompt: {prompt_path} — edit to tune feedback.[/dim]")
+    console.print(
+        f"[dim]Coach prompt: {coach_prompt_path} — edit to tune the coaching section.[/dim]"
+    )
+
+    def _grammar_runner(transcripts):
+        return analyze(transcripts, engine, system_prompt=cloud_system_prompt)
+
+    def _coach_runner(question_text, transcripts, patterns):
+        return _coach.coach(
+            question_text, transcripts, patterns, engine, system_prompt=coach_system_prompt
+        )
+
     _grammar_runner.runners = _build_runners(engine)
     return _grammar_runner, _coach_runner

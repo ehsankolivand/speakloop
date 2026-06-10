@@ -56,7 +56,7 @@ def _extract_attempt_transcripts(body: str) -> dict[int, str]:
     return out
 
 
-def run(*, cloud: bool = False) -> None:
+def run(*, cloud: bool = False, engine: str | None = None) -> None:
     console = Console()
     sessions_dir = paths.sessions_dir()
     if not sessions_dir.exists():
@@ -79,13 +79,22 @@ def run(*, cloud: bool = False) -> None:
     # Build the analysis runners over one engine (lazy; mirrors practice).
     from speakloop.cli import practice as _practice
 
-    if cloud:
+    try:
+        engine_choice = _practice.resolve_engine_choice(engine, cloud)
+    except _practice.EngineSelectionError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(2) from None
+
+    if engine_choice == "openrouter":
         grammar_analyzer, _coach = _practice._build_cloud_grammar_analyzer(console)
+    elif engine_choice == "claude":
+        grammar_analyzer, _coach = _practice._build_claude_grammar_analyzer(console)
     else:
         grammar_analyzer = _practice._build_grammar_analyzer()
     if grammar_analyzer is None:
         console.print(
-            "[red]No analysis model available.[/red] Install the local model or pass --cloud."
+            "[red]No analysis model available.[/red] Install the local model or pass "
+            "--engine openrouter / --engine claude."
         )
         raise typer.Exit(1)
     runners = getattr(grammar_analyzer, "runners", None)
