@@ -1,33 +1,45 @@
 <!-- SPECKIT START -->
-Active feature: 010-interview-loop — turn isolated practice into an adaptive daily
-  loop: due-question selection → warm-up drill → question + 4/3/2 attempts → 1–2
-  spoken FOLLOW-UPS → richer report. Five prioritized, independently-shippable
-  slices: P1 interactive follow-ups (unscripted, grounded in the learner's own
-  words; voice-answered ~60s; same per-attempt analysis; own report section);
-  P2 cross-session memory + spaced-repetition scheduling + 30–60s warm-up drill;
-  P3 content-coverage scoring (5–7 key points per ideal answer, covered/partial/
-  missed per attempt, content errors separate from grammar); P4 trustworthy
-  pipeline (deterministic hallucination triage BEFORE grammar, LLM mishearing
-  flags, artifact consistency check vs the ideal answer); P5 behavioral/STAR +
-  hypothetical question types. EXTENSION, not a rewrite. Every new LLM step
-  (follow-ups, key points, coverage, content errors, mishearing, consistency,
-  drill) is a NEW caller of the existing `LLMEngine` Protocol behind the existing
-  `--cloud` routing — NO new engine client code (Principle V); each gets its own
-  seeded prompt file, explicit JSON schema validated via the existing
-  `grammar_analyzer._extract_json` ladder, and graceful degradation (save audio +
-  transcripts, mark `analysis_pending`, never lose a recording). Session Markdown
-  stays the single source of truth; new frontmatter keys are ADDITIVE OPTIONAL and
-  report `schema_version` stays 1. One NEW derived store (versioned JSON under
-  `~/.speakloop/`, stdlib json/hashlib, ZERO new deps) holds the SRS schedule +
-  key-point cache + pattern aggregation and is fully rebuildable from session
-  files via `speakloop rebuild`. New modules (each with its own CLAUDE.md): 
-  interviewer/ triage/ coverage/ srs/ warmup/ store/. New CLI: today, rebuild,
-  resume; `trends` gains per-pattern series; `practice` gains due-selection +
-  `--no-warmup`/`--no-followups`.
+Active feature: 011-claude-code-engine — add a THIRD analysis engine "claude" behind
+  the existing injected `LLMEngine` Protocol, driving the learner's locally installed,
+  logged-in Claude Code CLI via stdlib `subprocess` (ZERO new deps;
+  `llm/claude_code_engine.py` is the ONLY file that spawns the `claude` subprocess —
+  Principle V, mirroring `openrouter_engine.py`). Engine selection becomes
+  `--engine local|openrouter|claude` on `practice`/`resume`, with `--cloud` PRESERVED
+  as an alias for `--engine openrouter`, plus a `loop.yaml` `engine:` default. Every
+  analysis call (follow-ups, key points, coverage+content errors, mishearing,
+  consistency, drill, grammar, coach) routes through Claude Code; ZERO
+  call-site/prompt/schema changes (reuses the cloud prompt files + the existing
+  `grammar_analyzer._extract_json` recovery ladder). SUBSCRIPTION-BILLED: the engine
+  STRIPS `ANTHROPIC_API_KEY` + related override vars from the subprocess env so billing
+  never silently switches to pay-per-token. Invocation pinned to observed
+  `claude 2.1.170`: `--print --output-format json --model <alias> --safe-mode
+  --tools "" --no-session-persistence --system-prompt`, user prompt on stdin; key off
+  envelope `is_error` (NOT `subtype`), output text in `.result` (fences stripped by the
+  ladder). `--safe-mode` NOT `--bare` (`--bare` would force `ANTHROPIC_API_KEY` auth,
+  which we strip). Failures map to `LLMEngineError` subclasses (not_installed / auth /
+  rate_limited / timeout / bad_output) → existing `analysis_pending` degradation
+  unchanged, NO auto-fallback to local. `doctor` gains Claude Code rows (binary /
+  version / auth via the credit-free `claude auth status --json` / default engine). P2:
+  static call-site→tier→model map (fast=haiku for mishearing+drills, strong=sonnet for
+  the rest), overridable via `loop.yaml` `claude_fast_model`/`claude_strong_model`;
+  wired by one engine instance per tier (`_build_runners` gains an optional
+  `fast_engine` kwarg defaulting to the main engine). Tests use an INJECTED FAKE RUNNER
+  only — no automated test ever spawns the real `claude`. Local Qwen stays the default;
+  default path stays byte-identical + offline; report `schema_version` stays 1.
 
-Plan: specs/010-interview-loop/plan.md
-Spec: specs/010-interview-loop/spec.md
-  (research.md · data-model.md · contracts/{llm-calls,store-schema,frontmatter-additions,cli-commands}.md)
+Plan: specs/011-claude-code-engine/plan.md
+Spec: specs/011-claude-code-engine/spec.md
+  (research.md · data-model.md · contracts/{engine-interface,cli-commands,loop-config}.md)
+
+Prior feature: 010-interview-loop — adaptive daily loop: due-question selection →
+  warm-up drill → question + 4/3/2 attempts → 1–2 spoken follow-ups → richer report.
+  P1 follow-ups · P2 cross-session memory + SRS + warm-up · P3 content-coverage scoring
+  · P4 trustworthy pipeline (hallucination triage, mishearing, consistency) · P5
+  behavioral/STAR + hypothetical types. Each new LLM step is a NEW caller of `LLMEngine`
+  behind `--cloud` routing (no new engine client); additive optional frontmatter,
+  `schema_version` 1; one rebuildable derived JSON store (`speakloop rebuild`). New
+  modules: interviewer/ triage/ coverage/ srs/ warmup/ store/; new CLI: today, rebuild,
+  resume. Plan: specs/010-interview-loop/plan.md · Spec: specs/010-interview-loop/spec.md
 
 Prior feature: 009-cloud-coaching-feedback — richer COACHING layer for cloud mode
   (`practice --cloud`): a SECOND OpenRouter call after the grammar analyzer
