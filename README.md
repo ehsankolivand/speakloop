@@ -15,6 +15,13 @@ using the 4/3/2 method (the same answer in 4, then 3, then 2 minutes). After eac
 session it writes a Markdown report — fluency metrics, grammar patterns, and the single
 most important thing to fix next — that you can review later in any editor or Obsidian.
 
+It runs as an **adaptive daily loop**, not a one-shot drill: each session opens with a
+short warm-up on your top recurring error, ends with **1–2 unscripted spoken follow-up
+questions** built from what you actually said, scores **content coverage** of the key
+points (separating wrong facts from grammar mistakes), and **schedules** each question for
+spaced repetition so weak answers come back sooner. Definition, behavioral/STAR, and
+hypothetical question types are supported.
+
 Everything runs locally. Three AI models (text-to-speech, speech recognition, and a
 language model) live on your machine. After the one-time model download, **speakloop
 makes zero network calls** — no telemetry, no uploads, your voice never leaves the
@@ -59,17 +66,32 @@ fetched. Downloads are resumable — a dropped connection picks up where it left
 # 1. See what a session looks like without a mic or recording — listen only:
 uv run speakloop practice --listen-only
 
-# 2. Run a full session (records your spoken attempts):
+# 2. See what to practice today (the spaced-repetition due queue):
+uv run speakloop today
+
+# 3. Run the full daily loop (records your spoken attempts):
 uv run speakloop practice
 
-# 3. Review your progress across sessions:
+# 4. Review your progress across sessions:
 uv run speakloop trends
 ```
 
-A full session plays the question and the ideal answer, then prompts you to record your
-4/3/2 attempts. When it finishes it saves a report and offers an interactive debrief
-(replay the question, hear your feedback read aloud, or move on). Start to first saved
-report is a few minutes once the models are downloaded.
+A full session runs the adaptive loop: a 30–60-second **warm-up drill** on your top
+recurring error, then the question and ideal answer, your **4/3/2 timed attempts**, then
+**1–2 spoken follow-up questions** drawn from what you actually said (answer them by
+voice within ~60 s each), and finally a report + interactive debrief. The report adds
+**content coverage** (which key points you hit, round over round), **content errors**
+(facts contradicting the ideal answer, kept separate from grammar), **pronunciation
+flags**, and **per-pattern trends** versus past sessions. Prefer the classic
+single-question flow? Add `--no-warmup --no-followups`. Start to first saved report is a
+few minutes once the models are downloaded.
+
+Two more commands:
+
+- `uv run speakloop rebuild` — rebuild the cross-session store (schedule + trends) from your
+  saved reports. It's only a cache: delete it any time and it's reconstructed from the reports.
+- `uv run speakloop resume` — finish a session whose analysis was interrupted (e.g. the model
+  was unavailable mid-session) without re-recording — your audio and transcripts are never lost.
 
 The questions you practice with ship in the repo — see
 [Where things live](#where-things-live) — so a fresh clone is ready to use immediately.
@@ -84,7 +106,9 @@ if you don't pass `--cloud`.
 Cloud mode also adds a **coaching section** to the report: a clean rewrite of *your own*
 answer, the 2–3 highest-impact habits to fix (with a rule and a self-check cue), and 4–8
 paste-ready cloze **Anki cards** — so the report teaches you everything without a second tool.
-The coaching is best-effort: if that step fails, you still get the full grammar report.
+The coaching is best-effort: if that step fails, you still get the full grammar report. Before
+it's shown, the coaching is **fact-checked against the question's reference answer** — any claim
+that contradicts it is corrected or dropped, so the report never teaches you something wrong.
 
 > Privacy note: cloud mode sends your **attempt transcript text** to OpenRouter for
 > analysis. Your audio recordings and saved reports never leave your machine. The default
@@ -116,7 +140,12 @@ uv run speakloop practice --cloud
 
 Every session writes a Markdown file with a YAML frontmatter block. Here is a
 **generic, hand-authored** example (not a real recording) so you know what to expect
-before you run anything:
+before you run anything. A real session adds sections as they apply — **Warm-up drill**,
+**Content coverage** (per-round key-point hits), **Content errors**, **Pronunciation
+flags**, **Follow-ups**, and a **STAR-structure** (behavioral) or **conditional-form**
+(hypothetical) check — all additive, so the `schema_version` stays `1`. See
+[`tests/fixtures/reports/sample-full-loop.md`](tests/fixtures/reports/sample-full-loop.md)
+for a rendered example with every section:
 
 ```markdown
 ---
