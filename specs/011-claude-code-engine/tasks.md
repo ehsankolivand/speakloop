@@ -100,12 +100,12 @@ model; both overridable in `loop.yaml`.
 `claude_fast_model` and coverage/consistency/follow-up/grammar/coach use `claude_strong_model`;
 overriding the config changes the models used.
 
-- [ ] T015 [US2] In `src/speakloop/cli/practice.py`: build two `ClaudeCodeEngine` instances
+- [X] T015 [US2] In `src/speakloop/cli/practice.py`: build two `ClaudeCodeEngine` instances
   (fast = `claude_fast_model`, strong = `claude_strong_model`) in `_build_claude_grammar_analyzer`,
   pass the fast one as `_build_runners(strong, fast_engine=fast)` so mishearing+drill → fast and the
   rest → strong; grammar + coach use strong. Define the call-site→tier mapping as a documented
   constant.
-- [ ] T016 [P] [US2] Tests in `tests/unit/test_claude_tiering.py`: assert the per-call `--model`
+- [X] T016 [P] [US2] Tests in `tests/unit/test_claude_tiering.py`: assert the per-call `--model`
   argv matches the expected tier for each runner, and that `loop.yaml` overrides change them.
 
 ---

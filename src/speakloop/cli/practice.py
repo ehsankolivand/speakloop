@@ -451,6 +451,17 @@ def _build_grammar_analyzer():
     return _runner
 
 
+# 011 P2 — the static call-site → model-tier assignment (documentation + single
+# source of truth). The mapping is fixed in code; only the two tier→model aliases
+# are user-overridable via loop.yaml (claude_fast_model / claude_strong_model).
+# _build_runners routes mishearing + drill through fast_engine; everything else
+# (incl. grammar + coach in _build_claude_grammar_analyzer) uses the strong engine.
+CLAUDE_TIER_MAP = {
+    "fast": ("mishearing", "drill"),
+    "strong": ("followups", "keypoints", "coverage", "consistency", "grammar", "coach"),
+}
+
+
 def _build_runners(engine, *, fast_engine=None):
     """Build the Interview Loop LLM runners over the injected engine(s) (010, FR-039).
 
@@ -666,15 +677,21 @@ def _build_claude_grammar_analyzer(console: Console):
     from speakloop.llm.claude_code_engine import ClaudeCodeEngine
 
     cfg = loop_config.load()
-    engine = ClaudeCodeEngine(model=cfg.claude_strong_model)
+    # 011 P2 model tiering: cheap/mechanical calls (mishearing, drill) run on the
+    # FAST model; reasoning-heavy calls (follow-ups, key points, coverage,
+    # consistency, grammar, coach) run on the STRONG model — see CLAUDE_TIER_MAP.
+    # Only the two tier→model aliases are user-overridable (loop.yaml).
+    strong = ClaudeCodeEngine(model=cfg.claude_strong_model)
+    fast = ClaudeCodeEngine(model=cfg.claude_fast_model)
 
     cloud_system_prompt, prompt_path = _cloud_prompt.load_cloud_prompt()
     coach_system_prompt, coach_prompt_path = _cloud_prompt.load_coach_prompt()
 
     console.print(
         f"[cyan]Claude Code engine[/cyan]: analysis runs through your local Claude Code "
-        f"(model [bold]{cfg.claude_strong_model}[/bold]), billed to your subscription. "
-        "Your attempt transcripts are sent to Claude Code (audio and reports stay local)."
+        f"(strong=[bold]{cfg.claude_strong_model}[/bold], fast=[bold]{cfg.claude_fast_model}"
+        "[/bold]), billed to your subscription. Your attempt transcripts are sent to Claude "
+        "Code (audio and reports stay local)."
     )
     if shutil.which("claude") is None:
         console.print(
@@ -687,13 +704,13 @@ def _build_claude_grammar_analyzer(console: Console):
         f"[dim]Coach prompt: {coach_prompt_path} — edit to tune the coaching section.[/dim]"
     )
 
-    def _grammar_runner(transcripts):
-        return analyze(transcripts, engine, system_prompt=cloud_system_prompt)
+    def _grammar_runner(transcripts):  # reasoning-heavy → strong
+        return analyze(transcripts, strong, system_prompt=cloud_system_prompt)
 
-    def _coach_runner(question_text, transcripts, patterns):
+    def _coach_runner(question_text, transcripts, patterns):  # reasoning-heavy → strong
         return _coach.coach(
-            question_text, transcripts, patterns, engine, system_prompt=coach_system_prompt
+            question_text, transcripts, patterns, strong, system_prompt=coach_system_prompt
         )
 
-    _grammar_runner.runners = _build_runners(engine)
+    _grammar_runner.runners = _build_runners(strong, fast_engine=fast)
     return _grammar_runner, _coach_runner
