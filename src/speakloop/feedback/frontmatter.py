@@ -116,6 +116,24 @@ class Session:
     # (graceful degradation — the grammar report is unaffected). Emitted into
     # frontmatter only when present; round-trips like phase_c_error.
     coach_error: str | None = None
+    # --- Additive Interview Loop keys (010-interview-loop) ---------------------
+    # All additive optional; emitted only when present; schema_version STAYS 1.
+    # The structured payloads are stored as plain dict/list[dict] (like
+    # GrammarPattern.evidence) so this serializer stays decoupled from the new
+    # interviewer/coverage/triage/srs modules — those modules convert their own
+    # dataclasses to dicts before assigning here. Free-text transcripts inside
+    # `warmup`/`follow_ups` are BODY-only (rendered by report_builder, not stored
+    # here), like the attempt transcripts and `coaching`.
+    question_type: str = "definition"  # definition | behavioral | hypothetical (P5)
+    warmup: dict | None = None  # P2c: target_pattern + items[] (pass/fail/incomplete)
+    follow_ups: list[dict] = field(default_factory=list)  # P1: per follow-up metadata
+    coverage: list[dict] = field(default_factory=list)  # P3: per-attempt key-point coverage
+    content_errors: list[dict] = field(default_factory=list)  # P3: mutually-exclusive contradictions
+    pronunciation_flags: list[dict] = field(default_factory=list)  # P4: mishearings (never grammar)
+    key_points: dict | None = None  # P3: the KeyPointSet scored against (text + version + hash)
+    answer_grade: str | None = None  # poor|fair|good|strong — drives SRS scheduling
+    analysis_pending: bool = False  # P-degradation: `speakloop resume` re-runs analysis (FR-035a)
+    triage_summary: dict | None = None  # P4: counts of real/mishearing/hallucination spans
 
 
 class _LiteralStr(str):
@@ -210,6 +228,28 @@ def dump(session: Session) -> str:
     # itself lives in the report body, not here.
     if session.coach_error:
         payload["coach_error"] = _LiteralStr(session.coach_error.strip())
+    # 010: additive Interview Loop keys — emitted only when present so existing
+    # readers and pre-feature reports stay byte-identical (schema_version stays 1).
+    if session.question_type and session.question_type != "definition":
+        payload["question_type"] = session.question_type
+    if session.warmup:
+        payload["warmup"] = session.warmup
+    if session.follow_ups:
+        payload["follow_ups"] = session.follow_ups
+    if session.coverage:
+        payload["coverage"] = session.coverage
+    if session.content_errors:
+        payload["content_errors"] = session.content_errors
+    if session.pronunciation_flags:
+        payload["pronunciation_flags"] = session.pronunciation_flags
+    if session.key_points:
+        payload["key_points"] = session.key_points
+    if session.answer_grade:
+        payload["answer_grade"] = session.answer_grade
+    if session.analysis_pending:
+        payload["analysis_pending"] = True
+    if session.triage_summary:
+        payload["triage_summary"] = session.triage_summary
     body = yaml.dump(payload, sort_keys=False, allow_unicode=True, default_flow_style=False)
     return f"---\n{body}---\n"
 
@@ -339,4 +379,18 @@ def parse(text: str) -> Session:
         # `coaching` is not serialized to frontmatter (it lives in the report
         # body), so it does not round-trip here — like the attempt transcripts.
         coach_error=_opt_str(data.get("coach_error")),
+        # 010: additive Interview Loop keys; missing keys default so pre-feature
+        # reports parse unchanged (SC-012). Structured payloads stay as dict/list.
+        question_type=str(data.get("question_type") or "definition"),
+        warmup=data.get("warmup") if isinstance(data.get("warmup"), dict) else None,
+        follow_ups=list(data.get("follow_ups") or []),
+        coverage=list(data.get("coverage") or []),
+        content_errors=list(data.get("content_errors") or []),
+        pronunciation_flags=list(data.get("pronunciation_flags") or []),
+        key_points=data.get("key_points") if isinstance(data.get("key_points"), dict) else None,
+        answer_grade=_opt_str(data.get("answer_grade")),
+        analysis_pending=bool(data.get("analysis_pending", False)),
+        triage_summary=(
+            data.get("triage_summary") if isinstance(data.get("triage_summary"), dict) else None
+        ),
     )

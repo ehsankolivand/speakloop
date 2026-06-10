@@ -50,3 +50,31 @@ garble_cases:
   - quote: "Killing RT check"
     attempt_ordinal: 1
     expected_dropped: true
+
+# --- 010-interview-loop additions (additive; existing tests ignore these keys) ---
+# Triage labels (P4): hallucinations MUST be excluded from grammar evidence
+# entirely (SC-003); mishearings MUST surface only as pronunciation flags, never as
+# grammar errors (SC-006). Detailed signal-bearing cases live in
+# tests/fixtures/triage/cases.yaml; these short ones anchor the integration
+# guarantee test (tests/integration/test_triage_guarantees.py).
+hallucination_cases:
+  - quote: "I'll see you later"
+    expected_in_grammar_evidence: false
+  - quote: "Please subscribe to the channel"
+    expected_in_grammar_evidence: false
+mishearing_cases:
+  - heard: "mouse"
+    likely_intended: "must"
+    expected_pronunciation_flag: true
+    expected_in_grammar_evidence: false
+
+# Content errors (P3): mutually-exclusive contradictions vs the ideal answer,
+# reported separately from grammar (FR-021). Omissions/extra-correct facts are NOT
+# content errors.
+content_error_cases:
+  - learner_claim: "Android 11"
+    ideal_claim: "Android 12"
+    expected_content_error: true
+  - learner_claim: "the activity is destroyed"
+    ideal_claim: "the activity instance becomes unreachable"
+    expected_content_error: false   # compatible paraphrase, not mutually exclusive

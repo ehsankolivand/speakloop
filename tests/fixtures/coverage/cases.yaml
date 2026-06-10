@@ -1,0 +1,42 @@
+# Labelled coverage cases (010, P3). Consumed by tests/unit/coverage/test_scoring.py,
+# test_keypoints.py, test_content_errors.py. The LLM coverage JSON is a recorded
+# fake; tests assert the deterministic aggregate/delta/version/content-error logic.
+
+cases:
+  - question_id: anr-on-startup
+    question_type: definition
+    ideal_answer: |
+      An ANR fires when the main thread is blocked for more than 5 seconds.
+      The fix is to move the blocking work off the main thread, for example with
+      a background dispatcher. Android 12 made the trace collection cheaper.
+    key_points:
+      - id: 1
+        text: "ANR fires when the main thread is blocked > 5s"
+      - id: 2
+        text: "move the blocking work off the main thread"
+      - id: 3
+        text: "Android 12 made trace collection cheaper"
+    # A recorded LLM coverage response (what the stubbed model returns).
+    recorded_llm_response:
+      attempts:
+        - ordinal: 1
+          coverage:
+            - { id: 1, state: covered }
+            - { id: 2, state: missed }
+            - { id: 3, state: missed }
+        - ordinal: 3
+          coverage:
+            - { id: 1, state: covered }
+            - { id: 2, state: covered }
+            - { id: 3, state: partial }
+      content_errors:
+        - attempt_ordinal: 3
+          learner_claim: "Android 11"
+          ideal_claim: "Android 12"
+          key_point_id: 3
+    # Deterministic expectations the test asserts.
+    expected:
+      attempt_1_aggregate: 0.333    # (1 covered + 0 partial) / 3
+      attempt_3_aggregate: 0.833    # (2 covered + 0.5*1 partial) / 3
+      first_to_final_delta: 0.5
+      content_error_count: 1        # mutually-exclusive Android 11 vs 12

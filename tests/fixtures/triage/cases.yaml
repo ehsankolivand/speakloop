@@ -1,0 +1,45 @@
+# Labelled triage spans (010, P4). Authored from real prior sessions, independent
+# of the triage implementation. Consumed by tests/unit/triage/test_hallucination.py
+# (deterministic signals) and tests/unit/triage/test_mishearing.py + the SC-003/006
+# guarantee test. Table-driven; never asserted as a byte-exact golden file.
+
+# Deterministic hallucination cases — classified from recorded VAD/Whisper signals
+# WITHOUT an LLM. The filter must drop every `hallucination` and keep every `real`.
+hallucination_cases:
+  - text: "I'll see you later"
+    vad_silence: true          # span falls entirely in a VAD silence gap
+    no_speech_prob: 0.93
+    avg_logprob: -1.6
+    label: hallucination
+  - text: "Thank you."
+    vad_silence: true
+    no_speech_prob: 0.88
+    avg_logprob: -1.4
+    label: hallucination          # canonical Whisper silence phantom (phrase list)
+  - text: "Please subscribe to the channel"
+    vad_silence: false
+    no_speech_prob: 0.40
+    avg_logprob: -0.9
+    label: hallucination          # phantom-phrase match even without silence
+  - text: "the activity is destroyed on rotation"
+    vad_silence: false
+    no_speech_prob: 0.02
+    avg_logprob: -0.18
+    label: real
+  - text: "onSaveInstanceState receives the bundle"
+    vad_silence: false
+    no_speech_prob: 0.05
+    avg_logprob: -0.25
+    label: real
+
+# Mishearing cases — phonetically-close low-confidence tokens. Classified by the
+# LLM step (a recorded fake in tests); must become pronunciation flags, not grammar.
+mishearing_cases:
+  - span_text: "you mouse handle the exception"
+    heard: "mouse"
+    likely_intended: "must"
+    label: mishearing
+  - span_text: "the activity is destroyed"
+    heard: "destroyed"
+    likely_intended: "destroyed"
+    label: real

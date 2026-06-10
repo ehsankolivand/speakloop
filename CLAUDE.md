@@ -1,41 +1,41 @@
 <!-- SPECKIT START -->
-Active feature: 009-cloud-coaching-feedback — add a richer COACHING layer to
-  cloud-mode (`speakloop practice --cloud`) feedback so the report itself teaches
-  the learner: a corrected version of their OWN answer, focused teaching of their
-  top habits, and paste-ready Anki cards — no copy-paste into another tool.
-  ADDITIVE + cloud-only. Implemented as a SECOND OpenRouter call ("coach") that
-  runs AFTER the existing grammar analyzer, reusing the SAME `OpenRouterEngine`
-  instance (same model/token). The coach gets the question + 3 transcripts + the
-  verified/grouped grammar patterns (label + each `quote→corrected`) — NOT the
-  ideal/reference answer (so it fixes the speaker's own words, never parrots the
-  model answer). Its output is FREE-FORM Markdown, never parsed by the V1–V3
-  verify pipeline, so it cannot break the grammar findings or the verbatim
-  guarantee. Appended to the report AFTER the grammar/cross-attempt section and
-  BEFORE Transcripts, verbatim (`max_tokens` 2048). Coach prompt is its OWN file:
-  `~/.speakloop/openrouter_coach_prompt.txt` seeded from packaged
-  `feedback/openrouter_coach_prompt_default.txt` (mirrors the 008 cloud-prompt
-  pattern; separate from the grammar cloud prompt AND the local `_SYSTEM_PROMPT`).
-  Runs ONLY after a SUCCESSFUL grammar analysis (skipped on `phase_c_error`); any
-  `LLMEngineError`/empty response degrades gracefully — no coaching section, a
-  non-fatal `coach_error` frontmatter note, grammar report intact. `coaching`
-  text is BODY-only (not serialized to frontmatter, like the transcripts);
-  `coach_error` is an additive optional key. Report `schema_version` (1) and the
-  default (non-cloud) path UNCHANGED. Call 1 (grammar) + local mode are
-  BYTE-IDENTICAL. pyproject.toml UNCHANGED (reuses stdlib `urllib`).
+Active feature: 010-interview-loop — turn isolated practice into an adaptive daily
+  loop: due-question selection → warm-up drill → question + 4/3/2 attempts → 1–2
+  spoken FOLLOW-UPS → richer report. Five prioritized, independently-shippable
+  slices: P1 interactive follow-ups (unscripted, grounded in the learner's own
+  words; voice-answered ~60s; same per-attempt analysis; own report section);
+  P2 cross-session memory + spaced-repetition scheduling + 30–60s warm-up drill;
+  P3 content-coverage scoring (5–7 key points per ideal answer, covered/partial/
+  missed per attempt, content errors separate from grammar); P4 trustworthy
+  pipeline (deterministic hallucination triage BEFORE grammar, LLM mishearing
+  flags, artifact consistency check vs the ideal answer); P5 behavioral/STAR +
+  hypothetical question types. EXTENSION, not a rewrite. Every new LLM step
+  (follow-ups, key points, coverage, content errors, mishearing, consistency,
+  drill) is a NEW caller of the existing `LLMEngine` Protocol behind the existing
+  `--cloud` routing — NO new engine client code (Principle V); each gets its own
+  seeded prompt file, explicit JSON schema validated via the existing
+  `grammar_analyzer._extract_json` ladder, and graceful degradation (save audio +
+  transcripts, mark `analysis_pending`, never lose a recording). Session Markdown
+  stays the single source of truth; new frontmatter keys are ADDITIVE OPTIONAL and
+  report `schema_version` stays 1. One NEW derived store (versioned JSON under
+  `~/.speakloop/`, stdlib json/hashlib, ZERO new deps) holds the SRS schedule +
+  key-point cache + pattern aggregation and is fully rebuildable from session
+  files via `speakloop rebuild`. New modules (each with its own CLAUDE.md): 
+  interviewer/ triage/ coverage/ srs/ warmup/ store/. New CLI: today, rebuild,
+  resume; `trends` gains per-pattern series; `practice` gains due-selection +
+  `--no-warmup`/`--no-followups`.
 
-Plan: specs/009-cloud-coaching-feedback/plan.md
-Spec: specs/009-cloud-coaching-feedback/spec.md
-Code touchpoints: feedback/coach.py (NEW — only file building/making the coach
-  call), feedback/openrouter_coach_prompt_default.txt (NEW packaged default),
-  feedback/cloud_prompt.py (+`load_coach_prompt()`), config/paths.py
-  (+`openrouter_coach_prompt_path()`), feedback/frontmatter.py (`Session.coaching`
-  body-only + additive `coach_error`), feedback/report_builder.py
-  (+`_coaching_section`, placed grammar→coaching→transcripts), sessions/coordinator.py
-  (+`coach=None` param; run after successful grammar, graceful degradation),
-  cli/practice.py (`_build_cloud_grammar_analyzer` now returns
-  `(grammar_runner, coach_runner)` over one shared engine; local path returns
-  `coach=None`), cli/doctor.py (+"coach prompt" row). Local Qwen flow +
-  `ensure_models(...)` untouched.
+Plan: specs/010-interview-loop/plan.md
+Spec: specs/010-interview-loop/spec.md
+  (research.md · data-model.md · contracts/{llm-calls,store-schema,frontmatter-additions,cli-commands}.md)
+
+Prior feature: 009-cloud-coaching-feedback — richer COACHING layer for cloud mode
+  (`practice --cloud`): a SECOND OpenRouter call after the grammar analyzer
+  (corrected answer + focused teaching + paste-ready Anki cards), reusing the same
+  engine; FREE-FORM Markdown appended grammar→coaching→transcripts; own prompt file
+  `~/.speakloop/openrouter_coach_prompt.txt`; `coaching` body-only, `coach_error`
+  additive; degrades gracefully; schema_version 1; local mode byte-identical.
+  Plan: specs/009-cloud-coaching-feedback/plan.md · Spec: specs/009-cloud-coaching-feedback/spec.md
 
 Prior feature: 008-openrouter-cloud-provider — OPT-IN cloud mode
   (`speakloop practice --cloud`) routing ONLY the Phase-C grammar/coherence step

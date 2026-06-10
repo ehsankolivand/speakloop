@@ -162,6 +162,56 @@ def openrouter_coach_prompt_path() -> Path:
     return _speakloop_home() / "openrouter_coach_prompt.txt"
 
 
+# --- Interview Loop (010) — PATHS ONLY -------------------------------------
+# The derived cross-session store (versioned JSON; SRS schedule + key-point cache
+# + pattern aggregation) and the loop config (YAML; daily capacity + loop
+# toggles). The store is an internal CACHE, rebuildable from session files via
+# `speakloop rebuild`, so JSON is permitted (FR-040); the loop config is
+# user-facing, so it is YAML. New seeded prompt files mirror the 008/009 cloud
+# prompt pattern (one editable file per new cloud/analytic call).
+
+
+def store_path() -> Path:
+    """The derived cross-session store (``~/.speakloop/store.json``; 010).
+
+    Internal cache only — fully rebuildable from ``data/sessions/*.md`` via
+    `speakloop rebuild`, so it is never a source of truth."""
+    return _speakloop_home() / "store.json"
+
+
+def loop_config_path() -> Path:
+    """The user-editable loop config YAML (``~/.speakloop/loop.yaml``; 010).
+
+    Holds the daily due-queue capacity (default 5) and the warm-up/follow-up
+    enable defaults. YAML because it is user-facing config (Constitution)."""
+    return _speakloop_home() / "loop.yaml"
+
+
+def openrouter_followups_prompt_path() -> Path:
+    """Editable follow-up generation prompt (``~/.speakloop/openrouter_followups_prompt.txt``; 010)."""
+    return _speakloop_home() / "openrouter_followups_prompt.txt"
+
+
+def openrouter_keypoints_prompt_path() -> Path:
+    """Editable key-point derivation prompt (``~/.speakloop/openrouter_keypoints_prompt.txt``; 010)."""
+    return _speakloop_home() / "openrouter_keypoints_prompt.txt"
+
+
+def openrouter_coverage_prompt_path() -> Path:
+    """Editable coverage/content-error prompt (``~/.speakloop/openrouter_coverage_prompt.txt``; 010)."""
+    return _speakloop_home() / "openrouter_coverage_prompt.txt"
+
+
+def openrouter_triage_prompt_path() -> Path:
+    """Editable mishearing-triage prompt (``~/.speakloop/openrouter_triage_prompt.txt``; 010)."""
+    return _speakloop_home() / "openrouter_triage_prompt.txt"
+
+
+def openrouter_drill_prompt_path() -> Path:
+    """Editable warm-up drill prompt (``~/.speakloop/openrouter_drill_prompt.txt``; 010)."""
+    return _speakloop_home() / "openrouter_drill_prompt.txt"
+
+
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path

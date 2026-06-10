@@ -1,0 +1,27 @@
+# Known Whisper silence/idle hallucination phrases (010-interview-loop, P4).
+# One phrase per line; blank lines and lines starting with '#' are ignored.
+# Matched case-insensitively against a normalized transcript segment (lowercased,
+# punctuation stripped, whitespace collapsed): a segment is a hallucination if its
+# normalized text equals, or contains as a whole-phrase substring, any line below.
+# These are the canonical phantoms Whisper emits over silence/non-speech; keep the
+# list conservative (high precision) so real speech is never dropped.
+thank you
+thank you very much
+thanks for watching
+thank you for watching
+please subscribe
+subscribe to the channel
+please subscribe to the channel
+don't forget to subscribe
+like and subscribe
+see you in the next video
+see you next time
+i'll see you later
+i'll see you next time
+bye
+bye bye
+goodbye
+you
+the end
+music
+applause

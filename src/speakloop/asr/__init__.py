@@ -1,6 +1,7 @@
 from speakloop.asr.interface import (
     ASREngine,
     ASREngineError,
+    SegmentMeta,
     Transcript,
     TranscriptionContext,
     WordTiming,
@@ -11,6 +12,7 @@ __all__ = [
     "ASREngine",
     "ASREngineError",
     "EngineSelection",
+    "SegmentMeta",
     "TranscriptionContext",
     "Transcript",
     "WordTiming",
