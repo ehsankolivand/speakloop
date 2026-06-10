@@ -51,7 +51,7 @@ class KeyReader(Protocol):
 
     raw_capable: bool
 
-    def __enter__(self) -> "KeyReader": ...
+    def __enter__(self) -> KeyReader: ...
     def __exit__(self, *exc) -> None: ...
     def poll(self) -> str | None:
         """Return the next pending canonical key, or None if none is waiting."""
@@ -66,7 +66,7 @@ class NullKeyReader:
 
     raw_capable = False
 
-    def __enter__(self) -> "NullKeyReader":
+    def __enter__(self) -> NullKeyReader:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -100,7 +100,7 @@ class RawKeyReader:
         self._own_fd = True
         return fd
 
-    def __enter__(self) -> "RawKeyReader":
+    def __enter__(self) -> RawKeyReader:
         import termios
         import tty
 
@@ -177,7 +177,7 @@ class FakeKeyReader:
         self.entered = False
         self._start = 0.0
 
-    def __enter__(self) -> "FakeKeyReader":
+    def __enter__(self) -> FakeKeyReader:
         self.entered = True
         self._start = self._clock() if self._clock is not None else 0.0
         return self

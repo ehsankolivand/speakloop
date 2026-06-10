@@ -72,30 +72,30 @@ spec user story. Foundational/Setup/Polish tasks carry no story label.
 countdown + recording indicator. **Independent test**: drive a full session with `FakeKeyReader`
 + fake audio/clock; assert states, controls, countdown, indicator presence (no real I/O).
 
-- [ ] T015 [P] [US1] Implement `src/speakloop/sessions/session_ui.py`: `SessionState` enum +
+- [x] T015 [P] [US1] Implement `src/speakloop/sessions/session_ui.py`: `SessionState` enum +
   one-transient-region renderers (PLAYING / RECORDING `● REC`+timer+bar / TRANSCRIBING /
   ANALYZING), `countdown()` (visual `3 · 2 · 1`, ~0.5s/tick via injected clock/console),
   state→keys control-hint (FR-010). Render to an injected `rich.Console`.
-- [ ] T016 [P] [US1] Unit-test `session_ui.py` in `tests/unit/test_session_ui.py` with
+- [x] T016 [P] [US1] Unit-test `session_ui.py` in `tests/unit/test_session_ui.py` with
   `Console(file=StringIO)` + fake clock: exactly-one-state, hint matches the active state's key
   map, countdown emits ticks, `● REC` present.
-- [ ] T017 [US1] Rewire the listen loop in `src/speakloop/cli/practice.py` to use
+- [x] T017 [US1] Rewire the listen loop in `src/speakloop/cli/practice.py` to use
   `play_interruptible` + `KeyReader`: `space`=skip clip, `r`=replay, during PLAYING; consolidate
   `_cbreak_read`/`_parse_line_command` into `keyboard.py` (import from there); preserve the idle
   listen-loop commands (FR-009).
-- [ ] T018 [US1] Rewire `_do_attempt` in `src/speakloop/sessions/coordinator.py` to: show a
+- [x] T018 [US1] Rewire `_do_attempt` in `src/speakloop/sessions/coordinator.py` to: show a
   `countdown()` then the `RECORDING` region (indicator 100% of recording, FR-003/004), and wire
   `space`/`Enter` early-stop through `KeyReader` (replacing `_spawn_enter_reader`).
-- [ ] T019 [US1] Wire `s`=skip-whole-follow-up + countdown + RECORDING indicator into
+- [x] T019 [US1] Wire `s`=skip-whole-follow-up + countdown + RECORDING indicator into
   `_run_follow_ups` (coordinator); skipping abandons the follow-up with no recorded answer
   (FR-008). Apply the same countdown+indicator to `_run_warmup` recordings.
-- [ ] T020 [US1] Replace the ad-hoc `_analyzing`/`Progress` spinners with the `session_ui`
+- [x] T020 [US1] Replace the ad-hoc `_analyzing`/`Progress` spinners with the `session_ui`
   ANALYZING/TRANSCRIBING states so every >2s op shows a labeled state (FR-002, SC-007).
-- [ ] T021 [US1] Fake-keyboard control-path tests in `tests/unit/` (or
+- [x] T021 [US1] Fake-keyboard control-path tests in `tests/unit/` (or
   `tests/integration/test_session_controls.py`): skip stops playback (≤ poll), replay restarts,
   early-stop ends recording→TRANSCRIBING, skip-followup advances. Use `FakeKeyReader` +
   fake `record_fn`/`play_fn`/`tts_engine`.
-- [ ] T022 [US1] Edge-case tests: key during a non-skippable stage ignored (FR-011); skip at the
+- [x] T022 [US1] Edge-case tests: key during a non-skippable stage ignored (FR-011); skip at the
   exact end of playback is a no-op (no double-advance); near-empty early-stopped recording uses
   existing short-answer handling; `NullKeyReader` fallback completes the session (FR-012).
 
@@ -110,7 +110,7 @@ zero speed change.
 **Independent test**: autoplay off → ideal not auto-played but replayable; session end prints
 grade/coverage-first→final/top-fix/next-due from the same data written to the report.
 
-- [ ] T023 [US2] Honor `autoplay_ideal_answer` in the listen loop (`cli/practice.py`): when
+- [x] T023 [US2] Honor `autoplay_ideal_answer` in the listen loop (`cli/practice.py`): when
   false, play the question but not the ideal answer; `r` still replays it on demand (FR-014).
 - [ ] T024 [US2] Add `render_summary(session, next_due)` to `session_ui.py`: compact box with
   grade, coverage first→final, top fix, next due date; degrade honestly when `analysis_pending`

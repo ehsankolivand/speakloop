@@ -13,6 +13,9 @@ from speakloop import installer
 from speakloop.audio import devices, playback
 from speakloop.config import paths
 from speakloop.content import QALoadError, load
+from speakloop.sessions import keyboard as _keyboard
+from speakloop.sessions import session_ui
+from speakloop.sessions.session_ui import SessionState
 
 
 def _resolve_qa_file(console: Console) -> Path:
@@ -175,20 +178,49 @@ def _parse_line_command(line: str) -> str:
     return stripped[:1]
 
 
-def _listen_loop(question, console: Console, tts_engine, play_fn) -> str:
+def _play_listen_clip(console: Console, label: str, wav: Path, *, key_reader, play_fn) -> str:
+    """Play one listen-loop clip. Returns 'replay' if `r` was pressed, else 'done'.
+
+    Interactive (raw-capable reader): playback is skippable with `space` and replayable
+    with `r`, taking effect within ~110 ms (SC-004). Non-interactive (no tty / tests):
+    falls back to the injected blocking `play_fn` — today's behavior (FR-012)."""
+    if not getattr(key_reader, "raw_capable", False):
+        console.print(f"[dim]▶ playing {label}…[/dim]")
+        play_fn(wav)
+        console.print("[dim]done[/dim]")
+        return "done"
+    hint = session_ui.control_hint(SessionState.PLAYING)
+    console.print(f"[dim]▶ playing {label}… ({hint})[/dim]")
+    captured: dict = {"key": None}
+
+    def _should_stop() -> bool:
+        key = key_reader.poll()
+        if key in ("space", "enter", "r"):
+            captured["key"] = key
+            return True
+        return False
+
+    with key_reader:
+        playback.play_interruptible(wav, should_stop=_should_stop)
+    return "replay" if captured["key"] == "r" else "done"
+
+
+def _listen_loop(
+    question, console: Console, tts_engine, play_fn, *, key_reader=None, autoplay_ideal: bool = True
+) -> str:
     """Play question + ideal answer; loop on replay commands.
 
     Returns the canonical exit key so the caller can route Phase B:
       ' '  → space pressed → advance to attempts
       'q'  → q pressed → quit
       ''   → Enter / EOF / Ctrl-D → quit (safer default than auto-advancing)
-    'r' and 'R' stay inside the loop and trigger replay.
-    """
+    'r' and 'R' stay inside the loop and trigger replay. 012: clips are skippable
+    mid-playback and the ideal answer's autoplay is opt-out (`autoplay_ideal`, FR-014)."""
+    key_reader = key_reader if key_reader is not None else _keyboard.make_key_reader()
 
     def _play(label: str, wav: Path) -> None:
-        console.print(f"[dim]▶ playing {label}…[/dim]")
-        play_fn(wav)
-        console.print("[dim]done[/dim]")
+        while _play_listen_clip(console, label, wav, key_reader=key_reader, play_fn=play_fn) == "replay":
+            console.print("[dim]↻ replay[/dim]")
 
     voice = question.voice_override
     q_wav = tts_engine.synthesize(question.question, voice=voice)
@@ -199,7 +231,11 @@ def _listen_loop(question, console: Console, tts_engine, play_fn) -> str:
     _play("question", q_wav)
     console.print("\n[bold]Ideal answer:[/bold]\n")
     console.print(question.ideal_answer.strip())
-    _play("ideal answer", a_wav)
+    if autoplay_ideal:
+        _play("ideal answer", a_wav)
+    else:
+        # 012/FR-014: don't force a re-listen on repeat reviews; still replayable with R.
+        console.print("[dim](autoplay off — press R to hear the ideal answer)[/dim]")
 
     while True:
         console.print(
@@ -328,9 +364,24 @@ def run(
     if play_fn is None:
         play_fn = playback.play
 
+    # 012: one key reader drives every single-key control (listen loop + session). A
+    # real raw reader when a tty is reachable, else a NullKeyReader (line/timeout
+    # fallback). The autoplay-ideal-answer toggle comes from loop.yaml (default on).
+    from speakloop.config import loop_config as _loop_config
+
+    key_reader = _keyboard.make_key_reader()
+    autoplay_ideal = _loop_config.load().autoplay_ideal_answer
+    analysis_concurrency = _loop_config.load().analysis_concurrency
+    # Warm the output device once so the first clip is not delayed by the CoreAudio open.
+    if getattr(key_reader, "raw_capable", False):
+        playback.warm_output_device()
+
     # --listen-only: hear the question + ideal answer; no attempts, no debrief.
     if listen_only:
-        _listen_loop(chosen, console, tts_engine, play_fn)
+        _listen_loop(
+            chosen, console, tts_engine, play_fn,
+            key_reader=key_reader, autoplay_ideal=autoplay_ideal,
+        )
         return
 
     # Phase B/C: advance to attempts. Pre-check microphone (FR-009).
@@ -378,6 +429,10 @@ def run(
     # 010: the Interview Loop runner bundle rides on the grammar-runner callable
     # (None when no Phase-C model is installed → follow-ups/triage simply stay off).
     runners = getattr(grammar_analyzer, "runners", None)
+    # 012/FR-026: the engine declares whether its analysis calls may run concurrently;
+    # the CLI reads that capability off the engine the analyzer was built over.
+    _analysis_engine = getattr(grammar_analyzer, "engine", None)
+    analysis_parallel_safe = bool(getattr(_analysis_engine, "parallel_safe", False))
 
     current = chosen
     need_listen = True
@@ -385,7 +440,10 @@ def run(
         # The listen phase runs on the first question and on NEW — but NOT on
         # REPLAY, which goes straight back to the attempts (FR-025/FR-026).
         if need_listen:
-            exit_key = _listen_loop(current, console, tts_engine, play_fn)
+            exit_key = _listen_loop(
+                current, console, tts_engine, play_fn,
+                key_reader=key_reader, autoplay_ideal=autoplay_ideal,
+            )
             if exit_key != " ":  # q / Enter / EOF → leave practice
                 return
 
@@ -407,6 +465,9 @@ def run(
             asr_model_id=asr_model_id,
             asr_fell_back=selection.fell_back,
             timings_display=timings,
+            key_reader=key_reader,
+            analysis_parallel_safe=analysis_parallel_safe,
+            analysis_concurrency=analysis_concurrency,
         )
 
         choice = debrief.run(
@@ -450,6 +511,8 @@ def _build_grammar_analyzer():
     # built over the SAME engine. Stored as an attribute so the return type stays a
     # plain callable (existing callers/tests unaffected); run() reads it via getattr.
     _runner.runners = _build_runners(qwen)
+    # 012/FR-026: expose the engine so run() can read its parallel_safe capability.
+    _runner.engine = qwen
     return _runner
 
 
@@ -649,6 +712,7 @@ def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input):
     # 010: the Interview Loop runners reuse the SAME OpenRouter engine (FR-039),
     # attached to the grammar runner so the (grammar, coach) return type is unchanged.
     _grammar_runner.runners = _build_runners(engine)
+    _grammar_runner.engine = engine  # 012/FR-026: expose parallel_safe to run()
     return _grammar_runner, _coach_runner
 
 
@@ -718,4 +782,5 @@ def _build_claude_grammar_analyzer(console: Console):
         )
 
     _grammar_runner.runners = _build_runners(strong, fast_engine=fast)
+    _grammar_runner.engine = strong  # 012/FR-026: expose parallel_safe to run()
     return _grammar_runner, _coach_runner

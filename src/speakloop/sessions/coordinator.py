@@ -7,10 +7,7 @@ A SIGINT at any state up to and including `reporting` aborts cleanly without wri
 from __future__ import annotations
 
 import contextlib
-import os
-import select
 import shutil
-import sys
 import threading
 import time
 from collections.abc import Callable
@@ -20,14 +17,6 @@ from pathlib import Path
 from typing import NamedTuple
 
 from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
-)
 
 from speakloop.asr import ASREngine, Transcript, TranscriptionContext
 from speakloop.audio import recorder
@@ -35,7 +24,9 @@ from speakloop.config import paths
 from speakloop.content import Question
 from speakloop.feedback import frontmatter, markdown_writer, narrative, report_builder
 from speakloop.metrics import compute_all
-from speakloop.sessions import abort, timer
+from speakloop.sessions import abort, session_ui, timer
+from speakloop.sessions import keyboard as _keyboard
+from speakloop.sessions.session_ui import SessionState
 from speakloop.triage import hallucination as _halluc
 
 # Default time budget (seconds) for a spoken follow-up answer (P1, FR-002).
@@ -83,107 +74,82 @@ class SessionResult(NamedTuple):
     session: frontmatter.Session
 
 
-def _spawn_enter_reader(
+_KEY_POLL_INTERVAL_SECONDS = 0.03
+
+
+def _spawn_key_poller(
+    key_reader,
     early_exit_event: threading.Event,
     stop_event: threading.Event,
+    *,
+    skip_event: threading.Event | None = None,
 ) -> threading.Thread | None:
-    """Background reader: set `early_exit_event` when the user presses Enter.
+    """Background poller: a single keypress ends the current recording early (012, FR-007).
 
-    Resolves a tty fd via the listen-loop's two-tier strategy: stdin if it's
-    a tty, else `/dev/tty`. If neither is available (piped input, captured
-    stdin under pytest, no controlling terminal), returns None so the
-    coordinator simply runs without early-exit support.
+    ``space``/``Enter`` set ``early_exit_event`` (done speaking → stop & transcribe).
+    ``s`` (when ``skip_event`` is provided — the follow-up case) abandons the recording
+    AND marks it skipped (FR-008). Replaces the prior canonical-mode Enter reader with a
+    raw single-key ``KeyReader``.
 
-    The reader polls `select.select` with a 100 ms timeout so it can notice
-    `stop_event` after recording ends and exit promptly.
+    Returns ``None`` when the reader cannot do raw input (no tty — piped/captured stdin
+    under pytest), so the session runs on the time budget exactly as before (FR-012).
     """
-    fd: int | None = None
-    own_fd = False
-    try:
-        candidate = sys.stdin.fileno()
-        if os.isatty(candidate):
-            fd = candidate
-    except (OSError, ValueError):
-        fd = None
-    if fd is None:
-        try:
-            fd = os.open("/dev/tty", os.O_RDONLY)
-            own_fd = True
-        except OSError:
-            return None
+    if key_reader is None or not getattr(key_reader, "raw_capable", False):
+        return None
 
-    # Drain anything the user typed before recording started (e.g. stray
-    # keystrokes after the listen-loop) so we don't spuriously trip
-    # early-exit at t=0.
-    try:
-        import termios
-
-        termios.tcflush(fd, termios.TCIFLUSH)
-    except Exception:  # noqa: BLE001 — termios may be unavailable; best-effort drain
-        pass
-
-    def _reader() -> None:
-        try:
+    def _poll() -> None:
+        with key_reader:
             while not stop_event.is_set():
-                try:
-                    ready, _, _ = select.select([fd], [], [], 0.1)
-                except (OSError, ValueError):
+                key = key_reader.poll()
+                if key in ("space", "enter"):
+                    early_exit_event.set()
                     return
-                if not ready:
-                    continue
-                try:
-                    data = os.read(fd, 1024)
-                except OSError:
+                if key == "s" and skip_event is not None:
+                    skip_event.set()
+                    early_exit_event.set()
                     return
-                if not data:
-                    return  # EOF
-                # Canonical-mode reads only return after newline, so any
-                # data here means the user hit Enter (with or without text).
-                early_exit_event.set()
-                return
-        finally:
-            if own_fd:
-                try:
-                    os.close(fd)
-                except OSError:
-                    pass
+                time.sleep(_KEY_POLL_INTERVAL_SECONDS)
 
-    t = threading.Thread(target=_reader, daemon=True)
+    t = threading.Thread(target=_poll, daemon=True)
     t.start()
     return t
 
 
-def _do_attempt(
-    ordinal: int,
+def _record_stage(
     *,
     record_fn,
-    asr_engine: ASREngine,
-    early_exit_event: threading.Event,
+    wav_path: Path,
+    budget: float,
+    label: str,
+    key_reader,
+    ui_sleep,
     console: Console,
-    scratch_dir: Path,
-    context: TranscriptionContext | None = None,
-) -> tuple[float, Transcript]:
-    budget = timer.time_budget_for(ordinal)
-    console.print(
-        f"\n[bold]Attempt {ordinal}[/bold] — budget {budget}s. "
-        "[dim]🎙 speak now; press Enter to end early.[/dim]"
-    )
-    wav_path = scratch_dir / f"attempt-{ordinal}.wav"
+    early_exit_event: threading.Event,
+    follow_up: bool = False,
+) -> tuple[float, bool]:
+    """Record one clip with the countdown + ``● REC`` indicator + single-key controls.
 
-    progress = Progress(
-        TextColumn("[bold cyan]🎙[/bold cyan]"),
-        BarColumn(),
-        TextColumn("{task.completed:.0f}s / {task.total:.0f}s"),
-        TimeRemainingColumn(),
-        transient=True,
-        console=console,
-    )
+    Returns ``(duration, skipped)``. ``skipped`` is True only when ``s`` was pressed on
+    a follow-up recording (FR-008). The live indicator is visible for the whole recording
+    (FR-003); the countdown (FR-004) and key poller run only when the reader can do raw
+    input (interactive terminal) — otherwise this degrades to today's behavior (FR-012)."""
+    interactive = getattr(key_reader, "raw_capable", False)
+    if interactive:
+        session_ui.countdown(console, sleep=ui_sleep)
+    else:
+        console.print(f"[dim]🎙 speak now ({label})…[/dim]")
+    hint = session_ui.control_hint(SessionState.RECORDING, follow_up=follow_up)
+    if hint:
+        console.print(f"[dim]{hint}[/dim]")
+
+    skip_event = threading.Event() if follow_up else None
+    progress = session_ui.make_recording_progress(console)
     stop_helpers = threading.Event()
     ticker_thread: threading.Thread | None = None
     reader_thread: threading.Thread | None = None
     try:
         with progress:
-            task_id = progress.add_task("attempt", total=budget)
+            task_id = progress.add_task("rec", total=budget, label=label)
             tick_start = time.monotonic()
 
             def _ticker() -> None:
@@ -194,7 +160,9 @@ def _do_attempt(
 
             ticker_thread = threading.Thread(target=_ticker, daemon=True)
             ticker_thread.start()
-            reader_thread = _spawn_enter_reader(early_exit_event, stop_helpers)
+            reader_thread = _spawn_key_poller(
+                key_reader, early_exit_event, stop_helpers, skip_event=skip_event
+            )
 
             duration = record_fn(
                 wav_path,
@@ -207,6 +175,35 @@ def _do_attempt(
             ticker_thread.join(timeout=1.0)
         if reader_thread is not None:
             reader_thread.join(timeout=1.0)
+    return duration, bool(skip_event and skip_event.is_set())
+
+
+def _do_attempt(
+    ordinal: int,
+    *,
+    record_fn,
+    asr_engine: ASREngine,
+    early_exit_event: threading.Event,
+    console: Console,
+    scratch_dir: Path,
+    context: TranscriptionContext | None = None,
+    key_reader=None,
+    ui_sleep=time.sleep,
+) -> tuple[float, Transcript]:
+    budget = timer.time_budget_for(ordinal)
+    console.print(f"\n[bold]Attempt {ordinal}[/bold] — budget {budget}s.")
+    wav_path = scratch_dir / f"attempt-{ordinal}.wav"
+
+    duration, _ = _record_stage(
+        record_fn=record_fn,
+        wav_path=wav_path,
+        budget=budget,
+        label=f"attempt {ordinal}",
+        key_reader=key_reader,
+        ui_sleep=ui_sleep,
+        console=console,
+        early_exit_event=early_exit_event,
+    )
 
     if abort.abort_event.is_set():
         raise AbortedError()
@@ -304,6 +301,63 @@ def _patterns_to_dicts(patterns: list[frontmatter.GrammarPattern]) -> list[dict]
     return out
 
 
+def _play_prompt(
+    synthesize,
+    text: str,
+    voice,
+    *,
+    key_reader,
+    play_fn,
+    console: Console,
+    follow_up: bool = False,
+) -> str:
+    """Synthesize + play a spoken prompt; return how playback ended.
+
+    Interactive (raw-capable reader): playback is skippable (``space``), replayable
+    (``r``), and — on a follow-up — abandonable (``s``); returns ``"completed"`` /
+    ``"skip_followup"``. Non-interactive (no tty / tests): falls back to the injected
+    blocking ``play_fn`` (today's behavior). Returns ``"error"`` on synth/playback
+    failure so the caller can skip just this prompt."""
+    try:
+        wav = synthesize(text, voice=voice)
+    except Exception:  # noqa: BLE001 — TTS failure → caller skips this prompt
+        return "error"
+    if not getattr(key_reader, "raw_capable", False):
+        try:
+            play_fn(wav)
+        except Exception:  # noqa: BLE001 — playback failure → caller skips
+            return "error"
+        return "completed"
+
+    from speakloop.audio import playback as _pb
+
+    hint = session_ui.control_hint(SessionState.PLAYING, follow_up=follow_up)
+    console.print(f"[dim]▶ playing… ({hint})[/dim]")
+    captured: dict = {"key": None}
+
+    def _should_stop() -> bool:
+        key = key_reader.poll()
+        if key in ("space", "enter", "r", "s"):
+            captured["key"] = key
+            return True
+        return False
+
+    while True:
+        captured["key"] = None
+        try:
+            with key_reader:
+                _pb.play_interruptible(wav, should_stop=_should_stop)
+        except Exception:  # noqa: BLE001 — playback failure → caller skips
+            return "error"
+        key = captured["key"]
+        if key == "r":
+            console.print("[dim]↻ replay[/dim]")
+            continue
+        if key == "s" and follow_up:
+            return "skip_followup"
+        return "completed"
+
+
 def _run_follow_ups(
     question: Question,
     real_transcripts: list[Transcript],
@@ -318,6 +372,8 @@ def _run_follow_ups(
     scratch_dir: Path,
     early_exit_event: threading.Event,
     console: Console,
+    key_reader=None,
+    ui_sleep=time.sleep,
 ) -> list[dict]:
     """P1: ask 1–2 unscripted, spoken follow-ups grounded in the learner's own
     words; record + transcribe + analyze each (FR-001..FR-006).
@@ -349,21 +405,47 @@ def _run_follow_ups(
         if not q_text:
             continue
         console.print(f"\n[bold]Follow-up {i}:[/bold] {q_text}")
-        try:
-            play_fn(tts_engine.synthesize(q_text, voice=question.voice_override))
-        except Exception as e:  # noqa: BLE001 — TTS/playback failure → skip this follow-up
-            console.print(f"[yellow]Could not play follow-up {i}: {e}. Skipping.[/yellow]")
+        played = _play_prompt(
+            tts_engine.synthesize, q_text, question.voice_override,
+            key_reader=key_reader, play_fn=play_fn, console=console, follow_up=True,
+        )
+        if played == "error":
+            console.print(f"[yellow]Could not play follow-up {i}. Skipping.[/yellow]")
+            continue
+        if played == "skip_followup":
+            # `s` during the prompt → abandon this entire follow-up, no answer recorded.
+            console.print(f"[dim]Follow-up {i} skipped.[/dim]")
+            follow_ups.append(
+                {"index": i, "question_text": q_text,
+                 "probe_ref": str((spec or {}).get("probe_ref") or (spec or {}).get("probe_type") or ""),
+                 "answered": False, "transcript": "", "skipped": True}
+            )
             continue
         wav_path = scratch_dir / f"followup-{i}.wav"
         early_exit_event.clear()
         try:
-            duration = record_fn(
-                wav_path,
-                time_budget_seconds=FOLLOWUP_BUDGET_SECONDS,
+            duration, skipped = _record_stage(
+                record_fn=record_fn,
+                wav_path=wav_path,
+                budget=FOLLOWUP_BUDGET_SECONDS,
+                label=f"follow-up {i}",
+                key_reader=key_reader,
+                ui_sleep=ui_sleep,
+                console=console,
                 early_exit_event=early_exit_event,
+                follow_up=True,
             )
         except Exception as e:  # noqa: BLE001 — device failure (not silence) → skip
             console.print(f"[yellow]Recording failed for follow-up {i}: {e}. Skipping.[/yellow]")
+            continue
+        if skipped:
+            # `s` during the answer → abandon this follow-up (FR-008).
+            console.print(f"[dim]Follow-up {i} skipped.[/dim]")
+            follow_ups.append(
+                {"index": i, "question_text": q_text,
+                 "probe_ref": str((spec or {}).get("probe_ref") or (spec or {}).get("probe_type") or ""),
+                 "answered": False, "transcript": "", "skipped": True}
+            )
             continue
         transcript = asr_engine.transcribe(wav_path, context=context)
         triaged = _halluc.filter_hallucinations(transcript)
@@ -410,22 +492,14 @@ def _top_recurring_error(store, *, window: int = 5, min_total: int = 2) -> str |
 
 @contextlib.contextmanager
 def _analyzing(console: Console, message: str):
-    """Live spinner + elapsed timer around a slow blocking LLM call (011 follow-up).
+    """Live ANALYZING spinner + elapsed timer around a slow blocking LLM call.
 
-    The cloud / Claude Code engines can take a minute per call; without this the
-    terminal just sits black and looks hung. Progress refreshes on a background
-    thread, so the spinner animates and the timer ticks while the call blocks; the
-    line is transient (cleared on completion) and any exception still propagates to
-    the caller's existing degradation handling."""
-    progress = Progress(
-        SpinnerColumn(),
-        TextColumn("[cyan]{task.description}[/cyan]"),
-        TimeElapsedColumn(),
-        transient=True,
-        console=console,
-    )
-    with progress:
-        progress.add_task(message, total=None)
+    Delegates to the shared ``session_ui.working`` so analysis/transcription show one
+    consistent labeled state (012, FR-002/SC-007): the cloud / Claude Code engines can
+    take a minute per call, and without this the terminal would sit black and look hung.
+    The line is transient (cleared on completion); exceptions still propagate to the
+    caller's existing degradation handling."""
+    with session_ui.working(console, SessionState.ANALYZING, message):
         yield
 
 
@@ -442,6 +516,8 @@ def _run_warmup(
     scratch_dir: Path,
     early_exit_event: threading.Event,
     console: Console,
+    key_reader=None,
+    ui_sleep=time.sleep,
 ) -> dict | None:
     """P2c: a 30–60s spoken warm-up drill from the learner's top recurring error,
     with immediate per-item pass/fail. No-op (None) unless a drill runner + TTS +
@@ -468,19 +544,24 @@ def _run_warmup(
         if abort.abort_event.is_set():
             break
         console.print(f"[dim]Say:[/dim] {item.target_sentence}")
-        try:
-            play_fn(tts_engine.synthesize(item.target_sentence, voice=question.voice_override))
-        except Exception:  # noqa: BLE001 — playback failure → mark incomplete, continue
+        if _play_prompt(
+            tts_engine.synthesize, item.target_sentence, question.voice_override,
+            key_reader=key_reader, play_fn=play_fn, console=console,
+        ) == "error":
             results.append({"index": i, "target_sentence": item.target_sentence, "result": "incomplete"})
             continue
         wav_path = scratch_dir / f"warmup-{i}.wav"
         early_exit_event.clear()
-        console.print(f"  [dim]🎙 speak now (up to {WARMUP_ITEM_BUDGET_SECONDS}s)…[/dim]")
         transcript = None
         try:
-            record_fn(
-                wav_path,
-                time_budget_seconds=WARMUP_ITEM_BUDGET_SECONDS,
+            _record_stage(
+                record_fn=record_fn,
+                wav_path=wav_path,
+                budget=WARMUP_ITEM_BUDGET_SECONDS,
+                label=f"warm-up {i}",
+                key_reader=key_reader,
+                ui_sleep=ui_sleep,
+                console=console,
                 early_exit_event=early_exit_event,
             )
             transcript = asr_engine.transcribe(wav_path, context=context)
@@ -519,6 +600,8 @@ def run_session(
     analysis_parallel_safe: bool = False,
     analysis_concurrency: int = 1,
     timings_display: bool = False,
+    key_reader=None,
+    ui_sleep=time.sleep,
 ) -> SessionResult:
     """Run a full session for one Question; return the report path + Session.
 
@@ -562,6 +645,13 @@ def run_session(
 
     early_exit_event = threading.Event()
 
+    # 012: a single injectable key reader drives every single-key control (skip / replay
+    # / early-stop / skip-follow-up). Default resolves a real raw reader if a tty is
+    # reachable, else a NullKeyReader that no-ops so the session still runs on time
+    # budgets (FR-012). Tests inject a FakeKeyReader.
+    if key_reader is None:
+        key_reader = _keyboard.make_key_reader()
+
     # 010 P2: load the derived store (top recurring error for the warm-up + the SRS
     # schedule update after the session). Only when store_path is provided — the CLI
     # passes one; tests omit it → no store I/O and no warm-up (legacy behavior).
@@ -583,6 +673,8 @@ def run_session(
         scratch_dir=scratch_dir,
         early_exit_event=early_exit_event,
         console=console,
+        key_reader=key_reader,
+        ui_sleep=ui_sleep,
     )
 
     transcripts: list[Transcript] = []
@@ -610,6 +702,8 @@ def run_session(
                 console=console,
                 scratch_dir=scratch_dir,
                 context=context,
+                key_reader=key_reader,
+                ui_sleep=ui_sleep,
             )
             transcripts.append(transcript)
     except AbortedError:
@@ -775,6 +869,8 @@ def run_session(
         scratch_dir=scratch_dir,
         early_exit_event=early_exit_event,
         console=console,
+        key_reader=key_reader,
+        ui_sleep=ui_sleep,
     )
 
     # ASR provenance (FR-007), recorded additively only when the caller names the
