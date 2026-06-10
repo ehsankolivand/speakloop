@@ -26,6 +26,42 @@ This feature re-engineers the session **flow** (not its analysis logic, prompts,
 to be transparent and controllable, and makes it measurably faster on the stages that the
 measurement shows actually dominate — never trading analysis quality for speed.
 
+## Clarifications
+
+### Session 2026-06-10
+
+(Resolved autonomously, optimizing for minimal waiting and an unmistakable recording state.)
+
+- Q: Which single keys drive skip / replay / end-recording / skip-follow-up, and how are they
+  surfaced? → A: A small context-aware set, always shown in a one-line hint that lists ONLY the
+  keys valid in the current state. `space` = the primary "advance" action of the current state
+  (skip the clip that is playing; stop the active recording when done speaking). `r` = replay the
+  current/just-played clip (playback states only). `s` = skip the ENTIRE current follow-up
+  (follow-up states only — both while its prompt plays and while awaiting its answer). `q` = quit
+  (only where quitting already exists, e.g. the listen loop). `Enter` stays an accepted alias for
+  `space` so the line-based fallback and piped/non-raw terminals keep working. Reuses existing
+  muscle memory (space already advances, r already replays in the listen loop).
+- Q: How are the recording indicator and countdown rendered within the existing rich-based
+  terminal output? → A: Reuse `rich` (already a dependency) — render exactly one transient state
+  region at a time. Recording shows a distinct `● REC` red marker plus a live elapsed/budget
+  readout and a remaining-time bar, visually distinct from the playing / transcribing / analyzing
+  spinners. The pre-recording countdown renders as a brief transient `Recording in 3 · 2 · 1`
+  immediately followed by the `● REC` region. No new dependency.
+- Q: Should autoplay of the ideal answer default on or off? → A: Default **on**
+  (`autoplay_ideal_answer: true`). Instant skippability already removes the forced-wait cost, so
+  default-on keeps the pedagogical value on first review, while a one-line loop.yaml opt-out
+  (`autoplay_ideal_answer: false`) suits rapid repeat drills. Preserves today's behavior for
+  existing users.
+- Q: What is the concurrency cap for parallel-safe analysis calls? → A: Default **3**,
+  configurable via loop.yaml `analysis_concurrency` (clamped ≥ 1). Small enough to avoid
+  subscription rate-limit / local-resource pressure from concurrent `claude` subprocesses, large
+  enough to cover the real fan-out of the independent post-grammar calls. The local in-process
+  engine ignores it and stays strictly serial.
+- Q: Is the pre-recording countdown audible or visual, and how long? → A: **Visual-only**, ~1.5 s
+  total (~0.5 s per tick), no TTS. An audible countdown would add synthesis/playback latency
+  before every recording and blow the minimal-waiting and ≤ 12 s-to-first-follow-up budgets. A
+  fixed brief visual cue is the decision (no configurable length in scope).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Always know the state, and control it with one key (Priority: P1)
@@ -189,22 +225,29 @@ others still complete and only that call degrades to `analysis_pending`.
   than ~2 seconds; any operation exceeding that MUST display a labeled, animated progress
   state (spinner/elapsed) until it completes.
 - **FR-003**: While recording (attempts and follow-ups), the session MUST show a distinct
-  recording indicator and a live elapsed-vs-budget timer for 100% of the recording duration.
+  recording indicator (`● REC` red marker) and a live elapsed-vs-budget readout with a
+  remaining-time bar for 100% of the recording duration, visually distinct from the playing /
+  transcribing / analyzing states. Rendered with `rich` (existing dependency), one transient
+  state region at a time.
 - **FR-004**: Before every recording (attempts and follow-ups), the session MUST present a
-  short countdown cue ("3-2-1, recording") so the learner knows precisely when to begin
-  speaking.
+  brief **visual-only** countdown cue (`Recording in 3 · 2 · 1`, ~1.5 s total, ~0.5 s per tick,
+  no TTS) immediately followed by the `● REC` region, so the learner knows precisely when to
+  begin speaking without adding synthesis latency.
 - **FR-005**: The learner MUST be able to skip the currently-playing TTS clip (question or
-  ideal answer) with a single keypress, taking effect within 500 ms.
+  ideal answer) with the **`space`** key, taking effect within 500 ms.
 - **FR-006**: The learner MUST be able to replay the currently/just-played TTS clip (question
-  or ideal answer) with a single keypress.
-- **FR-007**: The learner MUST be able to end the current recording early with a single
-  keypress when they have finished speaking, after which transcription begins.
-- **FR-008**: The learner MUST be able to skip a follow-up with a single keypress, abandoning
-  it without recording an answer and advancing the session.
+  or ideal answer) with the **`r`** key.
+- **FR-007**: The learner MUST be able to end the current recording early with **`space`** (or
+  `Enter`) when they have finished speaking, after which transcription begins.
+- **FR-008**: The learner MUST be able to skip the entire current follow-up with the **`s`**
+  key (valid both while the follow-up prompt plays and while awaiting its answer), abandoning it
+  without recording an answer and advancing the session.
 - **FR-009**: Existing voice/line-based commands MUST continue to work; single-key controls
-  are the added reliable path, not a replacement that breaks scripted/piped use.
+  are the added reliable path, not a replacement that breaks scripted/piped use. `Enter` stays
+  an accepted alias for `space`.
 - **FR-010**: All single-key controls MUST be discoverable via a short on-screen hint that
-  names each active key and its effect at the moment it is available.
+  names ONLY the keys valid in the current state and their effect at the moment they are
+  available.
 - **FR-011**: A keypress arriving during a stage where it has no meaning MUST be ignored
   gracefully without crashing or corrupting session state.
 - **FR-012**: When the terminal does not support raw single-key input, the session MUST fall
@@ -213,9 +256,10 @@ others still complete and only that call degrades to `analysis_pending`.
 #### Never forced to re-listen + closing summary (US2)
 
 - **FR-013**: Ideal-answer playback MUST be instantly skippable (per FR-005).
-- **FR-014**: A loop-config toggle MUST allow disabling autoplay of the ideal answer; when
-  off, the question still plays automatically, the ideal answer does not, and the learner can
-  still replay the ideal answer on demand. Default is on (today's behavior).
+- **FR-014**: A loop-config toggle (`autoplay_ideal_answer`, default **`true`**) MUST allow
+  disabling autoplay of the ideal answer; when off, the question still plays automatically, the
+  ideal answer does not, and the learner can still replay the ideal answer on demand with `r`.
+  Default-on preserves today's behavior (instant skippability removes the forced-wait cost).
 - **FR-015**: On session completion, the terminal MUST print a compact summary containing at
   least: grade, coverage first→final, the single top fix, and the next due date — sourced
   from the same data persisted to the report.
@@ -245,9 +289,10 @@ others still complete and only that call degrades to `analysis_pending`.
 - **FR-024**: Follow-up generation MUST start as soon as the final attempt's transcription is
   available, so the gap to the first spoken follow-up is minimized.
 - **FR-025**: Independent post-session analysis calls (grammar, coverage, mishearing,
-  consistency, coaching) MUST be eligible to run concurrently with a small bounded
-  concurrency cap, **only** for engines declared safe to parallelize; engines that are a
-  single in-process model MUST stay strictly serial.
+  consistency, coaching) MUST be eligible to run concurrently with a bounded concurrency cap
+  (default **3**, configurable via loop.yaml `analysis_concurrency`, clamped ≥ 1), **only** for
+  engines declared safe to parallelize; engines that are a single in-process model MUST stay
+  strictly serial (and ignore the cap).
 - **FR-026**: An engine MUST declare whether it is safe to parallelize; the session MUST honor
   that declaration when choosing serial vs. concurrent analysis.
 - **FR-027**: The concurrent analysis path MUST produce a report that is byte-identical to the
