@@ -189,14 +189,14 @@ generated artifact is consistency-checked before write.
 the hallucination is in no grammar/metric/coverage output and the mishearing appears only in Pronunciation
 flags; seed an artifact contradiction and verify it is corrected/dropped before write (SC-003/SC-004/SC-006).
 
-- [ ] T069 [US4] Wire the mishearing runner into the bundle + invoke the consistency check on every generated artifact (drill sentences; cloud coach's improved answer + flashcards) before write in `src/speakloop/cli/practice.py`
-- [ ] T070 [US4] Render the Pronunciation-flags section and ensure content-errors render separate from grammar in `src/speakloop/feedback/report_builder.py`
-- [ ] T071 [US4] Finalize coordinator wiring in `src/speakloop/sessions/coordinator.py` (attach mishearing flags + `triage_summary` to `Session`; pass real-speech regions to metrics; invoke consistency before report write)
-- [ ] T072 [P] [US4] Table-driven test: mishearing classification on recorded fixtures (must→mouse) → pronunciation flags, never grammar, in `tests/unit/triage/test_mishearing.py`
-- [ ] T073 [P] [US4] Validation test: 0 hallucination spans in grammar evidence (SC-003) and 0% mishearings counted as grammar (SC-006) over the labeled `gold_set.yaml` + `tests/fixtures/triage/` in `tests/integration/test_triage_guarantees.py`
-- [ ] T074 [P] [US4] Validation test: a seeded artifact contradiction is corrected or dropped before the report is written (SC-004) in `tests/integration/test_artifact_consistency.py`
-- [ ] T075 [P] [US4] Manual smoke-test checklist `specs/010-interview-loop/manual-tests/us4-triage.md` — verify by ear: a real mishearing surfaces as a pronunciation flag (not a grammar "missing verb"); a silence hallucination never appears in feedback
-- [ ] T076 [US4] Update report rendering + regenerate the sample report `tests/fixtures/reports/sample-us4-pronunciation.md`
+- [X] T069 [US4] Wire the mishearing runner into the bundle + invoke the consistency check on every generated artifact (drill sentences; cloud coach's improved answer + flashcards) before write in `src/speakloop/cli/practice.py`
+- [X] T070 [US4] Render the Pronunciation-flags section and ensure content-errors render separate from grammar in `src/speakloop/feedback/report_builder.py`
+- [X] T071 [US4] Finalize coordinator wiring in `src/speakloop/sessions/coordinator.py` (attach mishearing flags + `triage_summary` to `Session`; pass real-speech regions to metrics; invoke consistency before report write)
+- [X] T072 [P] [US4] Table-driven test: mishearing classification on recorded fixtures (must→mouse) → pronunciation flags, never grammar, in `tests/unit/triage/test_mishearing.py`
+- [X] T073 [P] [US4] Validation test: 0 hallucination spans in grammar evidence (SC-003) and 0% mishearings counted as grammar (SC-006) over the labeled `gold_set.yaml` + `tests/fixtures/triage/` in `tests/integration/test_triage_guarantees.py`
+- [X] T074 [P] [US4] Validation test: a seeded artifact contradiction is corrected or dropped before the report is written (SC-004) in `tests/integration/test_artifact_consistency.py`
+- [X] T075 [P] [US4] Manual smoke-test checklist `specs/010-interview-loop/manual-tests/us4-triage.md` — verify by ear: a real mishearing surfaces as a pronunciation flag (not a grammar "missing verb"); a silence hallucination never appears in feedback
+- [X] T076 [US4] Update report rendering + regenerate the sample report `tests/fixtures/reports/sample-us4-pronunciation.md`
 
 **Checkpoint**: US1–US4 independently functional; feedback is trustworthy.
 

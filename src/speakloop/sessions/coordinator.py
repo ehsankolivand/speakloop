@@ -684,6 +684,25 @@ def run_session(
             console.print(
                 f"[yellow]Coaching step failed: {e}. The grammar report is unaffected.[/yellow]"
             )
+        # 010 P4 (FR-027): the coach is the fact-bearing generated artifact (it can
+        # invent a wrong exception name etc.) and deliberately never saw the ideal
+        # answer, so consistency-check it against the ideal answer BEFORE writing —
+        # correct it, or drop it entirely rather than show a contradiction (SC-004).
+        if coaching and runners and runners.consistency:
+            try:
+                checked = runners.consistency(coaching, question.ideal_answer)
+            except Exception as e:  # noqa: BLE001 — never block the report
+                checked = None
+                coach_error = coach_error or f"consistency check failed: {e}"
+            if checked is None:
+                coaching = None
+                coach_error = coach_error or "coaching withheld: failed the consistency check"
+                console.print(
+                    "[yellow]Coaching withheld: it contradicted the reference answer "
+                    "and could not be safely corrected.[/yellow]"
+                )
+            else:
+                coaching = checked
 
     # 010 P1: interactive follow-ups — spoken, grounded in the learner's own words,
     # recorded + analyzed. No-op unless a follow-up runner + TTS playback are
