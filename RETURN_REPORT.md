@@ -152,10 +152,30 @@ Run `uv run speakloop practice --engine claude --timings` in a real terminal and
 
 ---
 
+## Adversarial review pass (3 opus reviewers) + fixes
+
+After implementation I ran a 3-reviewer adversarial pass (concurrency/equivalence · threading/
+abort · UX/degradation). The byte-identical guarantee was confirmed robust (extra equivalence
+harnesses, all identical). One **real, reachable** bug + three defensive gaps were found and
+**fixed**:
+
+1. **Bug 1 (real regression, fixed):** the background-transcription `ThreadPoolExecutor` used
+   non-daemon workers, so a Ctrl-C during attempts could hang the process up to ~16 s on an
+   in-flight Whisper decode (FR-016 violation) and `rmtree` the worker's input mid-read. →
+   Replaced with a single **daemon** ASR worker (`_BackgroundAsr`); abort now returns promptly,
+   the discarded mid-decode is harmless. Regression test added
+   (`test_abort_during_attempts_does_not_wait_for_background_transcription`).
+2. **Bug 2 (latent, hardened):** `RawKeyReader` re-entrancy — overlapping `with` on the shared
+   reader could leave the terminal stuck in cbreak. → Added a depth-counted re-entrancy guard.
+3. **Finding B (latent crash, hardened):** `render_summary` could `IndexError` on a
+   whitespace-only `top_priority`. → Guarded; test added.
+4. **Finding A (cosmetic, fixed):** `resume` re-emitted the original report's stale `timings`. →
+   Cleared on the resumed report.
+
 ## Suite
 
-**`uv run pytest -q` → 694 passed, 3 skipped, 2 deselected** (baseline at branch start: 628
-passed; +66 new tests for 012). 3 skips are pre-existing fixture-gated repro tests; 2 deselected
+**`uv run pytest -q` → 696 passed, 3 skipped, 2 deselected** (baseline at branch start: 628
+passed; +68 new tests for 012). 3 skips are pre-existing fixture-gated repro tests; 2 deselected
 are the `live_asr` smoke tests. Run time ~18 s.
 
 - No test touches the real `claude` binary, microphone, or keyboard — all via injected

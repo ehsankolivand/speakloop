@@ -156,6 +156,10 @@ def run(*, cloud: bool = False, engine: str | None = None, timings: bool = False
             session.grammar_patterns, session.attempts
         )
 
+        # 012: the original report's `timings` reflect the FIRST run, and resume only
+        # re-instruments grammar — so drop the stale block rather than persist a misleading
+        # one (timings are machine-only; the resume's own timer is shown via --timings).
+        session.timings = None
         markdown_writer.write_atomic(path, report_builder.build(session))
         _advance_schedule(session, today=session.started_at.date() if session.started_at else _date.today())
         console.print(f"[green]Resumed:[/green] {path.name} (grade: {session.answer_grade})")

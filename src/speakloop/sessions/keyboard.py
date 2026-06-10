@@ -85,6 +85,7 @@ class RawKeyReader:
         self._fd: int | None = None
         self._own_fd = False
         self._saved = None
+        self._depth = 0  # re-entrancy guard: this object is deliberately shared + re-entered
 
     def _resolve_fd(self) -> int | None:
         try:
@@ -103,6 +104,14 @@ class RawKeyReader:
     def __enter__(self) -> RawKeyReader:
         import termios
         import tty
+
+        # Re-entrancy guard: a nested/repeated `with` on this (deliberately shared) reader
+        # must NOT re-`tcgetattr` (that would save the already-cbreak attrs and leave the
+        # terminal stuck in cbreak) nor re-open `/dev/tty` (an fd leak). Only the outermost
+        # enter acquires; only the outermost exit restores.
+        self._depth += 1
+        if self._depth > 1:
+            return self
 
         fd = self._resolve_fd()
         if fd is None:
@@ -127,6 +136,9 @@ class RawKeyReader:
     def __exit__(self, *exc) -> None:
         import termios
 
+        self._depth = max(0, self._depth - 1)
+        if self._depth > 0:
+            return  # inner exit of a nested `with` — keep raw mode until the outermost exit
         if self._fd is not None and self._saved is not None:
             with contextlib.suppress(termios.error):
                 termios.tcsetattr(self._fd, termios.TCSADRAIN, self._saved)

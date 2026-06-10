@@ -220,3 +220,43 @@ def test_play_prompt_skip_followup_on_s(monkeypatch, tmp_path):
         console=_console(), follow_up=True,
     )
     assert result == "skip_followup"
+
+
+# --- abort never blocks on a slow background transcription (T026 regression) --
+
+
+def test_abort_during_attempts_does_not_wait_for_background_transcription(tmp_path):
+    """Ctrl-C during attempts must return promptly even if a background decode is in flight.
+
+    The background ASR worker is a daemon thread, so an abort raises immediately instead of
+    blocking interpreter exit on an in-flight (slow) Whisper decode (review Bug 1, FR-016)."""
+    from speakloop.asr import Transcript
+    from speakloop.content import Question
+    from speakloop.sessions import abort
+
+    abort.reset()
+    started = threading.Event()
+
+    class _SlowASR:
+        def transcribe(self, wav_path, *, context=None):
+            started.set()
+            time.sleep(3.0)  # a slow decode that must NOT delay the abort
+            return Transcript(text="late", audio_duration_seconds=3.0)
+
+    def record_fn(out_path, time_budget_seconds, early_exit_event):
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(out_path).write_bytes(b"\x00")
+        abort.abort_event.set()  # user presses Ctrl-C during attempt 1's recording
+        return 1.0
+
+    q = Question(id="q1", question="Q?", ideal_answer="A.")
+    t0 = time.monotonic()
+    with pytest.raises(coordinator.AbortedError):
+        coordinator.run_session(
+            q, asr_engine=_SlowASR(), record_fn=record_fn,
+            sessions_dir=tmp_path, scratch_dir=tmp_path / "scratch",
+            key_reader=NullKeyReader(),
+        )
+    elapsed = time.monotonic() - t0
+    abort.reset()
+    assert elapsed < 2.0, f"abort blocked for {elapsed:.1f}s on the background transcription"

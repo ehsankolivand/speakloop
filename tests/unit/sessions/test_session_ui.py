@@ -101,6 +101,15 @@ def test_summary_graded_session_shows_grade_coverage_topfix_due():
     assert "2026-06-13" in out
 
 
+def test_summary_tolerates_whitespace_only_top_priority():
+    """A whitespace-only top_priority must not crash render_summary (review Finding B)."""
+    console, buf = _console()
+    session_ui.render_summary(console, _session(answer_grade="fair", top_priority="   \n  "))
+    out = buf.getvalue()
+    assert "fair" in out
+    assert "Top fix" not in out  # no empty/garbage fix line
+
+
 def test_summary_degraded_session_states_pending_not_a_fake_grade():
     console, buf = _console()
     s = _session(analysis_pending=True)

@@ -7,11 +7,11 @@ A SIGINT at any state up to and including `reporting` aborts cleanly without wri
 from __future__ import annotations
 
 import contextlib
+import queue
 import shutil
 import threading
 import time
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -234,6 +234,54 @@ def _transcribe_attempt(
         segments=transcript.segments,
         vad_regions=transcript.vad_regions,
     )
+
+
+class _BackgroundAsr:
+    """A single **daemon** ASR worker so transcribe(N) overlaps record(N+1) while two Whisper
+    jobs never run at once (FR-022, 012/T026).
+
+    The worker is a daemon thread so a Ctrl-C abort never blocks interpreter exit on an
+    in-flight decode (the audio is discarded on abort anyway). Jobs are processed strictly
+    FIFO, so ``result(idx)`` always returns attempt-``idx``'s transcript. A non-blocking
+    ``ThreadPoolExecutor`` was rejected here because its workers are non-daemon and would hang
+    process exit (and could be deleted out from under by the abort cleanup)."""
+
+    def __init__(self, asr_engine: ASREngine, context: TranscriptionContext | None) -> None:
+        self._asr = asr_engine
+        self._ctx = context
+        self._jobs: queue.Queue = queue.Queue()
+        self._results: dict[int, object] = {}
+        self._events: dict[int, threading.Event] = {}
+        self._thread = threading.Thread(target=self._run, name="speakloop-asr", daemon=True)
+        self._thread.start()
+
+    def submit(self, idx: int, wav_path: Path, duration: float) -> None:
+        ev = threading.Event()
+        self._events[idx] = ev
+        self._jobs.put((idx, wav_path, duration, ev))
+
+    def result(self, idx: int) -> Transcript:
+        self._events[idx].wait()
+        value = self._results[idx]
+        if isinstance(value, BaseException):
+            raise value
+        return value  # type: ignore[return-value]
+
+    def _run(self) -> None:
+        while True:
+            item = self._jobs.get()
+            if item is None:
+                return
+            idx, wav_path, duration, ev = item
+            try:
+                self._results[idx] = _transcribe_attempt(wav_path, duration, self._asr, self._ctx)
+            except BaseException as e:  # noqa: BLE001 — surfaced to the waiter via result()
+                self._results[idx] = e
+            finally:
+                ev.set()
+
+    def close(self) -> None:
+        self._jobs.put(None)
 
 
 def _build_attempts(
@@ -927,13 +975,13 @@ def run_session(
         ui_sleep=ui_sleep,
     )
 
-    # 012/US3 (T026): a single background ASR worker so attempt-N transcription overlaps
-    # attempt-(N+1) recording, while two Whisper jobs NEVER run at once (FR-022). The
-    # transcript values are identical to the serial path — only WHEN they are decoded
-    # changes — so the report is unaffected.
+    # 012/US3 (T026): a single background DAEMON ASR worker so attempt-N transcription
+    # overlaps attempt-(N+1) recording, while two Whisper jobs NEVER run at once (FR-022).
+    # The transcript values are identical to the serial path — only WHEN they are decoded
+    # changes — so the report is unaffected. Daemon so a Ctrl-C abort never blocks exit on
+    # an in-flight decode; the discarded mid-decode is harmless (the audio is thrown away).
     transcripts: list[Transcript] = []
-    asr_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="speakloop-asr")
-    tx_futures: list = []
+    asr_worker = _BackgroundAsr(asr_engine, context)
     try:
         for ordinal in (1, 2, 3):
             if abort.abort_event.is_set():
@@ -960,17 +1008,16 @@ def run_session(
                     key_reader=key_reader,
                     ui_sleep=ui_sleep,
                 )
-            tx_futures.append(
-                asr_pool.submit(_transcribe_attempt, wav_path, duration, asr_engine, context)
-            )
+            asr_worker.submit(ordinal, wav_path, duration)
         # Wait for any still-running background transcription under a labeled state so the
         # terminal never sits silently (FR-002); the early ones already finished overlapped.
         with stage_timer.stage("transcribe_wait", overlapped=True), session_ui.working(
             console, SessionState.TRANSCRIBING, "Transcribing your attempts…"
         ):
-            transcripts = [f.result() for f in tx_futures]
+            transcripts = [asr_worker.result(o) for o in (1, 2, 3)]
     except AbortedError:
-        asr_pool.shutdown(wait=False, cancel_futures=True)
+        # The daemon worker is abandoned (it dies with the interpreter); a mid-decode that
+        # races the cleanup below just errors harmlessly into a result we never read.
         abort.cleanup_tmp_files(sessions_dir)
         # FR-016: clear partial attempt-*.wav files so the abort leaves
         # no intermediate audio on disk either.
@@ -978,7 +1025,7 @@ def run_session(
             shutil.rmtree(scratch_dir, ignore_errors=True)
         raise
     finally:
-        asr_pool.shutdown(wait=False)
+        asr_worker.close()
 
     started_at = now()
 

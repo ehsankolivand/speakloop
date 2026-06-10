@@ -129,7 +129,7 @@ def render_summary(console: Console, session, *, next_due: str | None = None) ->
         lines.append(f"Coverage: {first}% → {final}%")
 
     top = getattr(session, "top_priority", None)
-    if top:
+    if top and top.strip():
         # The top-priority text can be multi-line; show the first line only, compact.
         lines.append(f"Top fix: {top.strip().splitlines()[0]}")
 
