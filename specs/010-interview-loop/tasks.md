@@ -161,19 +161,19 @@ first→final delta, and content errors separate from grammar. Upgrades the grad
 report shows per-attempt coverage with the delta and lists the wrong fact as a content error separate
 from grammar (spec US3 acceptance + SC-004/SC-009).
 
-- [ ] T056 [P] [US3] Add the key-point prompt default `src/speakloop/coverage/keypoints_prompt_default.txt` (5–7 / STAR-4, strict-JSON per C2)
-- [ ] T057 [P] [US3] Add the coverage prompt default `src/speakloop/coverage/coverage_prompt_default.txt` (per-attempt coverage + content-errors, strict-JSON per C3)
-- [ ] T058 [US3] Implement key-point derivation + ideal-answer hash versioning in `src/speakloop/coverage/keypoints.py`
-- [ ] T059 [US3] Implement coverage scoring (parse/validate, aggregate = (covered+0.5·partial)/N, round delta) in `src/speakloop/coverage/scoring.py`
-- [ ] T060 [US3] Implement content-error detection (mutually-exclusive only; omissions/extra-correct excluded) in `src/speakloop/coverage/content_errors.py`
-- [ ] T061 [P] [US3] Write `src/speakloop/coverage/CLAUDE.md`
-- [ ] T062 [US3] Wire the key-points + coverage runners into the bundle in `src/speakloop/cli/practice.py`
-- [ ] T063 [US3] Add coverage scoring per session + key-point cache-by-hash + upgrade the grade to coverage-primary in `src/speakloop/sessions/coordinator.py` (derive/load key points by `(question_id, ideal_answer_hash)`; store `key_points`+version in `Session`; feed coverage into `grade_session`)
-- [ ] T064 [US3] Render the Coverage (per-attempt + first/final delta) and Content-errors sections in `src/speakloop/feedback/report_builder.py`
-- [ ] T065 [P] [US3] Table-driven test of coverage parse/aggregate/delta + version guard (no cross-version delta) on recorded LLM-response fixtures in `tests/unit/coverage/test_scoring.py`
-- [ ] T066 [P] [US3] Table-driven test of key-point matching against fixture transcripts + hash-change re-derivation in `tests/unit/coverage/test_keypoints.py`
-- [ ] T067 [P] [US3] Table-driven test of content-error detection (flags mutually-exclusive, ignores omissions/extra-correct) on recorded fixtures in `tests/unit/coverage/test_content_errors.py`
-- [ ] T068 [US3] Update report rendering + regenerate the sample report `tests/fixtures/reports/sample-us3-coverage.md`
+- [X] T056 [P] [US3] Add the key-point prompt default `src/speakloop/coverage/keypoints_prompt_default.txt` (5–7 / STAR-4, strict-JSON per C2)
+- [X] T057 [P] [US3] Add the coverage prompt default `src/speakloop/coverage/coverage_prompt_default.txt` (per-attempt coverage + content-errors, strict-JSON per C3)
+- [X] T058 [US3] Implement key-point derivation + ideal-answer hash versioning in `src/speakloop/coverage/keypoints.py`
+- [X] T059 [US3] Implement coverage scoring (parse/validate, aggregate = (covered+0.5·partial)/N, round delta) in `src/speakloop/coverage/scoring.py`
+- [X] T060 [US3] Implement content-error detection (mutually-exclusive only; omissions/extra-correct excluded) in `src/speakloop/coverage/content_errors.py`
+- [X] T061 [P] [US3] Write `src/speakloop/coverage/CLAUDE.md`
+- [X] T062 [US3] Wire the key-points + coverage runners into the bundle in `src/speakloop/cli/practice.py`
+- [X] T063 [US3] Add coverage scoring per session + key-point cache-by-hash + upgrade the grade to coverage-primary in `src/speakloop/sessions/coordinator.py` (derive/load key points by `(question_id, ideal_answer_hash)`; store `key_points`+version in `Session`; feed coverage into `grade_session`)
+- [X] T064 [US3] Render the Coverage (per-attempt + first/final delta) and Content-errors sections in `src/speakloop/feedback/report_builder.py`
+- [X] T065 [P] [US3] Table-driven test of coverage parse/aggregate/delta + version guard (no cross-version delta) on recorded LLM-response fixtures in `tests/unit/coverage/test_scoring.py`
+- [X] T066 [P] [US3] Table-driven test of key-point matching against fixture transcripts + hash-change re-derivation in `tests/unit/coverage/test_keypoints.py`
+- [X] T067 [P] [US3] Table-driven test of content-error detection (flags mutually-exclusive, ignores omissions/extra-correct) on recorded fixtures in `tests/unit/coverage/test_content_errors.py`
+- [X] T068 [US3] Update report rendering + regenerate the sample report `tests/fixtures/reports/sample-us3-coverage.md`
 
 **Checkpoint**: US1–US3 independently functional.
 

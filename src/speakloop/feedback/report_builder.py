@@ -181,6 +181,42 @@ def _warmup_section(session: frontmatter.Session) -> str | None:
     return "\n".join(lines)
 
 
+_COVERAGE_MARK = {"covered": "✓", "partial": "~", "missed": "✗"}
+
+
+def _coverage_section(session: frontmatter.Session) -> str | None:
+    """P3: per-attempt key-point coverage with the first→final delta (FR-020/SC-009)."""
+    records = session.coverage or []
+    if not records:
+        return None
+    records = sorted(records, key=lambda r: r.get("attempt_ordinal", 0))
+    point_text = {}
+    if session.key_points:
+        for p in session.key_points.get("points", []):
+            point_text[int(p["id"])] = str(p.get("text", "")).strip()
+    point_ids = [int(p["id"]) for p in (session.key_points or {}).get("points", [])]
+    if not point_ids and records:
+        point_ids = [int(pp["id"]) for pp in records[0].get("per_point", [])]
+
+    ordinals = [r.get("attempt_ordinal") for r in records]
+    lines = ["## Content coverage", ""]
+    lines.append("_Final-round goal: all key points within the time budget._")
+    lines.append("")
+    header = "| Key point | " + " | ".join(f"R{o}" for o in ordinals) + " |"
+    sep = "|" + "---|" * (len(ordinals) + 1)
+    lines += [header, sep]
+    state_by_round = {r.get("attempt_ordinal"): {int(pp["id"]): pp["state"] for pp in r.get("per_point", [])} for r in records}
+    for pid in point_ids:
+        cells = [_COVERAGE_MARK.get(state_by_round.get(o, {}).get(pid, "missed"), "✗") for o in ordinals]
+        label = point_text.get(pid, f"point {pid}")
+        lines.append(f"| {label} | " + " | ".join(cells) + " |")
+    first = records[0].get("aggregate", 0.0)
+    final = records[-1].get("aggregate", 0.0)
+    lines.append("")
+    lines.append(f"**Coverage:** {first:.0%} (R{ordinals[0]}) → {final:.0%} (R{ordinals[-1]}), Δ {final - first:+.0%}")
+    return "\n".join(lines)
+
+
 def _content_errors_section(session: frontmatter.Session) -> str | None:
     """P3: factual contradictions vs the ideal answer, SEPARATE from grammar."""
     errors = session.content_errors or []
@@ -252,6 +288,7 @@ def _follow_ups_section(session: frontmatter.Session) -> str | None:
 # content-errors → pronunciation-flags → follow-ups → (type-guidance, P5).
 _INTERVIEW_LOOP_RENDERERS = [
     _warmup_section,
+    _coverage_section,
     _content_errors_section,
     _pronunciation_flags_section,
     _follow_ups_section,

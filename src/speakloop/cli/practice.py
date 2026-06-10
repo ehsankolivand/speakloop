@@ -416,6 +416,9 @@ def _build_runners(engine):
     generation) goes through the injected engine — no new engine client code
     (Principle V). Each loads its own seeded prompt. Returns a coordinator.Runners.
     """
+    from speakloop.coverage import keypoints as _kp
+    from speakloop.coverage import scoring as _cov
+    from speakloop.coverage.prompts import load_coverage_prompt, load_keypoints_prompt
     from speakloop.interviewer import followups as _fu
     from speakloop.interviewer.prompts import load_followups_prompt
     from speakloop.sessions.coordinator import Runners
@@ -428,6 +431,8 @@ def _build_runners(engine):
     consistency_prompt = load_consistency_prompt()
     followups_prompt, _ = load_followups_prompt()
     drill_prompt, _ = _drill.load_drill_prompt()
+    keypoints_prompt, _ = load_keypoints_prompt()
+    coverage_prompt, _ = load_coverage_prompt()
 
     def _mishearing(real_text):
         return _mis.detect_mishearings(real_text, engine, system_prompt=triage_prompt)
@@ -442,11 +447,24 @@ def _build_runners(engine):
     def _drill_runner(top_error_label):
         return _drill.generate_drill(top_error_label, engine, system_prompt=drill_prompt)
 
+    def _keypoints(question_text, ideal_answer, question_type):
+        return _kp.derive_key_points(
+            question_text, ideal_answer, question_type, engine, system_prompt=keypoints_prompt
+        )
+
+    def _coverage(key_points, transcripts, ideal_answer, version):
+        return _cov.score_coverage(
+            key_points, transcripts, ideal_answer, engine,
+            system_prompt=coverage_prompt, version=version,
+        )
+
     return Runners(
         mishearing=_mishearing,
         followups=_followups,
         consistency=_consistency,
         drill=_drill_runner,
+        keypoints=_keypoints,
+        coverage=_coverage,
     )
 
 

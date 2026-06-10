@@ -1,0 +1,73 @@
+"""Coverage scoring tests (010-interview-loop, T065) — recorded LLM-response fake.
+
+Asserts the deterministic parse/aggregate/delta over the recorded fixture in
+tests/fixtures/coverage/cases.yaml. No live LLM; no byte-exact golden file.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+import yaml
+
+from speakloop.asr import Transcript
+from speakloop.coverage import scoring
+
+pytestmark = pytest.mark.unit
+
+_CASE = yaml.safe_load(
+    (Path(__file__).parents[2] / "fixtures" / "coverage" / "cases.yaml").read_text()
+)["cases"][0]
+
+
+class _FakeLLM:
+    def __init__(self, response: str):
+        self._r = response
+
+    def generate(self, system_prompt, user_prompt, max_tokens=2048, temperature=0.7, retry=False):
+        return self._r
+
+
+def _run():
+    llm = _FakeLLM(json.dumps(_CASE["recorded_llm_response"]))
+    return scoring.score_coverage(
+        _CASE["key_points"],
+        [Transcript(text="t1"), Transcript(text="t2"), Transcript(text="t3")],
+        _CASE["ideal_answer"],
+        llm,
+        system_prompt="sp",
+        version=2,
+    )
+
+
+def test_aggregate_and_delta():
+    result = _run()
+    a1 = next(r for r in result.attempt_records if r["attempt_ordinal"] == 1)
+    a3 = next(r for r in result.attempt_records if r["attempt_ordinal"] == 3)
+    assert a1["aggregate"] == pytest.approx(_CASE["expected"]["attempt_1_aggregate"], abs=0.01)
+    assert a3["aggregate"] == pytest.approx(_CASE["expected"]["attempt_3_aggregate"], abs=0.01)
+    assert result.final_aggregate == pytest.approx(_CASE["expected"]["attempt_3_aggregate"], abs=0.01)
+
+
+def test_content_error_count():
+    result = _run()
+    assert len(result.content_errors) == _CASE["expected"]["content_error_count"]
+    assert result.content_errors[0]["learner_claim"] == "Android 11"
+
+
+def test_version_recorded_on_records():
+    result = _run()
+    assert all(r["key_points_version"] == 2 for r in result.attempt_records)
+
+
+def test_missing_ids_default_to_missed():
+    """A coverage response omitting a key-point id defaults that point to missed."""
+    llm = _FakeLLM('{"attempts": [{"ordinal": 1, "coverage": [{"id": 1, "state": "covered"}]}], "content_errors": []}')
+    result = scoring.score_coverage(
+        [{"id": 1, "text": "a"}, {"id": 2, "text": "b"}],
+        [Transcript(text="t")], "ideal", llm, system_prompt="sp", version=1,
+    )
+    states = {pp["id"]: pp["state"] for pp in result.attempt_records[0]["per_point"]}
+    assert states == {1: "covered", 2: "missed"}

@@ -6,7 +6,7 @@ question_id: activity-rotation-callbacks
 question: |
   Walk me through what happens to an Activity when the user rotates the device.
 ideal_answer: |
-  By default a rotation is a configuration change; the Activity is torn down and recreated...
+  By default a rotation is a configuration change; the Activity is torn down and recreated; the ViewModel survives; Android 12 changed trace collection.
 attempts:
 - ordinal: 1
   time_budget_seconds: 240
@@ -88,11 +88,54 @@ follow_ups:
   question_text: What happens to the bundle if the OS kills the process?
   probe_ref: edge_case
   answered: false
+coverage:
+- attempt_ordinal: 1
+  key_points_version: 1
+  aggregate: 0.25
+  per_point:
+  - id: 1
+    state: covered
+  - id: 2
+    state: missed
+  - id: 3
+    state: missed
+  - id: 4
+    state: missed
+- attempt_ordinal: 3
+  key_points_version: 1
+  aggregate: 0.875
+  per_point:
+  - id: 1
+    state: covered
+  - id: 2
+    state: covered
+  - id: 3
+    state: covered
+  - id: 4
+    state: partial
+content_errors:
+- attempt_ordinal: 3
+  learner_claim: Android 11
+  ideal_claim: Android 12
+  key_point_id: 4
 pronunciation_flags:
 - attempt_ordinal: 2
   heard: mouse
   likely_intended: must
   signal: llm_mishearing
+key_points:
+  version: 1
+  ideal_answer_hash: abc123
+  question_type: definition
+  points:
+  - id: 1
+    text: rotation is a configuration change
+  - id: 2
+    text: the Activity is destroyed and recreated
+  - id: 3
+    text: the ViewModel survives the change
+  - id: 4
+    text: Android 12 changed trace collection
 answer_grade: good
 triage_summary:
   real: 9
@@ -110,7 +153,7 @@ pattern_trends:
 
 **Reference answer:**
 
-By default a rotation is a configuration change; the Activity is torn down and recreated...
+By default a rotation is a configuration change; the Activity is torn down and recreated; the ViewModel survives; Android 12 changed trace collection.
 
 ## Top priority for next session
 
@@ -143,6 +186,23 @@ _Exercising your recurring pattern: **subject-verb agreement**._
 - ✓ The system creates a new Activity. — **pass**
 - ✗ The phone rotates and the state saves. — **fail**
 - ✓ The ViewModel survives the change. — **pass**
+
+## Content coverage
+
+_Final-round goal: all key points within the time budget._
+
+| Key point | R1 | R3 |
+|---|---|---|
+| rotation is a configuration change | ✓ | ✓ |
+| the Activity is destroyed and recreated | ✗ | ✓ |
+| the ViewModel survives the change | ✗ | ✓ |
+| Android 12 changed trace collection | ✗ | ~ |
+
+**Coverage:** 25% (R1) → 88% (R3), Δ +62%
+
+## Content errors (vs. reference answer)
+
+- You said **Android 11**, but the reference answer says **Android 12**. *(round 3)*
 
 ## Pronunciation flags
 

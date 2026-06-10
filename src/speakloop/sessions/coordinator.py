@@ -625,6 +625,49 @@ def run_session(
                 f"[yellow]Grammar analyzer failed: {e}. Falling back to Phase-B interim report.[/yellow]"
             )
 
+    # 010 P3: content coverage + content errors (one LLM call over all attempts),
+    # using key points derived from the ideal answer (hash-versioned, cached in the
+    # store). Runs only after a successful grammar analysis; degrades gracefully.
+    coverage_records: list[dict] = []
+    content_errors: list[dict] = []
+    key_points_set: dict | None = None
+    coverage_aggregate: float | None = None
+    if runners and runners.keypoints and runners.coverage and phase == "C":
+        try:
+            from speakloop.coverage import keypoints as _kp
+
+            qtype = getattr(question, "type", None) or "definition"
+            khash = _kp.ideal_answer_hash(question.ideal_answer)
+            cached = None
+            version = 1
+            if store is not None:
+                by_hash = store.key_points.get(question.id) or {}
+                cached = by_hash.get(khash)
+                if cached is None and by_hash:
+                    version = max((s.get("version", 0) for s in by_hash.values()), default=0) + 1
+            if cached is not None:
+                key_points_set = cached
+            else:
+                points = runners.keypoints(question.question, question.ideal_answer, qtype)
+                key_points_set = {
+                    "version": version,
+                    "ideal_answer_hash": khash,
+                    "question_type": qtype,
+                    "points": points,
+                }
+                if store is not None:
+                    store.key_points.setdefault(question.id, {})[khash] = key_points_set
+            result = runners.coverage(
+                key_points_set["points"], real_transcripts, question.ideal_answer,
+                key_points_set["version"],
+            )
+            coverage_records = result.attempt_records
+            content_errors = result.content_errors
+            coverage_aggregate = result.final_aggregate
+        except Exception as e:  # noqa: BLE001 — coverage is best-effort; never crash
+            analysis_pending = True
+            console.print(f"[yellow]Coverage scoring failed: {e}. Coverage skipped.[/yellow]")
+
     # 009: cloud coaching — a SECOND, additive call after the grammar analyzer.
     # Runs ONLY after a SUCCESSFUL grammar analysis (phase == "C"); a degraded
     # grammar step (phase_c_error) skips coaching too. `coach` is None in local
@@ -682,8 +725,8 @@ def run_session(
     answer_grade = None
     if phase == "C":
         answer_grade = _srs_grade.grade_session(
-            coverage_aggregate=None,  # P3 supplies the coverage aggregate
-            content_error_count=0,
+            coverage_aggregate=coverage_aggregate,  # None → grammar-severity fallback
+            content_error_count=len(content_errors),
             grammar_patterns=grammar_patterns,
         )
 
@@ -730,6 +773,9 @@ def run_session(
         warmup=warmup_result,
         answer_grade=answer_grade,
         pattern_trends=pattern_trends,
+        coverage=coverage_records,
+        content_errors=content_errors,
+        key_points=key_points_set,
         follow_ups=follow_ups,
         pronunciation_flags=pronunciation_flags,
         # Emit the triage summary only when there is something to summarize (a
@@ -750,7 +796,9 @@ def run_session(
     # persist the store atomically. The report (the source of truth) is already
     # written, so a store-write failure never costs the session.
     if store is not None and store_path is not None:
-        if answer_grade is not None:
+        # Advance only on a graded, complete session — a degraded/analysis-pending
+        # session stays due and un-graded so `resume` can re-grade it (FR-035a).
+        if answer_grade is not None and not analysis_pending:
             from speakloop.srs import schedule as _srs_schedule
             from speakloop.store.model import ScheduleEntry
 
