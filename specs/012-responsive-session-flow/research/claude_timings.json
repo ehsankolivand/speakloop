@@ -1,0 +1,56 @@
+[
+  {
+    "call": "mishearing#1",
+    "tier": "haiku",
+    "seconds": 27.06,
+    "err": null
+  },
+  {
+    "call": "mishearing#2",
+    "tier": "haiku",
+    "seconds": 22.47,
+    "err": null
+  },
+  {
+    "call": "grammar#1",
+    "tier": "sonnet",
+    "seconds": 226.43,
+    "err": null
+  },
+  {
+    "call": "grammar#2",
+    "tier": "sonnet",
+    "seconds": 74.2,
+    "err": null
+  },
+  {
+    "call": "keypoints",
+    "tier": "sonnet",
+    "seconds": 7.07,
+    "err": null
+  },
+  {
+    "call": "coverage",
+    "tier": "sonnet",
+    "seconds": 23.7,
+    "err": null
+  },
+  {
+    "call": "coaching",
+    "tier": "sonnet",
+    "seconds": 27.27,
+    "err": null
+  },
+  {
+    "call": "consistency",
+    "tier": "sonnet",
+    "seconds": 12.18,
+    "err": null
+  },
+  {
+    "call": "followups",
+    "tier": "sonnet",
+    "seconds": 14.2,
+    "err": null
+  }
+]

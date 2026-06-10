@@ -1,35 +1,49 @@
 <!-- SPECKIT START -->
-Active feature: 011-claude-code-engine — add a THIRD analysis engine "claude" behind
-  the existing injected `LLMEngine` Protocol, driving the learner's locally installed,
-  logged-in Claude Code CLI via stdlib `subprocess` (ZERO new deps;
-  `llm/claude_code_engine.py` is the ONLY file that spawns the `claude` subprocess —
-  Principle V, mirroring `openrouter_engine.py`). Engine selection becomes
-  `--engine local|openrouter|claude` on `practice`/`resume`, with `--cloud` PRESERVED
-  as an alias for `--engine openrouter`, plus a `loop.yaml` `engine:` default. Every
-  analysis call (follow-ups, key points, coverage+content errors, mishearing,
-  consistency, drill, grammar, coach) routes through Claude Code; ZERO
-  call-site/prompt/schema changes (reuses the cloud prompt files + the existing
-  `grammar_analyzer._extract_json` recovery ladder). SUBSCRIPTION-BILLED: the engine
-  STRIPS `ANTHROPIC_API_KEY` + related override vars from the subprocess env so billing
-  never silently switches to pay-per-token. Invocation pinned to observed
-  `claude 2.1.170`: `--print --output-format json --model <alias> --safe-mode
-  --tools "" --no-session-persistence --system-prompt`, user prompt on stdin; key off
-  envelope `is_error` (NOT `subtype`), output text in `.result` (fences stripped by the
-  ladder). `--safe-mode` NOT `--bare` (`--bare` would force `ANTHROPIC_API_KEY` auth,
-  which we strip). Failures map to `LLMEngineError` subclasses (not_installed / auth /
-  rate_limited / timeout / bad_output) → existing `analysis_pending` degradation
-  unchanged, NO auto-fallback to local. `doctor` gains Claude Code rows (binary /
-  version / auth via the credit-free `claude auth status --json` / default engine). P2:
-  static call-site→tier→model map (fast=haiku for mishearing+drills, strong=sonnet for
-  the rest), overridable via `loop.yaml` `claude_fast_model`/`claude_strong_model`;
-  wired by one engine instance per tier (`_build_runners` gains an optional
-  `fast_engine` kwarg defaulting to the main engine). Tests use an INJECTED FAKE RUNNER
-  only — no automated test ever spawns the real `claude`. Local Qwen stays the default;
-  default path stays byte-identical + offline; report `schema_version` stays 1.
+Active feature: 012-responsive-session-flow — re-engineer the practice-session FLOW
+  (not analysis logic/prompts/models) for transparency + speed. P1 UX: one unambiguous
+  state at a time (playing/recording/transcribing/analyzing) via the already-present
+  `rich`; single-key controls behind a NEW injectable `sessions/keyboard.py` `KeyReader`
+  (Raw/Null/Fake; the ONE raw-input module, consolidating `cli/practice._cbreak_read` +
+  `coordinator._spawn_enter_reader`): `space`=skip-playback/stop-recording, `r`=replay,
+  `s`=skip-followup, `q`=quit, `Enter`=space alias; visual `● REC` indicator + ~1.5s
+  `3·2·1` countdown before every recording; `autoplay_ideal_answer` loop.yaml toggle
+  (default true); compact end-of-session summary (grade/coverage/top-fix/next-due).
+  P2 speed (measurement-first, quality untouchable): `feedback/timings.py` StageTimer →
+  additive optional `timings` frontmatter key + `--timings` flag (schema_version STAYS 1);
+  `tts/cache.py` gains size-capped `prune` (cache already content-addressed); background
+  ASR transcription overlap (single worker; never 2 Whisper jobs at once) + ASR pre-warm
+  during playback; `audio/playback.play_interruptible` (non-blocking `sd.play`+poll+
+  `sd.stop` ≈110ms) + `warm_output_device`; follow-up generation reordered to fire the
+  instant the final transcript lands; NEW `sessions/analysis.py` runs the post-grammar
+  calls CONCURRENTLY (stdlib ThreadPoolExecutor, cap=3 via loop.yaml `analysis_concurrency`)
+  ONLY for engines that DECLARE `parallel_safe=True` (claude/openrouter; local Qwen stays
+  serial). HARD GATE: concurrent == serial report BYTE-IDENTICAL given identical model
+  outputs (pure jobs → named slots → fixed assembly order; store writes main-thread,
+  post-join); per-call degradation stays per-call; recordings/transcripts survive a
+  mid-analysis crash. Measured: skip ~110ms, analysis ~219s→~113s (~48% ↓, MET SC-003);
+  follow-up gap ~151s→~17s (SC-002 ≤12s missed by the 14s generation model call — a
+  documented model-latency floor, NOT a quality trade). ZERO new deps; tests use injected
+  fakes ONLY (no real binary/mic/keyboard). Local default stays offline + byte-identical.
 
-Plan: specs/011-claude-code-engine/plan.md
-Spec: specs/011-claude-code-engine/spec.md
-  (research.md · data-model.md · contracts/{engine-interface,cli-commands,loop-config}.md)
+Plan: specs/012-responsive-session-flow/plan.md
+Spec: specs/012-responsive-session-flow/spec.md
+  (research.md empirical baseline · data-model.md · contracts/{keyboard-and-states,
+  analysis-concurrency,loop-config-and-timings}.md)
+
+Prior feature: 011-claude-code-engine — THIRD analysis engine "claude" behind the
+  injected `LLMEngine` Protocol, driving the learner's local Claude Code CLI via stdlib
+  `subprocess` (`llm/claude_code_engine.py` is the ONLY spawner; ZERO new deps).
+  `--engine local|openrouter|claude` on `practice`/`resume` (`--cloud` aliases openrouter)
+  + `loop.yaml engine:` default. SUBSCRIPTION-BILLED: STRIPS `ANTHROPIC_API_KEY` + override
+  vars from the subprocess env; pinned to `claude 2.1.170` (`--print --output-format json
+  --model <alias> --safe-mode --tools "" --no-session-persistence --system-prompt`, prompt
+  on stdin; keys off envelope `is_error`, NOT `subtype`; `--safe-mode` NOT `--bare`).
+  Failures → `LLMEngineError` subclasses → `analysis_pending` (no auto-fallback). `doctor`
+  gains Claude rows. P2 per-call tiering (fast=haiku for mishearing+drills, strong=sonnet
+  else) via `loop.yaml claude_fast_model`/`claude_strong_model`/`claude_timeout_seconds`;
+  `_build_runners(fast_engine=…)`. Tests inject a FAKE RUNNER only. Local default stays
+  byte-identical + offline; `schema_version` stays 1.
+  Plan: specs/011-claude-code-engine/plan.md · Spec: specs/011-claude-code-engine/spec.md
 
 Prior feature: 010-interview-loop — adaptive daily loop: due-question selection →
   warm-up drill → question + 4/3/2 attempts → 1–2 spoken follow-ups → richer report.
