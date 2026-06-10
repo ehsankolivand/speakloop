@@ -7,7 +7,7 @@ import io
 from rich.console import Console
 from rich.table import Table
 
-from speakloop.trends.aggregator import TrendsSummary
+from speakloop.trends.aggregator import TrendsSummary, format_series
 
 
 def render(summary: TrendsSummary, *, console: Console | None = None) -> str:
@@ -62,5 +62,18 @@ def render(summary: TrendsSummary, *, console: Console | None = None) -> str:
         console.print(rank_table)
     else:
         console.print("No grammar patterns yet (Phase C reports gain them).")
+
+    # 4. Per-pattern occurrence trend across sessions (010 P2a, FR-009 "stats").
+    if summary.pattern_series:
+        trend_table = Table(title="Per-pattern trend (recent sessions)")
+        trend_table.add_column("Pattern")
+        trend_table.add_column("Occurrences over time", justify="right")
+        # order by the same ranking when available, else by label
+        order = [row.label for row in summary.pattern_ranking] or sorted(summary.pattern_series)
+        for label in order:
+            series = summary.pattern_series.get(label)
+            if series:
+                trend_table.add_row(label, format_series(series, window=5))
+        console.print(trend_table)
 
     return capture_buf.getvalue()

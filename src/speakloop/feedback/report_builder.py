@@ -64,8 +64,11 @@ def _rank_key(p: frontmatter.GrammarPattern):
     )
 
 
-def _pattern_card(p: frontmatter.GrammarPattern) -> str:
-    """One impact-ranked finding rendered as "You said / Better / Because" (FR-012)."""
+def _pattern_card(p: frontmatter.GrammarPattern, trend: str | None = None) -> str:
+    """One impact-ranked finding rendered as "You said / Better / Because" (FR-012).
+
+    ``trend`` (010 P2a) is the per-pattern occurrence series across recent sessions
+    (e.g. "10 → 4 → 1"), shown so the learner sees the pattern improving (FR-008)."""
     lines = [f"### {p.label} *({p.occurrence_count}×)*"]
     primary = p.evidence[0] if p.evidence else {}
     you_said = (primary.get("quote") or "").strip()
@@ -76,6 +79,8 @@ def _pattern_card(p: frontmatter.GrammarPattern) -> str:
         lines.append(f"- **Better:** “{better}”")
     if p.explanation:
         lines.append(f"- **Because:** {p.explanation.strip()}")
+    if trend:
+        lines.append(f"- **Trend (recent sessions):** {trend}")
     # Additional examples beneath the primary three lines.
     for ev in p.evidence[1:]:
         q = (ev.get("quote") or "").strip()
@@ -101,9 +106,10 @@ def _phase_c_error_note(session: frontmatter.Session) -> str:
 
 def _grammar_section(session: frontmatter.Session) -> str:
     patterns = sorted(session.grammar_patterns, key=_rank_key)
+    trends = session.pattern_trends or {}
     if patterns:
         parts = ["## Grammar patterns"]
-        parts.extend("\n" + _pattern_card(p) for p in patterns)
+        parts.extend("\n" + _pattern_card(p, trends.get(p.label)) for p in patterns)
         return "\n".join(parts) + _phase_c_error_note(session)
     # No patterns: distinguish "LLM ran, found nothing" from "Phase C not enabled".
     placeholder = NO_PATTERNS_LINE if session.generated_by_phase == "C" else PHASE_B_PLACEHOLDER
@@ -155,6 +161,24 @@ def _coaching_section(session: frontmatter.Session) -> str | None:
 # its data is absent, so a pre-feature report (and any session missing the data)
 # is byte-identical to before. Story phases append their own renderers to
 # `_INTERVIEW_LOOP_RENDERERS`.
+
+
+def _warmup_section(session: frontmatter.Session) -> str | None:
+    """P2c: the warm-up drill items with their pass/fail/incomplete verdicts."""
+    warmup = session.warmup
+    if not warmup or not warmup.get("items"):
+        return None
+    lines = ["## Warm-up drill", ""]
+    target = warmup.get("target_pattern")
+    if target:
+        lines.append(f"_Exercising your recurring pattern: **{target}**._")
+        lines.append("")
+    marks = {"pass": "✓", "fail": "✗", "incomplete": "…"}
+    for it in warmup["items"]:
+        result = str(it.get("result", "")).strip()
+        mark = marks.get(result, "•")
+        lines.append(f"- {mark} {str(it.get('target_sentence', '')).strip()} — **{result}**")
+    return "\n".join(lines)
 
 
 def _content_errors_section(session: frontmatter.Session) -> str | None:
@@ -224,9 +248,10 @@ def _follow_ups_section(session: frontmatter.Session) -> str | None:
     return "\n".join(lines).rstrip()
 
 
-# Ordered list of section renderers (data-model §10). Story phases append theirs:
-# US2 warm-up, US3 coverage, US5 type-guidance — inserted in order.
+# Ordered list of section renderers (data-model §10): warm-up → (coverage, P3) →
+# content-errors → pronunciation-flags → follow-ups → (type-guidance, P5).
 _INTERVIEW_LOOP_RENDERERS = [
+    _warmup_section,
     _content_errors_section,
     _pronunciation_flags_section,
     _follow_ups_section,

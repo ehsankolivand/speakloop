@@ -129,6 +129,18 @@ def trends_cmd(
     _trends.run(sessions_dir=sessions_dir, top_patterns=top_patterns, since=since)
 
 
+@app.command("today")
+def today_cmd(
+    limit: int = typer.Option(
+        None, "--limit", help="Max questions to show (default: the loop config's daily capacity)."
+    ),
+) -> None:
+    """Show the due queue — what to practice today, in priority order."""
+    from speakloop.cli import today as _today
+
+    _today.run(limit=limit)
+
+
 @app.command("rebuild")
 def rebuild_cmd(
     sessions_dir: Path = typer.Option(

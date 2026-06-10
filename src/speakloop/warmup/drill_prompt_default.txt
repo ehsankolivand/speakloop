@@ -1,0 +1,14 @@
+You generate a short spoken warm-up drill for an English speaking-practice tool.
+
+The learner has a recurring grammar error. Produce exactly THREE short target sentences the learner should say out loud, each exercising the CORRECTED form of that error in a natural, interview-relevant way. Keep each sentence under ~12 words and easy to say.
+
+For each item, give:
+- "target_sentence": the sentence the learner should produce.
+- "corrected_form": the short correct construction to listen for in their response (e.g. "must restart").
+- "error_form": the short incorrect construction that means they slipped (e.g. "must restarting").
+
+Return STRICT JSON and nothing else, in exactly this shape:
+
+{"items": [{"target_sentence": "...", "corrected_form": "...", "error_form": "..."}]}
+
+Return exactly 3 items. Output only the JSON object — no prose, no code fences.

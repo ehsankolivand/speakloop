@@ -353,11 +353,13 @@ def run(
             grammar_analyzer=grammar_analyzer,
             coach=coach_runner,
             runners=runners,
-            # 010: pass TTS + playback so the coordinator can SPEAK the follow-ups.
-            # listen_in_session stays False (the listen loop already ran above), so
-            # this does not re-play the question/answer.
+            # 010: pass TTS + playback so the coordinator can SPEAK the warm-up +
+            # follow-ups. listen_in_session stays False (the listen loop already ran
+            # above), so this does not re-play the question/answer. store_path enables
+            # the warm-up's top-error lookup + the SRS schedule update.
             tts_engine=tts_engine,
             play_fn=play_fn,
+            store_path=paths.store_path(),
             asr_engine_name=asr_engine_name,
             asr_model_id=asr_model_id,
             asr_fell_back=selection.fell_back,
@@ -420,10 +422,12 @@ def _build_runners(engine):
     from speakloop.triage import consistency as _cons
     from speakloop.triage import mishearing as _mis
     from speakloop.triage.prompts import load_consistency_prompt, load_triage_prompt
+    from speakloop.warmup import drill as _drill
 
     triage_prompt, _ = load_triage_prompt()
     consistency_prompt = load_consistency_prompt()
     followups_prompt, _ = load_followups_prompt()
+    drill_prompt, _ = _drill.load_drill_prompt()
 
     def _mishearing(real_text):
         return _mis.detect_mishearings(real_text, engine, system_prompt=triage_prompt)
@@ -435,7 +439,15 @@ def _build_runners(engine):
     def _followups(question_text, transcripts):
         return _fu.generate_followups(question_text, transcripts, engine, system_prompt=followups_prompt)
 
-    return Runners(mishearing=_mishearing, followups=_followups, consistency=_consistency)
+    def _drill_runner(top_error_label):
+        return _drill.generate_drill(top_error_label, engine, system_prompt=drill_prompt)
+
+    return Runners(
+        mishearing=_mishearing,
+        followups=_followups,
+        consistency=_consistency,
+        drill=_drill_runner,
+    )
 
 
 # --- Cloud mode (008) ------------------------------------------------------

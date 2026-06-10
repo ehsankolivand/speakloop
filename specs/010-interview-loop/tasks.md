@@ -128,25 +128,25 @@ answer under budget, and appears in the report with grammar/fluency feedback (sp
 warm-up reporting pass/fail per item (spec US2 acceptance + SC-005/SC-011). Uses the grammar+fluency
 grade fallback until P3 lands.
 
-- [ ] T037 [P] [US2] Implement the answer-quality grade (coverage-primary with grammar+fluency fallback) in `src/speakloop/srs/grade.py`
-- [ ] T038 [P] [US2] Implement the interval ladder + mastery/demotion transitions in `src/speakloop/srs/schedule.py`
-- [ ] T039 [P] [US2] Implement due-queue priority ordering + capacity/carry-forward + non-empty-while-below-mastery in `src/speakloop/srs/queue.py`
-- [ ] T040 [P] [US2] Write `src/speakloop/srs/CLAUDE.md`
-- [ ] T041 [P] [US2] Add the drill system prompt default `src/speakloop/warmup/drill_prompt_default.txt` (3-item drill, strict-JSON per C6)
-- [ ] T042 [US2] Implement drill generation + the **deterministic** pass/fail/incomplete judge in `src/speakloop/warmup/drill.py`
-- [ ] T043 [P] [US2] Write `src/speakloop/warmup/CLAUDE.md`
-- [ ] T044 [US2] Add per-pattern occurrence time-series (window N=3, chronological, zero-fill, single-point-no-arrow) in `src/speakloop/trends/aggregator.py`
-- [ ] T045 [US2] Render the per-pattern trend series (the FR-009 "stats" view, one command) in `src/speakloop/trends/renderer.py`
-- [ ] T046 [P] [US2] Implement the loop-config YAML loader (daily capacity default 5, warm-up/follow-up defaults) in `src/speakloop/config/loop_config.py`
-- [ ] T047 [US2] Add the `speakloop today` due-queue command in `src/speakloop/cli/today.py` and register it in `src/speakloop/cli/main.py` (read-only; loads no engines; empty-queue messaging)
-- [ ] T048 [US2] Wire the drill runner + warm-up stage before attempt 1 + post-report grade/schedule/store write in `src/speakloop/sessions/coordinator.py` (grade the session, update the `ScheduleEntry`, save the store atomically; `--no-warmup`; skip warm-up gracefully when no qualifying error or generation unavailable)
-- [ ] T049 [US2] Render the Warm-up section + per-pattern trend lines in the grammar section in `src/speakloop/feedback/report_builder.py`
-- [ ] T050 [P] [US2] Table-driven test of SRS scheduling math (poor→1d, fair→2d, good→×2, strong→×2.5, cap 21, mastery=2-strong, demotion) in `tests/unit/srs/test_schedule.py`
-- [ ] T051 [P] [US2] Table-driven test of due-queue priority + capacity carry-forward + non-empty-while-below-mastery + cold-start ranking in `tests/unit/srs/test_queue.py`
-- [ ] T052 [P] [US2] Table-driven test of grade banding (coverage-primary + grammar/fluency fallback) in `tests/unit/srs/test_grade.py`
-- [ ] T053 [P] [US2] Test the per-pattern trend series (window length, zero-fill, single-point) in `tests/unit/trends/test_pattern_series.py`
-- [ ] T054 [P] [US2] Manual smoke-test checklist `specs/010-interview-loop/manual-tests/us2-warmup.md` — verify by ear: warm-up speaks 3 items with **immediate** pass/fail; **TTS pronunciation** of generated drill sentences; `today` ordering reads sensibly
-- [ ] T055 [US2] Update report rendering + regenerate the sample report `tests/fixtures/reports/sample-us2-memory.md` (warm-up + trend lines visible in diff)
+- [X] T037 [P] [US2] Implement the answer-quality grade (coverage-primary with grammar+fluency fallback) in `src/speakloop/srs/grade.py`
+- [X] T038 [P] [US2] Implement the interval ladder + mastery/demotion transitions in `src/speakloop/srs/schedule.py`
+- [X] T039 [P] [US2] Implement due-queue priority ordering + capacity/carry-forward + non-empty-while-below-mastery in `src/speakloop/srs/queue.py`
+- [X] T040 [P] [US2] Write `src/speakloop/srs/CLAUDE.md`
+- [X] T041 [P] [US2] Add the drill system prompt default `src/speakloop/warmup/drill_prompt_default.txt` (3-item drill, strict-JSON per C6)
+- [X] T042 [US2] Implement drill generation + the **deterministic** pass/fail/incomplete judge in `src/speakloop/warmup/drill.py`
+- [X] T043 [P] [US2] Write `src/speakloop/warmup/CLAUDE.md`
+- [X] T044 [US2] Add per-pattern occurrence time-series (window N=3, chronological, zero-fill, single-point-no-arrow) in `src/speakloop/trends/aggregator.py`
+- [X] T045 [US2] Render the per-pattern trend series (the FR-009 "stats" view, one command) in `src/speakloop/trends/renderer.py`
+- [X] T046 [P] [US2] Implement the loop-config YAML loader (daily capacity default 5, warm-up/follow-up defaults) in `src/speakloop/config/loop_config.py`
+- [X] T047 [US2] Add the `speakloop today` due-queue command in `src/speakloop/cli/today.py` and register it in `src/speakloop/cli/main.py` (read-only; loads no engines; empty-queue messaging)
+- [X] T048 [US2] Wire the drill runner + warm-up stage before attempt 1 + post-report grade/schedule/store write in `src/speakloop/sessions/coordinator.py` (grade the session, update the `ScheduleEntry`, save the store atomically; `--no-warmup`; skip warm-up gracefully when no qualifying error or generation unavailable)
+- [X] T049 [US2] Render the Warm-up section + per-pattern trend lines in the grammar section in `src/speakloop/feedback/report_builder.py`
+- [X] T050 [P] [US2] Table-driven test of SRS scheduling math (poor→1d, fair→2d, good→×2, strong→×2.5, cap 21, mastery=2-strong, demotion) in `tests/unit/srs/test_schedule.py`
+- [X] T051 [P] [US2] Table-driven test of due-queue priority + capacity carry-forward + non-empty-while-below-mastery + cold-start ranking in `tests/unit/srs/test_queue.py`
+- [X] T052 [P] [US2] Table-driven test of grade banding (coverage-primary + grammar/fluency fallback) in `tests/unit/srs/test_grade.py`
+- [X] T053 [P] [US2] Test the per-pattern trend series (window length, zero-fill, single-point) in `tests/unit/trends/test_pattern_series.py`
+- [X] T054 [P] [US2] Manual smoke-test checklist `specs/010-interview-loop/manual-tests/us2-warmup.md` — verify by ear: warm-up speaks 3 items with **immediate** pass/fail; **TTS pronunciation** of generated drill sentences; `today` ordering reads sensibly
+- [X] T055 [US2] Update report rendering + regenerate the sample report `tests/fixtures/reports/sample-us2-memory.md` (warm-up + trend lines visible in diff)
 
 **Checkpoint**: US1 + US2 both work independently.
 

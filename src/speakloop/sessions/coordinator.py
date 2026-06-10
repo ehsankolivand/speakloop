@@ -57,6 +57,12 @@ class Runners:
     mishearing: Callable | None = None
     followups: Callable | None = None
     consistency: Callable | None = None
+    # P2c: drill(top_error_label: str) -> list[warmup.DrillItem]
+    drill: Callable | None = None
+    # P3: keypoints(question_text, ideal_answer, question_type) -> KeyPointSet dict
+    keypoints: Callable | None = None
+    # P3: coverage(key_points, transcripts, ideal_answer) -> {attempts, content_errors}
+    coverage: Callable | None = None
 
 
 class AbortedError(Exception):
@@ -384,6 +390,76 @@ def _run_follow_ups(
     return follow_ups
 
 
+WARMUP_ITEM_BUDGET_SECONDS = 20  # 3 items ≈ 30–60s total (Key Definitions)
+
+
+def _top_recurring_error(store, *, window: int = 5, min_total: int = 2) -> str | None:
+    """The grammar-pattern label with the highest recent total (Key Definitions)."""
+    best_label, best_total = None, 0
+    for label, series in (getattr(store, "patterns", None) or {}).items():
+        total = sum(int(c) for _, c in series[-window:])
+        if total > best_total:
+            best_label, best_total = label, total
+    return best_label if best_total >= min_total else None
+
+
+def _run_warmup(
+    question: Question,
+    *,
+    runners: Runners | None,
+    store,
+    asr_engine: ASREngine,
+    record_fn,
+    tts_engine,
+    play_fn,
+    context: TranscriptionContext | None,
+    scratch_dir: Path,
+    early_exit_event: threading.Event,
+    console: Console,
+) -> dict | None:
+    """P2c: a 30–60s spoken warm-up drill from the learner's top recurring error,
+    with immediate per-item pass/fail. No-op (None) unless a drill runner + TTS +
+    store are present. Skips gracefully when there's no qualifying error or
+    generation fails (FR-016/FR-017). Live audio = smoke-validated."""
+    if not (runners and runners.drill and tts_engine is not None and play_fn is not None and store is not None):
+        return None
+    top_error = _top_recurring_error(store)
+    if not top_error:
+        return {"skipped_reason": "no_recurring_error", "items": []}
+    try:
+        items = runners.drill(top_error)
+    except Exception as e:  # noqa: BLE001 — warm-up is best-effort; never block the session
+        console.print(f"[yellow]Warm-up generation unavailable: {e}. Skipping warm-up.[/yellow]")
+        return {"target_pattern": top_error, "skipped_reason": "generation_unavailable", "items": []}
+    if not items:
+        return {"target_pattern": top_error, "skipped_reason": "generation_unavailable", "items": []}
+
+    from speakloop.warmup.drill import judge_item
+
+    console.print(f"\n[bold]Warm-up[/bold] (30–60s) — exercising: [cyan]{top_error}[/cyan]")
+    results: list[dict] = []
+    for i, item in enumerate(items, start=1):
+        if abort.abort_event.is_set():
+            break
+        console.print(f"[dim]Say:[/dim] {item.target_sentence}")
+        try:
+            play_fn(tts_engine.synthesize(item.target_sentence, voice=question.voice_override))
+        except Exception:  # noqa: BLE001 — playback failure → mark incomplete, continue
+            results.append({"index": i, "target_sentence": item.target_sentence, "result": "incomplete"})
+            continue
+        wav_path = scratch_dir / f"warmup-{i}.wav"
+        early_exit_event.clear()
+        try:
+            record_fn(wav_path, time_budget_seconds=WARMUP_ITEM_BUDGET_SECONDS, early_exit_event=early_exit_event)
+            transcript = asr_engine.transcribe(wav_path, context=context)
+            verdict = judge_item(item, transcript.text)
+        except Exception:  # noqa: BLE001 — device failure → incomplete, continue
+            verdict = "incomplete"
+        console.print(f"  → [bold]{verdict}[/bold]")
+        results.append({"index": i, "target_sentence": item.target_sentence, "result": verdict})
+    return {"target_pattern": top_error, "items": results}
+
+
 def run_session(
     question: Question,
     *,
@@ -395,6 +471,7 @@ def run_session(
     coach=None,
     runners: Runners | None = None,
     listen_in_session: bool = False,
+    store_path: Path | None = None,
     console: Console | None = None,
     sessions_dir: Path | None = None,
     scratch_dir: Path | None = None,
@@ -444,6 +521,30 @@ def run_session(
     context = domain_context.build_context(question)
 
     early_exit_event = threading.Event()
+
+    # 010 P2: load the derived store (top recurring error for the warm-up + the SRS
+    # schedule update after the session). Only when store_path is provided — the CLI
+    # passes one; tests omit it → no store I/O and no warm-up (legacy behavior).
+    store = None
+    if store_path is not None:
+        from speakloop.store import io as _store_io
+
+        store = _store_io.load(store_path)
+
+    warmup_result = _run_warmup(
+        question,
+        runners=runners,
+        store=store,
+        asr_engine=asr_engine,
+        record_fn=record_fn,
+        tts_engine=tts_engine,
+        play_fn=play_fn,
+        context=context,
+        scratch_dir=scratch_dir,
+        early_exit_event=early_exit_event,
+        console=console,
+    )
+
     transcripts: list[Transcript] = []
     try:
         for ordinal in (1, 2, 3):
@@ -573,6 +674,37 @@ def run_session(
             fell_back=asr_fell_back,
         )
 
+    # 010 P2b: grade the session (only when grammar actually ran — a degraded /
+    # no-model session stays un-graded, FR-035a). Coverage-primary in P3; here the
+    # grade falls back to grammar severity.
+    from speakloop.srs import grade as _srs_grade
+
+    answer_grade = None
+    if phase == "C":
+        answer_grade = _srs_grade.grade_session(
+            coverage_aggregate=None,  # P3 supplies the coverage aggregate
+            content_error_count=0,
+            grammar_patterns=grammar_patterns,
+        )
+
+    # 010 P2a: fold this session's patterns into the store and derive the trend
+    # lines for the patterns shown this session (FR-008).
+    pattern_trends: dict | None = None
+    if store is not None:
+        from speakloop.trends.aggregator import format_series
+
+        iso = started_at.date().isoformat()
+        for p in grammar_patterns:
+            label = (p.label or "").strip()
+            if label:
+                store.patterns.setdefault(label, []).append([iso, int(p.occurrence_count)])
+        trends = {
+            (p.label or "").strip(): format_series(store.patterns[(p.label or "").strip()], window=3)
+            for p in grammar_patterns
+            if (p.label or "").strip() and store.patterns.get((p.label or "").strip())
+        }
+        pattern_trends = trends or None
+
     date_str = started_at.date().isoformat()
     report_path = markdown_writer.next_available_path(sessions_dir, date_str, question.id)
     session = frontmatter.Session(
@@ -595,6 +727,9 @@ def run_session(
         # 010 additive: question type (P5), triage outputs (P4), follow-ups (P1),
         # and the degradation flag. All default-empty for legacy/local callers.
         question_type=getattr(question, "type", None) or "definition",
+        warmup=warmup_result,
+        answer_grade=answer_grade,
+        pattern_trends=pattern_trends,
         follow_ups=follow_ups,
         pronunciation_flags=pronunciation_flags,
         # Emit the triage summary only when there is something to summarize (a
@@ -610,4 +745,21 @@ def run_session(
     body = report_builder.build(session)
     markdown_writer.write_atomic(report_path, body)
     console.print(f"[green]Report written:[/green] {report_path}")
+
+    # 010 P2b: advance the SRS schedule in the store (only on a graded session) and
+    # persist the store atomically. The report (the source of truth) is already
+    # written, so a store-write failure never costs the session.
+    if store is not None and store_path is not None:
+        if answer_grade is not None:
+            from speakloop.srs import schedule as _srs_schedule
+            from speakloop.store.model import ScheduleEntry
+
+            entry = store.schedule.get(question.id) or ScheduleEntry(question_id=question.id)
+            store.schedule[question.id] = _srs_schedule.next_due(
+                entry, answer_grade, today=started_at.date()
+            )
+        from speakloop.store import io as _store_io
+
+        _store_io.save_atomic(store_path, store)
+
     return SessionResult(report_path=report_path, session=session)

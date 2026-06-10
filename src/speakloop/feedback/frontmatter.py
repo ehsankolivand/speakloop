@@ -134,6 +134,9 @@ class Session:
     answer_grade: str | None = None  # poor|fair|good|strong — drives SRS scheduling
     analysis_pending: bool = False  # P-degradation: `speakloop resume` re-runs analysis (FR-035a)
     triage_summary: dict | None = None  # P4: counts of real/mishearing/hallucination spans
+    # P2a: per-pattern occurrence trend strings for patterns shown this session
+    # (label -> "10 → 4 → 1"), derived from the cross-session store (FR-008).
+    pattern_trends: dict | None = None
 
 
 class _LiteralStr(str):
@@ -250,6 +253,8 @@ def dump(session: Session) -> str:
         payload["analysis_pending"] = True
     if session.triage_summary:
         payload["triage_summary"] = session.triage_summary
+    if session.pattern_trends:
+        payload["pattern_trends"] = session.pattern_trends
     body = yaml.dump(payload, sort_keys=False, allow_unicode=True, default_flow_style=False)
     return f"---\n{body}---\n"
 
@@ -392,5 +397,8 @@ def parse(text: str) -> Session:
         analysis_pending=bool(data.get("analysis_pending", False)),
         triage_summary=(
             data.get("triage_summary") if isinstance(data.get("triage_summary"), dict) else None
+        ),
+        pattern_trends=(
+            data.get("pattern_trends") if isinstance(data.get("pattern_trends"), dict) else None
         ),
     )

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 
 from speakloop.trends.reader import Report
+
+_MIN_DT = datetime.min
 
 METRIC_KEYS = (
     "speech_rate_wpm",
@@ -30,6 +32,18 @@ class TrendsSummary:
     date_range: tuple[date | None, date | None] = (None, None)
     metric_series: dict[str, list[tuple[date, float]]] = field(default_factory=dict)
     pattern_ranking: list[PatternRankRow] = field(default_factory=list)
+    # 010 P2a: per-pattern occurrence series across sessions (chronological), for
+    # the "stats" view (FR-009). label -> [(date, count), ...].
+    pattern_series: dict[str, list[tuple[date, int]]] = field(default_factory=dict)
+
+
+def format_series(series: list[tuple[date, int]], *, window: int = 3) -> str:
+    """Render the last ``window`` occurrence counts as e.g. "10 → 4 → 1" (FR-008).
+
+    A single data point renders as a bare number (no arrow), matching the
+    single-data-point edge case."""
+    counts = [int(c) for _, c in series[-window:]]
+    return " → ".join(str(c) for c in counts)
 
 
 def _attempt_three(report: Report) -> dict:
@@ -59,7 +73,8 @@ def aggregate(reports: list[Report], *, top_n: int = 10) -> TrendsSummary:
 
     pattern_totals: dict[str, int] = defaultdict(int)
     pattern_sessions: dict[str, list[str]] = defaultdict(list)
-    for r in reports:
+    pattern_series: dict[str, list[tuple[date, int]]] = defaultdict(list)
+    for r in sorted(reports, key=lambda rr: rr.started_at or _MIN_DT):
         for p in r.grammar_patterns:
             label = (p.get("label") or "").strip()
             if not label:
@@ -67,6 +82,8 @@ def aggregate(reports: list[Report], *, top_n: int = 10) -> TrendsSummary:
             count = int(p.get("occurrence_count") or 0)
             pattern_totals[label] += count
             pattern_sessions[label].append(r.session_id)
+            if r.started_at is not None:
+                pattern_series[label].append((r.started_at.date(), count))
 
     ranked = sorted(
         pattern_totals.items(),
@@ -82,4 +99,5 @@ def aggregate(reports: list[Report], *, top_n: int = 10) -> TrendsSummary:
         date_range=date_range,
         metric_series=metric_series,
         pattern_ranking=pattern_ranking,
+        pattern_series=dict(pattern_series),
     )
