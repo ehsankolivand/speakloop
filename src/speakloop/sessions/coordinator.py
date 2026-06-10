@@ -965,6 +965,7 @@ def run_session(
     # 010 P2b: advance the SRS schedule in the store (only on a graded session) and
     # persist the store atomically. The report (the source of truth) is already
     # written, so a store-write failure never costs the session.
+    next_due: str | None = None
     if store is not None and store_path is not None:
         # Advance only on a graded, complete session — a degraded/analysis-pending
         # session stays due and un-graded so `resume` can re-grade it (FR-035a).
@@ -973,11 +974,15 @@ def run_session(
             from speakloop.store.model import ScheduleEntry
 
             entry = store.schedule.get(question.id) or ScheduleEntry(question_id=question.id)
-            store.schedule[question.id] = _srs_schedule.next_due(
-                entry, answer_grade, today=started_at.date()
-            )
+            advanced = _srs_schedule.next_due(entry, answer_grade, today=started_at.date())
+            store.schedule[question.id] = advanced
+            next_due = advanced.next_due
         from speakloop.store import io as _store_io
 
         _store_io.save_atomic(store_path, store)
+
+    # 012/US2: compact closing summary so opening the report file is optional (FR-015).
+    # Degrades honestly on an analysis-pending session (FR-016).
+    session_ui.render_summary(console, session, next_due=next_due)
 
     return SessionResult(report_path=report_path, session=session)

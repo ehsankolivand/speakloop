@@ -112,10 +112,10 @@ grade/coverage-first→final/top-fix/next-due from the same data written to the 
 
 - [x] T023 [US2] Honor `autoplay_ideal_answer` in the listen loop (`cli/practice.py`): when
   false, play the question but not the ideal answer; `r` still replays it on demand (FR-014).
-- [ ] T024 [US2] Add `render_summary(session, next_due)` to `session_ui.py`: compact box with
+- [x] T024 [US2] Add `render_summary(session, next_due)` to `session_ui.py`: compact box with
   grade, coverage first→final, top fix, next due date; degrade honestly when `analysis_pending`
   (no fabricated grade, FR-016). Print it after the report is written in `run_session`.
-- [ ] T025 [P] [US2] Tests in `tests/unit/test_session_ui.py`: summary content for a graded
+- [x] T025 [P] [US2] Tests in `tests/unit/test_session_ui.py`: summary content for a graded
   session and for a degraded/analysis-pending session; autoplay-off path leaves the ideal answer
   un-played but replayable.
 

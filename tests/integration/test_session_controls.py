@@ -167,6 +167,45 @@ def test_listen_clip_non_interactive_uses_play_fn(tmp_path):
 # --- follow-up prompt skip ---------------------------------------------------
 
 
+# --- autoplay-ideal-answer toggle (US2) --------------------------------------
+
+
+class _StubTTS:
+    def synthesize(self, text, voice=None):
+        return Path(f"/tmp/clip-{text}.wav")
+
+    def available_voices(self):
+        return []
+
+
+def _question():
+    from speakloop.content import Question
+
+    return Question(id="q1", question="What is X?", ideal_answer="X is Y.")
+
+
+def test_listen_loop_autoplay_off_skips_ideal(monkeypatch):
+    """FR-014: autoplay off → question plays, ideal answer does NOT auto-play."""
+    monkeypatch.setattr("speakloop.cli.practice._read_key", lambda: " ")  # advance at the idle prompt
+    played: list = []
+    exit_key = practice._listen_loop(
+        _question(), _console(), _StubTTS(), played.append,
+        key_reader=NullKeyReader(), autoplay_ideal=False,
+    )
+    assert exit_key == " "
+    assert played == [Path("/tmp/clip-What is X?.wav")]  # ONLY the question
+
+
+def test_listen_loop_autoplay_on_plays_both(monkeypatch):
+    monkeypatch.setattr("speakloop.cli.practice._read_key", lambda: " ")
+    played: list = []
+    practice._listen_loop(
+        _question(), _console(), _StubTTS(), played.append,
+        key_reader=NullKeyReader(), autoplay_ideal=True,
+    )
+    assert played == [Path("/tmp/clip-What is X?.wav"), Path("/tmp/clip-X is Y..wav")]
+
+
 def test_play_prompt_skip_followup_on_s(monkeypatch, tmp_path):
     _stub_interruptible(monkeypatch)
     wav = tmp_path / "p.wav"
