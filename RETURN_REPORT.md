@@ -192,3 +192,151 @@ are the `live_asr` smoke tests. Run time ~18 s.
 - Real claude measurement budget used: **17 of 20** calls (9 baseline + 8 after).
 - Constitution gates all pass (session files source of truth; schema_version 1; offline default
   unaffected; never lose a recording). No new dependency.
+
+---
+
+## 013 — grammar JSON discipline (surgical sprint)
+
+**Branch**: `013-grammar-json-discipline` (forked from `012-responsive-session-flow`) ·
+**Status**: implemented, suite green, pushed, NOT merged. · **Date**: 2026-06-11
+
+**Goal**: eliminate the grammar call's parse-failure → bounded-regenerate path by hardening
+ONLY the grammar prompt's JSON discipline — same model, same JSON schema, same downstream
+parsing semantics. Quality untouchable.
+
+### The exact regenerate trigger (diagnosed in code)
+
+`feedback/grammar_analyzer.analyze()` fires its ONE bounded regenerate when, after the first
+generate pass, **either**:
+
+1. `payload is None` — the entire `_extract_json` recovery ladder raised `ValueError`. The
+   ladder is: (1) strict `json.loads` of the fence-stripped text → (2) strict parse of the
+   first `{…}` region → (3) `json_repair` on the full text → (4) `json_repair` on just the
+   `{…}` region. Only when **all four** fail to yield a non-empty dict is `payload` None; **or**
+2. `_looks_like_repetition_loop(raw)` is True — a degenerate-repetition signature (≥ 8 identical
+   tokens in a row, or one line repeated ≥ 6×).
+
+On regenerate, the call re-runs with `retry=True` (the Claude Code engine appends a STRICT-JSON
+reminder to the **user** prompt; the system prompt stays verbatim). If the second pass also
+fails to parse, `analyze()` raises `LLMEngineError` → coordinator records `analysis_pending`
+(graceful; recordings/transcripts/Phase-B report survive).
+
+**Which prompt the `claude` engine actually uses** — *not* the module `_SYSTEM_PROMPT`. The
+`--engine claude` / `--cloud` paths call `analyze(..., system_prompt=load_cloud_prompt())`, i.e.
+the seeded `~/.speakloop/openrouter_prompt.txt`, which is seeded from the packaged
+`src/speakloop/feedback/openrouter_prompt_default.txt`. **That packaged asset is the file edited.**
+
+### Headline empirical finding — the regenerate did NOT reproduce, and the premise was a misdiagnosis
+
+Over **20 real `claude` (sonnet) grammar calls** (10 before + 10 after), the bounded regenerate
+fired **0 times**. Every returning call parsed on **rung 1** (strict `json.loads` after
+fence-strip): **8/8 before, 9/9 after** — zero fence-strips, zero `json_repair`, zero parse
+failures.
+
+The slow baseline runs that the sprint premise attributed to regenerates (the prior 226 s
+`grammar#1`) were in fact **single-pass** calls (`passes=1`, `regen=False`) that hit the model-
+latency tail or the 240 s engine timeout. So the "~half of grammar calls regenerate, costing
+~2×" model was a **misdiagnosis**: the grammar-call latency variance is **single-pass sonnet
+reasoning time plus the 240 s timeout tail**, not regeneration. A JSON-discipline prompt change
+therefore cannot move the latency tail — and the change here does not claim to. It is correct,
+low-risk **preventive** hygiene for the fence/preamble/escaping/truncation modes that simply did
+not occur in the sample (honesty clause).
+
+### Observed "failures" — timeouts, not parse failures
+
+| Failure kind | Before (10 calls) | After (10 calls) |
+|--------------|-------------------|------------------|
+| JSON parse failure (any rung) | **0** | **0** |
+| Bounded regenerate fired | **0** | **0** |
+| `ClaudeCodeTimeoutError` (240 s) | **2** (runs 7, 10) | **1** |
+
+A timeout aborts the subprocess before any `result` is returned, so there is **no raw model
+output to save** for these — the failure mode is a latency tail, not malformed JSON. Documented
+in `grammar_raw_failures/before_timeouts_NOTE.md` (the dir holds raw output only for genuine
+non-clean *parses*, of which there were none).
+
+### The prompt change (format discipline only)
+
+Edited the `# Output format` section of `openrouter_prompt_default.txt` only. Diff-reviewed:
+**lines 1–44 — every analytical instruction (what to flag, minimal edits, label/quote/evidence
+semantics, the worked examples, "skip what you cannot fix", "most important rule") — are
+byte-identical** (verified by `sha256sum` of the first 44 lines: `b4c0b3f4…` before == after).
+The new block adds:
+
+- "Return exactly one JSON object and nothing else. The first character … must be `{` and the
+  last … `}`." — explicit single-object + delimiter framing;
+- "no preamble, no explanation, no commentary, no markdown code fences (no ```), and no
+  `<think>` block";
+- a compact valid example in the exact shape (parses strictly under `json.loads`);
+- **String rules**: double quotes used ONLY as JSON delimiters; write each value as plain text
+  without wrapping any phrase in its own quotation marks (escape `\"` / `\\` if a value truly
+  must contain one); one line per value (no literal newlines); no trailing commas.
+
+No analytical instruction, ranking rule, or evidence-format semantic changed. The schema, the
+recovery ladder, and all downstream parsing are untouched. `schema_version` stays **1**.
+
+### Before / after (real `claude`, model `sonnet`, same fixture transcripts)
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Runs / real calls | 10 / 10 | 10 / 10 |
+| Method | serial | concurrency 3 (= production cap) |
+| First-rung (strict) parse, of returning calls | **8/8** | **9/9** |
+| First-rung incl. timeouts | 8/10 | **9/10** |
+| Regenerate fired | **0/10** | **0/10** |
+| Timeouts (240 s) | 2 | 1 |
+| Per-call latency, returning (median) | ~141 s (range 102–227 s) | ~176 s (range 107–215 s) |
+| End-to-end median / worst (all runs) | 149 s / 240 s | 204 s / 240 s |
+
+**Success bar (≥ 9/10 first-rung parse, zero regenerates after): MET** — 9/10 first-rung (the
+10th was a timeout, not a parse failure), zero regenerates, and 9/9 of the calls that returned.
+
+**Latency caveat (honest):** the before-run was serial and the after-run was concurrency-3 (to
+respect a long wait; chosen because each grammar call is an *independent* `claude` subprocess so
+per-call latency is method-comparable in principle). In practice 3 simultaneous sonnet calls on
+one subscription share throughput, which inflates the after per-call latency — so the apparent
+median increase (141 → 176 s) is a **measurement artifact of concurrency, not the prompt** (an
+~8-line format addition cannot add ~35 s of generation). The defensible conclusion is the one
+above: the regenerate path — the only thing this change touches — **never fired in either
+sample**, so there is no latency delta attributable to the prompt and no regenerate-latency to
+eliminate. Single-pass reasoning time dominates and is out of scope for a JSON-discipline change.
+
+### Quality sanity check (structural + semantic equivalence — PASS)
+
+Same kinds of patterns, comparable counts:
+
+| | Before (8 returning) | After (9 returning) |
+|--|----------------------|---------------------|
+| `subject-verb agreement` | 8/8 | 9/9 |
+| `missing plural -s` | 8/8 | 9/9 |
+| article errors | `missing article` 8/8 | `missing article` 8/9 (one run split into `missing definite article` + `missing indefinite article` — same error, finer label) |
+| extra legitimate finding | — | `missing gerund -ing` 1/9 ("play music" → "playing music"), a correct grammar fix |
+| findings / run | 10–18 | 12–18 |
+
+The label set is the same three core grammar categories; the only deltas are LLM-nondeterministic
+labeling granularity and one additional *correct* finding — i.e. equal or marginally more
+thorough, never degraded. **Not reverted; shipped.**
+
+### Verification
+
+- **Full suite**: `uv run pytest -q` → **696 passed, 3 skipped, 2 deselected** (identical to the
+  pre-change baseline). **No test edited** — the only content-coupled test
+  (`tests/unit/feedback/test_cloud_prompt.py`) asserts `loaded == asset file`, `"JSON" in text`,
+  and `loaded != _SYSTEM_PROMPT`, all of which survive an asset edit. (Per the sprint guard:
+  needing a test edit would have meant more than format changed — it did not.) `git status`
+  confirms the only tracked source change is `feedback/openrouter_prompt_default.txt`.
+
+### Seeded-file action (deployment gotcha)
+
+`~/.speakloop/openrouter_prompt.txt` was diffed against the **old** packaged default and found
+**byte-identical** (no user customizations) → overwritten with the new default so the change takes
+effect on this machine. All three (packaged default, seeded user copy, research candidate) now
+share sha `260442f8…`; `load_cloud_prompt()` was confirmed to serve the new prompt. (Had the
+seeded file carried edits, they would have been merged onto the new default and called out here.)
+
+### Budget
+
+Real `claude` calls used this sprint: **20 of 25 approved** (10 baseline + 10 after; each set was
+8–9 returning calls + 1–2 timeouts, every timeout still counted against budget). No automated test
+touches the real binary — all measurement is via the manual harness
+`specs/012-responsive-session-flow/research/measure_grammar_json.py`.

@@ -1,0 +1,846 @@
+{
+  "tag": "before",
+  "runs": 10,
+  "real_calls": 8,
+  "max_calls_cap": 15,
+  "prompt_sha": "be24c1b767bc",
+  "prompt_path": "~/.speakloop/openrouter_prompt.txt",
+  "first_rung_parse": "8/10",
+  "regenerate_fired": "0/10",
+  "median_seconds": 149.29,
+  "worst_seconds": 240.02,
+  "rung_counts": {
+    "NO_PASS": 2,
+    "rung1_strict": 8
+  },
+  "records": [
+    {
+      "run": 1,
+      "tag": "before",
+      "seconds": 149.29,
+      "passes": 1,
+      "pass_seconds": [
+        149.29
+      ],
+      "regenerate_fired": false,
+      "first_pass_rung": "rung1_strict",
+      "first_pass_strict": true,
+      "first_pass_fence_stripped": false,
+      "last_pass_rung": "rung1_strict",
+      "first_pass_repetition_loop": false,
+      "n_patterns": 3,
+      "n_findings": 10,
+      "pattern_labels": [
+        "missing article",
+        "missing plural -s",
+        "subject-verb agreement"
+      ],
+      "patterns": [
+        {
+          "label": "missing plural -s",
+          "occurrence_count": 4,
+          "impact_rank": 1,
+          "evidence": [
+            {
+              "quote": "four main component",
+              "corrected": "four main components"
+            },
+            {
+              "quote": "for long task",
+              "corrected": "for long tasks"
+            },
+            {
+              "quote": "system event",
+              "corrected": "system events"
+            },
+            {
+              "quote": "between app",
+              "corrected": "between apps"
+            }
+          ]
+        },
+        {
+          "label": "missing article",
+          "occurrence_count": 3,
+          "impact_rank": 2,
+          "evidence": [
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            },
+            {
+              "quote": "with user interface",
+              "corrected": "with a user interface"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            }
+          ]
+        },
+        {
+          "label": "subject-verb agreement",
+          "occurrence_count": 3,
+          "impact_rank": 3,
+          "evidence": [
+            {
+              "quote": "Android have",
+              "corrected": "Android has"
+            },
+            {
+              "quote": "Service do",
+              "corrected": "Service does"
+            },
+            {
+              "quote": "Content Provider manage",
+              "corrected": "Content Provider manages"
+            }
+          ]
+        }
+      ],
+      "err": null
+    },
+    {
+      "run": 2,
+      "tag": "before",
+      "seconds": 132.85,
+      "passes": 1,
+      "pass_seconds": [
+        132.85
+      ],
+      "regenerate_fired": false,
+      "first_pass_rung": "rung1_strict",
+      "first_pass_strict": true,
+      "first_pass_fence_stripped": false,
+      "last_pass_rung": "rung1_strict",
+      "first_pass_repetition_loop": false,
+      "n_patterns": 3,
+      "n_findings": 18,
+      "pattern_labels": [
+        "missing article",
+        "missing plural -s",
+        "subject-verb agreement"
+      ],
+      "patterns": [
+        {
+          "label": "missing article",
+          "occurrence_count": 8,
+          "impact_rank": 1,
+          "evidence": [
+            {
+              "quote": "is Activity",
+              "corrected": "is an Activity"
+            },
+            {
+              "quote": "screen user",
+              "corrected": "screen the user"
+            },
+            {
+              "quote": "is Service",
+              "corrected": "is a Service"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            },
+            {
+              "quote": "have Broadcast Receiver",
+              "corrected": "have a Broadcast Receiver"
+            },
+            {
+              "quote": "is Content Provider",
+              "corrected": "is a Content Provider"
+            },
+            {
+              "quote": "with user interface",
+              "corrected": "with a user interface"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            }
+          ]
+        },
+        {
+          "label": "subject-verb agreement",
+          "occurrence_count": 6,
+          "impact_rank": 2,
+          "evidence": [
+            {
+              "quote": "Android have",
+              "corrected": "Android has"
+            },
+            {
+              "quote": "user see",
+              "corrected": "user sees"
+            },
+            {
+              "quote": "that run",
+              "corrected": "that runs"
+            },
+            {
+              "quote": "that listen",
+              "corrected": "that listens"
+            },
+            {
+              "quote": "Service do",
+              "corrected": "Service does"
+            },
+            {
+              "quote": "Provider manage",
+              "corrected": "Provider manages"
+            }
+          ]
+        },
+        {
+          "label": "missing plural -s",
+          "occurrence_count": 4,
+          "impact_rank": 3,
+          "evidence": [
+            {
+              "quote": "four main component",
+              "corrected": "four main components"
+            },
+            {
+              "quote": "for long task",
+              "corrected": "for long tasks"
+            },
+            {
+              "quote": "system event",
+              "corrected": "system events"
+            },
+            {
+              "quote": "between app",
+              "corrected": "between apps"
+            }
+          ]
+        }
+      ],
+      "err": null
+    },
+    {
+      "run": 3,
+      "tag": "before",
+      "seconds": 102.06,
+      "passes": 1,
+      "pass_seconds": [
+        102.06
+      ],
+      "regenerate_fired": false,
+      "first_pass_rung": "rung1_strict",
+      "first_pass_strict": true,
+      "first_pass_fence_stripped": false,
+      "last_pass_rung": "rung1_strict",
+      "first_pass_repetition_loop": false,
+      "n_patterns": 3,
+      "n_findings": 14,
+      "pattern_labels": [
+        "missing article",
+        "missing plural -s",
+        "subject-verb agreement"
+      ],
+      "patterns": [
+        {
+          "label": "subject-verb agreement",
+          "occurrence_count": 6,
+          "impact_rank": 1,
+          "evidence": [
+            {
+              "quote": "Android have",
+              "corrected": "Android has"
+            },
+            {
+              "quote": "user see",
+              "corrected": "user sees"
+            },
+            {
+              "quote": "Service that run",
+              "corrected": "Service that runs"
+            },
+            {
+              "quote": "that listen",
+              "corrected": "that listens"
+            },
+            {
+              "quote": "Service do",
+              "corrected": "Service does"
+            },
+            {
+              "quote": "Provider manage",
+              "corrected": "Provider manages"
+            }
+          ]
+        },
+        {
+          "label": "missing article",
+          "occurrence_count": 4,
+          "impact_rank": 2,
+          "evidence": [
+            {
+              "quote": "screen user",
+              "corrected": "screen the user"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            },
+            {
+              "quote": "with user interface",
+              "corrected": "with a user interface"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            }
+          ]
+        },
+        {
+          "label": "missing plural -s",
+          "occurrence_count": 4,
+          "impact_rank": 3,
+          "evidence": [
+            {
+              "quote": "four main component",
+              "corrected": "four main components"
+            },
+            {
+              "quote": "for long task",
+              "corrected": "for long tasks"
+            },
+            {
+              "quote": "system event",
+              "corrected": "system events"
+            },
+            {
+              "quote": "between app",
+              "corrected": "between apps"
+            }
+          ]
+        }
+      ],
+      "err": null
+    },
+    {
+      "run": 4,
+      "tag": "before",
+      "seconds": 227.13,
+      "passes": 1,
+      "pass_seconds": [
+        227.13
+      ],
+      "regenerate_fired": false,
+      "first_pass_rung": "rung1_strict",
+      "first_pass_strict": true,
+      "first_pass_fence_stripped": false,
+      "last_pass_rung": "rung1_strict",
+      "first_pass_repetition_loop": false,
+      "n_patterns": 3,
+      "n_findings": 10,
+      "pattern_labels": [
+        "missing article",
+        "missing plural -s",
+        "subject-verb agreement"
+      ],
+      "patterns": [
+        {
+          "label": "missing plural -s",
+          "occurrence_count": 4,
+          "impact_rank": 1,
+          "evidence": [
+            {
+              "quote": "four main component",
+              "corrected": "four main components"
+            },
+            {
+              "quote": "long task",
+              "corrected": "long tasks"
+            },
+            {
+              "quote": "system event",
+              "corrected": "system events"
+            },
+            {
+              "quote": "between app",
+              "corrected": "between apps"
+            }
+          ]
+        },
+        {
+          "label": "missing article",
+          "occurrence_count": 3,
+          "impact_rank": 2,
+          "evidence": [
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            },
+            {
+              "quote": "user interface",
+              "corrected": "a user interface"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            }
+          ]
+        },
+        {
+          "label": "subject-verb agreement",
+          "occurrence_count": 3,
+          "impact_rank": 3,
+          "evidence": [
+            {
+              "quote": "Android have",
+              "corrected": "Android has"
+            },
+            {
+              "quote": "Service do",
+              "corrected": "Service does"
+            },
+            {
+              "quote": "Content Provider manage",
+              "corrected": "Content Provider manages"
+            }
+          ]
+        }
+      ],
+      "err": null
+    },
+    {
+      "run": 5,
+      "tag": "before",
+      "seconds": 130.38,
+      "passes": 1,
+      "pass_seconds": [
+        130.38
+      ],
+      "regenerate_fired": false,
+      "first_pass_rung": "rung1_strict",
+      "first_pass_strict": true,
+      "first_pass_fence_stripped": false,
+      "last_pass_rung": "rung1_strict",
+      "first_pass_repetition_loop": false,
+      "n_patterns": 3,
+      "n_findings": 13,
+      "pattern_labels": [
+        "missing article",
+        "missing plural -s",
+        "subject-verb agreement"
+      ],
+      "patterns": [
+        {
+          "label": "subject-verb agreement",
+          "occurrence_count": 5,
+          "impact_rank": 1,
+          "evidence": [
+            {
+              "quote": "Android have",
+              "corrected": "Android has"
+            },
+            {
+              "quote": "that run",
+              "corrected": "that runs"
+            },
+            {
+              "quote": "that listen",
+              "corrected": "that listens"
+            },
+            {
+              "quote": "Service do",
+              "corrected": "Service does"
+            },
+            {
+              "quote": "Content Provider manage",
+              "corrected": "Content Provider manages"
+            }
+          ]
+        },
+        {
+          "label": "missing article",
+          "occurrence_count": 4,
+          "impact_rank": 2,
+          "evidence": [
+            {
+              "quote": "screen user",
+              "corrected": "screen the user"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            },
+            {
+              "quote": "with user interface",
+              "corrected": "with a user interface"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            }
+          ]
+        },
+        {
+          "label": "missing plural -s",
+          "occurrence_count": 4,
+          "impact_rank": 3,
+          "evidence": [
+            {
+              "quote": "four main component",
+              "corrected": "four main components"
+            },
+            {
+              "quote": "for long task",
+              "corrected": "for long tasks"
+            },
+            {
+              "quote": "system event",
+              "corrected": "system events"
+            },
+            {
+              "quote": "between app",
+              "corrected": "between apps"
+            }
+          ]
+        }
+      ],
+      "err": null
+    },
+    {
+      "run": 6,
+      "tag": "before",
+      "seconds": 203.87,
+      "passes": 1,
+      "pass_seconds": [
+        203.87
+      ],
+      "regenerate_fired": false,
+      "first_pass_rung": "rung1_strict",
+      "first_pass_strict": true,
+      "first_pass_fence_stripped": false,
+      "last_pass_rung": "rung1_strict",
+      "first_pass_repetition_loop": false,
+      "n_patterns": 3,
+      "n_findings": 13,
+      "pattern_labels": [
+        "missing article",
+        "missing plural -s",
+        "subject-verb agreement"
+      ],
+      "patterns": [
+        {
+          "label": "subject-verb agreement",
+          "occurrence_count": 5,
+          "impact_rank": 1,
+          "evidence": [
+            {
+              "quote": "Android have",
+              "corrected": "Android has"
+            },
+            {
+              "quote": "that run",
+              "corrected": "that runs"
+            },
+            {
+              "quote": "that listen",
+              "corrected": "that listens"
+            },
+            {
+              "quote": "Service do",
+              "corrected": "Service does"
+            },
+            {
+              "quote": "Content Provider manage",
+              "corrected": "Content Provider manages"
+            }
+          ]
+        },
+        {
+          "label": "missing article",
+          "occurrence_count": 4,
+          "impact_rank": 2,
+          "evidence": [
+            {
+              "quote": "screen user",
+              "corrected": "screen the user"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            },
+            {
+              "quote": "with user interface",
+              "corrected": "with a user interface"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            }
+          ]
+        },
+        {
+          "label": "missing plural -s",
+          "occurrence_count": 4,
+          "impact_rank": 3,
+          "evidence": [
+            {
+              "quote": "four main component",
+              "corrected": "four main components"
+            },
+            {
+              "quote": "for long task",
+              "corrected": "for long tasks"
+            },
+            {
+              "quote": "system event",
+              "corrected": "system events"
+            },
+            {
+              "quote": "between app",
+              "corrected": "between apps"
+            }
+          ]
+        }
+      ],
+      "err": null
+    },
+    {
+      "run": 7,
+      "tag": "before",
+      "seconds": 240.02,
+      "passes": 0,
+      "pass_seconds": [],
+      "regenerate_fired": false,
+      "first_pass_rung": "NO_PASS",
+      "first_pass_strict": false,
+      "first_pass_fence_stripped": false,
+      "last_pass_rung": "NO_PASS",
+      "first_pass_repetition_loop": null,
+      "n_patterns": 0,
+      "n_findings": 0,
+      "pattern_labels": [],
+      "patterns": [],
+      "err": "ClaudeCodeTimeoutError: Claude Code call exceeded the 240s timeout and was aborted."
+    },
+    {
+      "run": 8,
+      "tag": "before",
+      "seconds": 148.65,
+      "passes": 1,
+      "pass_seconds": [
+        148.65
+      ],
+      "regenerate_fired": false,
+      "first_pass_rung": "rung1_strict",
+      "first_pass_strict": true,
+      "first_pass_fence_stripped": false,
+      "last_pass_rung": "rung1_strict",
+      "first_pass_repetition_loop": false,
+      "n_patterns": 3,
+      "n_findings": 14,
+      "pattern_labels": [
+        "missing article",
+        "missing plural -s",
+        "subject-verb agreement"
+      ],
+      "patterns": [
+        {
+          "label": "subject-verb agreement",
+          "occurrence_count": 6,
+          "impact_rank": 1,
+          "evidence": [
+            {
+              "quote": "Android have",
+              "corrected": "Android has"
+            },
+            {
+              "quote": "user see",
+              "corrected": "user sees"
+            },
+            {
+              "quote": "Service that run",
+              "corrected": "Service that runs"
+            },
+            {
+              "quote": "Broadcast Receiver that listen",
+              "corrected": "Broadcast Receiver that listens"
+            },
+            {
+              "quote": "Service do",
+              "corrected": "Service does"
+            },
+            {
+              "quote": "Content Provider manage",
+              "corrected": "Content Provider manages"
+            }
+          ]
+        },
+        {
+          "label": "missing article",
+          "occurrence_count": 4,
+          "impact_rank": 2,
+          "evidence": [
+            {
+              "quote": "screen user",
+              "corrected": "screen the user"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            },
+            {
+              "quote": "with user interface",
+              "corrected": "with a user interface"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            }
+          ]
+        },
+        {
+          "label": "missing plural -s",
+          "occurrence_count": 4,
+          "impact_rank": 3,
+          "evidence": [
+            {
+              "quote": "four main component",
+              "corrected": "four main components"
+            },
+            {
+              "quote": "long task",
+              "corrected": "long tasks"
+            },
+            {
+              "quote": "system event",
+              "corrected": "system events"
+            },
+            {
+              "quote": "between app",
+              "corrected": "between apps"
+            }
+          ]
+        }
+      ],
+      "err": null
+    },
+    {
+      "run": 9,
+      "tag": "before",
+      "seconds": 129.22,
+      "passes": 1,
+      "pass_seconds": [
+        129.22
+      ],
+      "regenerate_fired": false,
+      "first_pass_rung": "rung1_strict",
+      "first_pass_strict": true,
+      "first_pass_fence_stripped": false,
+      "last_pass_rung": "rung1_strict",
+      "first_pass_repetition_loop": false,
+      "n_patterns": 3,
+      "n_findings": 14,
+      "pattern_labels": [
+        "missing article",
+        "missing plural -s",
+        "subject-verb agreement"
+      ],
+      "patterns": [
+        {
+          "label": "subject-verb agreement",
+          "occurrence_count": 6,
+          "impact_rank": 1,
+          "evidence": [
+            {
+              "quote": "Android have",
+              "corrected": "Android has"
+            },
+            {
+              "quote": "user see",
+              "corrected": "user sees"
+            },
+            {
+              "quote": "Service that run",
+              "corrected": "Service that runs"
+            },
+            {
+              "quote": "Receiver that listen",
+              "corrected": "Receiver that listens"
+            },
+            {
+              "quote": "Service do work",
+              "corrected": "Service does work"
+            },
+            {
+              "quote": "Provider manage",
+              "corrected": "Provider manages"
+            }
+          ]
+        },
+        {
+          "label": "missing article",
+          "occurrence_count": 4,
+          "impact_rank": 2,
+          "evidence": [
+            {
+              "quote": "screen user",
+              "corrected": "screen the user"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            },
+            {
+              "quote": "with user interface",
+              "corrected": "with a user interface"
+            },
+            {
+              "quote": "in background",
+              "corrected": "in the background"
+            }
+          ]
+        },
+        {
+          "label": "missing plural -s",
+          "occurrence_count": 4,
+          "impact_rank": 3,
+          "evidence": [
+            {
+              "quote": "main component",
+              "corrected": "main components"
+            },
+            {
+              "quote": "for long task",
+              "corrected": "for long tasks"
+            },
+            {
+              "quote": "system event",
+              "corrected": "system events"
+            },
+            {
+              "quote": "between app",
+              "corrected": "between apps"
+            }
+          ]
+        }
+      ],
+      "err": null
+    },
+    {
+      "run": 10,
+      "tag": "before",
+      "seconds": 240.02,
+      "passes": 0,
+      "pass_seconds": [],
+      "regenerate_fired": false,
+      "first_pass_rung": "NO_PASS",
+      "first_pass_strict": false,
+      "first_pass_fence_stripped": false,
+      "last_pass_rung": "NO_PASS",
+      "first_pass_repetition_loop": null,
+      "n_patterns": 0,
+      "n_findings": 0,
+      "pattern_labels": [],
+      "patterns": [],
+      "err": "ClaudeCodeTimeoutError: Claude Code call exceeded the 240s timeout and was aborted."
+    }
+  ]
+}
