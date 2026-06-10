@@ -99,6 +99,32 @@ def test_config_overrides_tier_models(monkeypatch, fake_claude):
     assert "mystrong" in constructed
 
 
+def test_builder_passes_configured_timeout(monkeypatch, fake_claude):
+    from speakloop.llm import claude_code_engine
+
+    monkeypatch.setattr(
+        "speakloop.config.loop_config.load",
+        lambda: LoopConfig(engine="claude", claude_timeout_seconds=300),
+    )
+    timeouts: list[float] = []
+    real_cls = claude_code_engine.ClaudeCodeEngine
+
+    def _factory(*, model, timeout=90.0, **_kw):
+        timeouts.append(timeout)
+        return real_cls(model=model, timeout=timeout, runner=fake_claude.Runner(fake_claude.success("{}")))
+
+    monkeypatch.setattr(claude_code_engine, "ClaudeCodeEngine", _factory)
+    monkeypatch.setattr(
+        "speakloop.feedback.cloud_prompt.load_cloud_prompt", lambda: ("P", Path("/tmp/p"))
+    )
+    monkeypatch.setattr(
+        "speakloop.feedback.cloud_prompt.load_coach_prompt", lambda: ("C", Path("/tmp/c"))
+    )
+
+    _practice._build_claude_grammar_analyzer(Console())
+    assert timeouts and all(t == 300.0 for t in timeouts)  # both tiers get the configured timeout
+
+
 def test_tier_map_matches_runner_wiring():
     # The documented constant is the single source of truth for the assignment.
     assert _practice.CLAUDE_TIER_MAP["fast"] == ("mishearing", "drill")

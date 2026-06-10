@@ -22,6 +22,10 @@ DEFAULT_ENGINE = "local"
 VALID_ENGINES = ("local", "openrouter", "claude")
 DEFAULT_CLAUDE_FAST_MODEL = "haiku"
 DEFAULT_CLAUDE_STRONG_MODEL = "sonnet"
+# Per-call hard timeout for the Claude Code engine. Raised from the engine's 90s
+# baseline because a strong-tier model (esp. Opus with extended thinking) running the
+# full grammar prompt over 3 attempts can take well over 90s.
+DEFAULT_CLAUDE_TIMEOUT_SECONDS = 240
 
 
 @dataclass(frozen=True)
@@ -29,10 +33,11 @@ class LoopConfig:
     daily_capacity: int = DEFAULT_DAILY_CAPACITY
     warmup_enabled: bool = True
     followups_enabled: bool = True
-    # 011 (additive optional): default engine + Claude Code model tiers.
+    # 011 (additive optional): default engine + Claude Code model tiers + timeout.
     engine: str = DEFAULT_ENGINE
     claude_fast_model: str = DEFAULT_CLAUDE_FAST_MODEL
     claude_strong_model: str = DEFAULT_CLAUDE_STRONG_MODEL
+    claude_timeout_seconds: int = DEFAULT_CLAUDE_TIMEOUT_SECONDS
 
 
 def _model(data: dict, key: str, default: str) -> str:
@@ -59,6 +64,10 @@ def load() -> LoopConfig:
     engine = data.get("engine", DEFAULT_ENGINE)
     if not isinstance(engine, str) or engine not in VALID_ENGINES:
         engine = DEFAULT_ENGINE
+    try:
+        timeout = max(1, int(data.get("claude_timeout_seconds", DEFAULT_CLAUDE_TIMEOUT_SECONDS)))
+    except (TypeError, ValueError):
+        timeout = DEFAULT_CLAUDE_TIMEOUT_SECONDS
     return LoopConfig(
         daily_capacity=cap,
         warmup_enabled=bool(data.get("warmup_enabled", True)),
@@ -66,4 +75,5 @@ def load() -> LoopConfig:
         engine=engine,
         claude_fast_model=_model(data, "claude_fast_model", DEFAULT_CLAUDE_FAST_MODEL),
         claude_strong_model=_model(data, "claude_strong_model", DEFAULT_CLAUDE_STRONG_MODEL),
+        claude_timeout_seconds=timeout,
     )

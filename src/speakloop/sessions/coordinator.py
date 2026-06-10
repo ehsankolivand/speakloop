@@ -23,7 +23,9 @@ from rich.console import Console
 from rich.progress import (
     BarColumn,
     Progress,
+    SpinnerColumn,
     TextColumn,
+    TimeElapsedColumn,
     TimeRemainingColumn,
 )
 
@@ -327,7 +329,8 @@ def _run_follow_ups(
     if not (runners and runners.followups and tts_engine is not None and play_fn is not None):
         return []
     try:
-        specs = runners.followups(question.question, real_transcripts) or []
+        with _analyzing(console, "Generating follow-up questions…"):
+            specs = runners.followups(question.question, real_transcripts) or []
     except Exception as e:  # noqa: BLE001 — follow-ups are best-effort; never crash
         console.print(f"[yellow]Follow-up generation failed: {e}. Skipping follow-ups.[/yellow]")
         return []
@@ -382,7 +385,9 @@ def _run_follow_ups(
             entry["metrics"] = _metrics_dict(compute_all(real, vad_regions=triaged.real_regions or None))
             if grammar_analyzer is not None:
                 # follow-up grammar is best-effort; a failure just omits it
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(Exception), _analyzing(
+                    console, "Analyzing your follow-up answer…"
+                ):
                     entry["grammar_patterns"] = _patterns_to_dicts(grammar_analyzer([real]))
         else:
             console.print(f"[dim]No answer to follow-up {i} (timed out).[/dim]")
@@ -401,6 +406,27 @@ def _top_recurring_error(store, *, window: int = 5, min_total: int = 2) -> str |
         if total > best_total:
             best_label, best_total = label, total
     return best_label if best_total >= min_total else None
+
+
+@contextlib.contextmanager
+def _analyzing(console: Console, message: str):
+    """Live spinner + elapsed timer around a slow blocking LLM call (011 follow-up).
+
+    The cloud / Claude Code engines can take a minute per call; without this the
+    terminal just sits black and looks hung. Progress refreshes on a background
+    thread, so the spinner animates and the timer ticks while the call blocks; the
+    line is transient (cleared on completion) and any exception still propagates to
+    the caller's existing degradation handling."""
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[cyan]{task.description}[/cyan]"),
+        TimeElapsedColumn(),
+        transient=True,
+        console=console,
+    )
+    with progress:
+        progress.add_task(message, total=None)
+        yield
 
 
 def _run_warmup(
@@ -449,12 +475,23 @@ def _run_warmup(
             continue
         wav_path = scratch_dir / f"warmup-{i}.wav"
         early_exit_event.clear()
+        console.print(f"  [dim]🎙 speak now (up to {WARMUP_ITEM_BUDGET_SECONDS}s)…[/dim]")
+        transcript = None
         try:
-            record_fn(wav_path, time_budget_seconds=WARMUP_ITEM_BUDGET_SECONDS, early_exit_event=early_exit_event)
+            record_fn(
+                wav_path,
+                time_budget_seconds=WARMUP_ITEM_BUDGET_SECONDS,
+                early_exit_event=early_exit_event,
+            )
             transcript = asr_engine.transcribe(wav_path, context=context)
             verdict = judge_item(item, transcript.text)
         except Exception:  # noqa: BLE001 — device failure → incomplete, continue
             verdict = "incomplete"
+        # Show what was actually heard so a `fail` is never a black box: the learner
+        # can see whether ASR mis-heard the sentence vs. they need to repeat it.
+        if transcript is not None:
+            heard = transcript.text.strip() or "[i](nothing captured — speak right after the prompt)[/i]"
+            console.print(f"  [dim]heard:[/dim] {heard}")
         console.print(f"  → [bold]{verdict}[/bold]")
         results.append({"index": i, "target_sentence": item.target_sentence, "result": verdict})
     return {"target_pattern": top_error, "items": results}
@@ -623,7 +660,8 @@ def run_session(
     analysis_pending: bool = False
     if grammar_analyzer is not None:
         try:
-            grammar_patterns = grammar_analyzer(real_transcripts)
+            with _analyzing(console, "Analyzing grammar across your attempts…"):
+                grammar_patterns = grammar_analyzer(real_transcripts)
             phase = "C"
         except Exception as e:
             # Persist the failure into the report (phase_c_error) so it is
@@ -659,7 +697,8 @@ def run_session(
             if cached is not None:
                 key_points_set = cached
             else:
-                points = runners.keypoints(question.question, question.ideal_answer, qtype)
+                with _analyzing(console, "Deriving key points from the model answer…"):
+                    points = runners.keypoints(question.question, question.ideal_answer, qtype)
                 key_points_set = {
                     "version": version,
                     "ideal_answer_hash": khash,
@@ -668,10 +707,11 @@ def run_session(
                 }
                 if store is not None:
                     store.key_points.setdefault(question.id, {})[khash] = key_points_set
-            result = runners.coverage(
-                key_points_set["points"], real_transcripts, question.ideal_answer,
-                key_points_set["version"],
-            )
+            with _analyzing(console, "Scoring how well you covered the key points…"):
+                result = runners.coverage(
+                    key_points_set["points"], real_transcripts, question.ideal_answer,
+                    key_points_set["version"],
+                )
             coverage_records = result.attempt_records
             content_errors = result.content_errors
             coverage_aggregate = result.final_aggregate
@@ -689,7 +729,8 @@ def run_session(
     coach_error: str | None = None
     if coach is not None and phase == "C":
         try:
-            coaching = coach(question.question, real_transcripts, grammar_patterns)
+            with _analyzing(console, "Writing your coaching feedback…"):
+                coaching = coach(question.question, real_transcripts, grammar_patterns)
         except Exception as e:  # noqa: BLE001 — coaching is best-effort; never crash
             coach_error = f"{type(e).__name__}: {e}"
             console.print(

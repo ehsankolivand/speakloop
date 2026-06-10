@@ -104,6 +104,22 @@ def fake_claude():
     )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_loop_config(tmp_path_factory, monkeypatch):
+    """Keep the real ``~/.speakloop/loop.yaml`` out of the test suite (011).
+
+    Otherwise a user whose loop config sets ``engine: claude`` (or ``openrouter``)
+    would make every no-flag code path (``practice``/``resume`` without ``--engine``)
+    resolve to that cloud engine and attempt REAL model calls — which hang/fail under
+    pytest. Pointing the loop-config path at a fresh, empty temp dir makes
+    ``loop_config.load()`` return the built-in defaults (``engine=local``) everywhere.
+    Tests that need a specific loop config monkeypatch ``loop_config.load`` directly
+    (which overrides this) or write to the path this fixture installs.
+    """
+    cfg = tmp_path_factory.mktemp("loopcfg") / "loop.yaml"
+    monkeypatch.setattr("speakloop.config.paths.loop_config_path", lambda: cfg)
+
+
 @pytest.fixture
 def wav_fixture():
     """Return a callable `(name) -> Path` that locates a fixture WAV.

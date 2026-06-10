@@ -680,9 +680,12 @@ def _build_claude_grammar_analyzer(console: Console):
     # 011 P2 model tiering: cheap/mechanical calls (mishearing, drill) run on the
     # FAST model; reasoning-heavy calls (follow-ups, key points, coverage,
     # consistency, grammar, coach) run on the STRONG model — see CLAUDE_TIER_MAP.
-    # Only the two tier→model aliases are user-overridable (loop.yaml).
-    strong = ClaudeCodeEngine(model=cfg.claude_strong_model)
-    fast = ClaudeCodeEngine(model=cfg.claude_fast_model)
+    # Only the two tier→model aliases are user-overridable (loop.yaml). The per-call
+    # hard timeout is also configurable (claude_timeout_seconds) — a strong model
+    # like Opus running the full grammar prompt can exceed the engine's 90s baseline.
+    timeout = float(cfg.claude_timeout_seconds)
+    strong = ClaudeCodeEngine(model=cfg.claude_strong_model, timeout=timeout)
+    fast = ClaudeCodeEngine(model=cfg.claude_fast_model, timeout=timeout)
 
     cloud_system_prompt, prompt_path = _cloud_prompt.load_cloud_prompt()
     coach_system_prompt, coach_prompt_path = _cloud_prompt.load_coach_prompt()
