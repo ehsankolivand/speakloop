@@ -112,7 +112,7 @@ overriding the config changes the models used.
 
 ## Phase 4: Polish & Live Verification
 
-- [ ] T017 Run the full suite (`uv run pytest`) green, confirm `speakloop --help` stays model-free
+- [X] T017 Run the full suite (`uv run pytest`) green, confirm `speakloop --help` stays model-free
   and the path-portability audit passes, run `ruff` on the new files; then perform the **live
   verification (overnight Step 2)** with the REAL CLI (≤15 calls, prefer `--model haiku` for probes):
   seed an `analysis_pending` session from fixtures and run `speakloop resume --engine claude`; confirm
