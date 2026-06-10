@@ -153,5 +153,17 @@ def rebuild_cmd(
     _rebuild.run(sessions_dir=sessions_dir)
 
 
+@app.command("resume")
+def resume_cmd(
+    cloud: bool = typer.Option(
+        False, "--cloud", help="Use the OpenRouter cloud model to re-run the analysis."
+    ),
+) -> None:
+    """Finish any session left analysis-pending (re-runs analysis over the saved transcripts)."""
+    from speakloop.cli import resume as _resume
+
+    _resume.run(cloud=cloud)
+
+
 if __name__ == "__main__":
     app()

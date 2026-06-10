@@ -179,6 +179,44 @@ def _sessions_dir() -> CheckRow:
     )
 
 
+def _interview_loop() -> list[CheckRow]:
+    """010 Interview Loop: derived store + loop config + seeded analytic prompts."""
+    store = paths.store_path()
+    loop_cfg = paths.loop_config_path()
+    rows = [
+        CheckRow(
+            section="Interview Loop",
+            label=f"derived store: {store}",
+            status="OK",
+            detail="present (rebuildable via `speakloop rebuild`)" if store.exists()
+            else "absent — built on first run / `speakloop rebuild`",
+        ),
+        CheckRow(
+            section="Interview Loop",
+            label=f"loop config: {loop_cfg}",
+            status="OK",
+            detail="present" if loop_cfg.exists() else "absent — built-in defaults (capacity 5)",
+        ),
+    ]
+    prompts = {
+        "follow-ups": paths.openrouter_followups_prompt_path(),
+        "key points": paths.openrouter_keypoints_prompt_path(),
+        "coverage": paths.openrouter_coverage_prompt_path(),
+        "triage": paths.openrouter_triage_prompt_path(),
+        "drill": paths.openrouter_drill_prompt_path(),
+    }
+    for name, p in prompts.items():
+        rows.append(
+            CheckRow(
+                section="Interview Loop",
+                label=f"{name} prompt",
+                status="OK",
+                detail=str(p) + ("" if p.exists() else " (seeded on first use)"),
+            )
+        )
+    return rows
+
+
 def _collect() -> list[CheckRow]:
     return [
         _python_runtime(),
@@ -187,6 +225,7 @@ def _collect() -> list[CheckRow]:
         _sessions_dir(),
         _aria2(),
         *_cloud(),
+        *_interview_loop(),
     ]
 
 

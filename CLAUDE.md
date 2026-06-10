@@ -159,8 +159,14 @@ not prose (FR-007). Leaves: `config`, `content`, `trends`. Orchestrators: `cli` 
 | [`feedback/`](src/speakloop/feedback/CLAUDE.md) | Frontmatter, atomic writer, report builder, grammar analyzer | asr, config, llm |
 | [`debrief/`](src/speakloop/debrief/CLAUDE.md) | Post-session interactive debrief (render + audio + menu) | feedback, tts |
 | [`sessions/`](src/speakloop/sessions/CLAUDE.md) | 4/3/2 coordinator, timer, abort handling | asr, audio, config, content, feedback, metrics |
-| [`trends/`](src/speakloop/trends/CLAUDE.md) | Cross-session dashboard | — (leaf) |
-| [`cli/`](src/speakloop/cli/CLAUDE.md) | `typer` app: `practice`, `doctor`, `trends` | audio, config, content, feedback, installer, llm, sessions, trends, tts |
+| [`trends/`](src/speakloop/trends/CLAUDE.md) | Cross-session dashboard + per-pattern series | — (leaf) |
+| [`triage/`](src/speakloop/triage/CLAUDE.md) | [010] Hallucination filter (pre-grammar) + mishearing + artifact consistency | asr, config, feedback, llm |
+| [`coverage/`](src/speakloop/coverage/CLAUDE.md) | [010] Key points (hash-versioned) + coverage scoring + content errors | asr, feedback, llm |
+| [`srs/`](src/speakloop/srs/CLAUDE.md) | [010] Answer grade + interval ladder/mastery + due queue (pure logic) | store |
+| [`warmup/`](src/speakloop/warmup/CLAUDE.md) | [010] Warm-up drill generation + deterministic pass/fail judge | config, feedback, llm |
+| [`interviewer/`](src/speakloop/interviewer/CLAUDE.md) | [010] Unscripted follow-up generation (grounded in the learner's words) | asr, config, feedback, llm |
+| [`store/`](src/speakloop/store/CLAUDE.md) | [010] Derived JSON store (SRS schedule + key-points + patterns), rebuildable | feedback (+srs) |
+| [`cli/`](src/speakloop/cli/CLAUDE.md) | `typer` app: `practice`, `doctor`, `trends`, `today`, `rebuild`, `resume` | audio, config, content, feedback, installer, llm, sessions, trends, tts |
 
 ## Commands
 

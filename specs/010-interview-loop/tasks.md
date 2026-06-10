@@ -226,12 +226,12 @@ learner's clauses; definition questions unchanged (spec US5 acceptance + SC-008)
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T085 Implement `speakloop resume` for analysis-pending sessions in `src/speakloop/cli/resume.py` + register in `src/speakloop/cli/main.py` (re-run the missing analysis over preserved transcripts; clear `analysis_pending`; update the store; `--cloud` selects the engine)
-- [ ] T086 Add `doctor` rows in `src/speakloop/cli/doctor.py` (derived-store presence/version + rebuildable check; the five seeded prompt files; loop-config YAML)
-- [ ] T087 [P] Update the root `CLAUDE.md` module map/table with the six new modules (architecture + pointers; Principles IV/XI)
-- [ ] T088 [P] Full report round-trip test (`dump → parse → dump` idempotent with all new fields populated) in `tests/integration/test_report_roundtrip.py`
-- [ ] T089 [P] Daily-loop end-to-end integration test with stubbed engines (due-selection → warm-up → 3 attempts → follow-ups → report; then `rebuild`; then `resume` on a pending session) in `tests/integration/test_daily_loop.py`
-- [ ] T090 Manual end-to-end smoke test `specs/010-interview-loop/manual-tests/daily-loop.md` — run the full loop by voice locally and with `--cloud`; confirm `today`, `trends`, `rebuild`, `resume`, and `quickstart.md` steps; record results
+- [X] T085 Implement `speakloop resume` for analysis-pending sessions in `src/speakloop/cli/resume.py` + register in `src/speakloop/cli/main.py` (re-run the missing analysis over preserved transcripts; clear `analysis_pending`; update the store; `--cloud` selects the engine)
+- [X] T086 Add `doctor` rows in `src/speakloop/cli/doctor.py` (derived-store presence/version + rebuildable check; the five seeded prompt files; loop-config YAML)
+- [X] T087 [P] Update the root `CLAUDE.md` module map/table with the six new modules (architecture + pointers; Principles IV/XI)
+- [X] T088 [P] Full report round-trip test (`dump → parse → dump` idempotent with all new fields populated) in `tests/integration/test_report_roundtrip.py`
+- [X] T089 [P] Daily-loop end-to-end integration test with stubbed engines (due-selection → warm-up → 3 attempts → follow-ups → report; then `rebuild`; then `resume` on a pending session) in `tests/integration/test_daily_loop.py`
+- [X] T090 Manual end-to-end smoke test `specs/010-interview-loop/manual-tests/daily-loop.md` — run the full loop by voice locally and with `--cloud`; confirm `today`, `trends`, `rebuild`, `resume`, and `quickstart.md` steps; record results
 
 ---
 
