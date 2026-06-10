@@ -130,40 +130,40 @@ concurrent analysis producing a **byte-identical** report. **Independent test**:
 concurrent reports byte-identical with stubbed engines (fixed outputs); one failed parallel call
 degrades only its dimension; per-stage timings recorded.
 
-- [ ] T026 [US3] Background transcription overlap in `coordinator.py`: a single ASR worker
+- [x] T026 [US3] Background transcription overlap in `coordinator.py`: a single ASR worker
   thread transcribes attempt N while attempt N+1 records; never two Whisper jobs at once; results
   joined deterministically before analysis (FR-022). Mark overlapped stages in the StageTimer.
-- [ ] T027 [US3] Pre-warm ASR/VAD + `warm_output_device()` during the initial question/ideal
+- [x] T027 [US3] Pre-warm ASR/VAD + `warm_output_device()` during the initial question/ideal
   playback (FR-023); guard so a load failure degrades to today's cold path, not a crash.
-- [ ] T028 [US3] Implement `src/speakloop/sessions/analysis.py`: `AnalysisJob(name, fn,
+- [x] T028 [US3] Implement `src/speakloop/sessions/analysis.py`: `AnalysisJob(name, fn,
   depends_on)`, the DAG (grammar/mishearing/keypoints→coverage/coaching→consistency; gates per
   contracts/analysis-concurrency.md), a **serial** executor and a **concurrent** executor
   (`ThreadPoolExecutor(max_workers=cap)`), pure jobs → named result slots. Coverage speculated
   past the `phase==C` gate (discarded if grammar fails); store mutations happen on the caller
   thread post-join.
-- [ ] T029 [US3] Refactor the analysis block of `run_session` (`coordinator.py`) to build the
+- [x] T029 [US3] Refactor the analysis block of `run_session` (`coordinator.py`) to build the
   job set, run it via the serial OR concurrent strategy (chosen by `analysis_parallel_safe`),
   then assemble the `Session` from the slots in the existing fixed field order (byte-identical
   guarantee, FR-027). Preserve per-call degradation exactly (FR-028).
-- [ ] T030 [US3] Reorder follow-up generation to fire the instant the final transcript + triage
+- [x] T030 [US3] Reorder follow-up generation to fire the instant the final transcript + triage
   land (scheduled first); on a parallel-safe engine, run the interactive follow-up Q&A while the
   remaining analysis runs in the background pool; on a serial engine, generate-then-ask before
   grammar. Report-equivalent (follow-up entries independent of main grammar).
-- [ ] T031 [US3] Plumb `analysis_parallel_safe = getattr(engine, "parallel_safe", False)` +
+- [x] T031 [US3] Plumb `analysis_parallel_safe = getattr(engine, "parallel_safe", False)` +
   `analysis_concurrency` from `cli/practice.py` (and `resume.py`) into `run_session`; local stays
   serial regardless of cap.
-- [ ] T032 [US3] Instrument every stage with the `StageTimer` in `coordinator.py` (warm-up,
+- [x] T032 [US3] Instrument every stage with the `StageTimer` in `coordinator.py` (warm-up,
   per-attempt record/transcribe, follow-up generate, each analysis call, analysis group wall);
   attach `session.timings`; print the table when `timings_display` is set (T014).
-- [ ] T033 [US3] Serial-vs-concurrent **equivalence** test in
+- [x] T033 [US3] Serial-vs-concurrent **equivalence** test in
   `tests/integration/test_analysis_equivalence.py`: a stubbed engine returning fixed per-call
   outputs; run `run_session` analysis both ways; assert the written report bytes are identical
   (SC-006). Cover the speculative-coverage-discarded-on-grammar-failure case.
-- [ ] T034 [P] [US3] Degradation test: one concurrent call raises; assert the others' results are
+- [x] T034 [P] [US3] Degradation test: one concurrent call raises; assert the others' results are
   present and only that dimension is `analysis_pending` (FR-028); report still written.
-- [ ] T035 [P] [US3] Crash-safety test: simulate an abort mid-analysis; assert recordings +
+- [x] T035 [P] [US3] Crash-safety test: simulate an abort mid-analysis; assert recordings +
   transcripts survive and the session is resumable (FR-029), matching today.
-- [ ] T036 [P] [US3] Timings test: with a fake clock, assert `session.timings` is recorded with
+- [x] T036 [P] [US3] Timings test: with a fake clock, assert `session.timings` is recorded with
   the expected stage vocabulary and `analysis_mode`/`analysis_wall_seconds`; `--timings` prints.
 
 **Checkpoint**: US3 delivers measured speed with the report provably unchanged.

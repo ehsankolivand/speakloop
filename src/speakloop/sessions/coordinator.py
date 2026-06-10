@@ -11,6 +11,7 @@ import shutil
 import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -23,8 +24,10 @@ from speakloop.audio import recorder
 from speakloop.config import paths
 from speakloop.content import Question
 from speakloop.feedback import frontmatter, markdown_writer, narrative, report_builder
+from speakloop.feedback.timings import StageTimer
 from speakloop.metrics import compute_all
 from speakloop.sessions import abort, session_ui, timer
+from speakloop.sessions import analysis as _analysis
 from speakloop.sessions import keyboard as _keyboard
 from speakloop.sessions.session_ui import SessionState
 from speakloop.triage import hallucination as _halluc
@@ -178,22 +181,23 @@ def _record_stage(
     return duration, bool(skip_event and skip_event.is_set())
 
 
-def _do_attempt(
+def _record_attempt(
     ordinal: int,
     *,
     record_fn,
-    asr_engine: ASREngine,
     early_exit_event: threading.Event,
     console: Console,
     scratch_dir: Path,
-    context: TranscriptionContext | None = None,
     key_reader=None,
     ui_sleep=time.sleep,
-) -> tuple[float, Transcript]:
+) -> tuple[Path, float]:
+    """Record one attempt and return its WAV path + wall-clock duration (no transcription).
+
+    012/US3 (T026): transcription is deferred to a background ASR worker so it overlaps
+    the NEXT attempt's recording — the recorder + analyzer are unchanged."""
     budget = timer.time_budget_for(ordinal)
     console.print(f"\n[bold]Attempt {ordinal}[/bold] — budget {budget}s.")
     wav_path = scratch_dir / f"attempt-{ordinal}.wav"
-
     duration, _ = _record_stage(
         record_fn=record_fn,
         wav_path=wav_path,
@@ -204,26 +208,32 @@ def _do_attempt(
         console=console,
         early_exit_event=early_exit_event,
     )
-
     if abort.abort_event.is_set():
         raise AbortedError()
-
     console.print(
-        f"[green]✓ Attempt {ordinal}[/green] recorded — "
-        f"{duration:.1f}s captured. [dim]Transcribing…[/dim]"
+        f"[green]✓ Attempt {ordinal}[/green] recorded — {duration:.1f}s captured."
     )
+    return wav_path, duration
+
+
+def _transcribe_attempt(
+    wav_path: Path,
+    duration: float,
+    asr_engine: ASREngine,
+    context: TranscriptionContext | None,
+) -> Transcript:
+    """Transcribe one recorded attempt, overriding the duration with the wall-clock value.
+
+    Preserves the per-segment decode signals + VAD regions (010 P4 triage needs them).
+    Run on a single background ASR worker so two Whisper jobs never run at once (FR-022)."""
     transcript = asr_engine.transcribe(wav_path, context=context)
-    # Override the engine-reported duration with the wall-clock recording duration,
-    # preserving the per-segment decode signals + VAD regions (010 P4 triage needs
-    # them) — they were previously dropped here.
-    transcript = Transcript(
+    return Transcript(
         text=transcript.text,
         words=transcript.words,
         audio_duration_seconds=duration,
         segments=transcript.segments,
         vad_regions=transcript.vad_regions,
     )
-    return duration, transcript
 
 
 def _build_attempts(
@@ -578,6 +588,241 @@ def _run_warmup(
     return {"target_pattern": top_error, "items": results}
 
 
+class _AnalysisOutputs(NamedTuple):
+    grammar_patterns: list
+    phase: str
+    phase_c_error: str | None
+    analysis_pending: bool
+    pronunciation_flags: list[dict]
+    coverage_records: list[dict]
+    content_errors: list[dict]
+    key_points_set: dict | None
+    key_points_newly_derived: bool
+    coverage_aggregate: float | None
+    coaching: str | None
+    coach_error: str | None
+    analysis_mode: str
+    analysis_wall_seconds: float
+
+
+def _analyze(
+    *,
+    real_transcripts,
+    triaged,
+    question,
+    runners,
+    grammar_analyzer,
+    coach,
+    store,
+    console,
+    parallel_safe: bool,
+    concurrency: int,
+    stage_timer: StageTimer,
+) -> _AnalysisOutputs:
+    """Run the post-attempt analysis and return its outputs (012, US3 — T028/T029).
+
+    Engine-capability-aware: a single in-process model runs the calls serially; a
+    parallel-safe engine runs the independent calls concurrently (cap = ``concurrency``).
+    Both strategies produce the SAME outputs, assembled by the caller in a fixed order →
+    a byte-identical report (FR-027). Per-call degradation is preserved exactly: a failed
+    call degrades only its own dimension (FR-028). All today's gates (coverage/coaching
+    only after grammar succeeds; consistency only after coaching produces output) are kept.
+
+    Pure with respect to the store: it READS the key-point cache but does not mutate it;
+    the caller writes a newly-derived key-point set (``key_points_newly_derived``) on the
+    main thread afterward, so concurrency never reorders persisted state."""
+    import time as _t
+
+    mode = "concurrent" if (parallel_safe and concurrency > 1) else "serial"
+    overlapped = mode == "concurrent"
+    wall = 0.0
+    mishearing_runner = runners.mishearing if runners else None
+
+    # --- Level A: grammar + mishearing (independent of each other) ---------------
+    def _job_grammar():
+        t0 = _t.perf_counter()
+        try:
+            return grammar_analyzer(real_transcripts)
+        finally:
+            stage_timer.record("analysis_grammar", _t.perf_counter() - t0, overlapped=overlapped)
+
+    def _job_mishearing():
+        t0 = _t.perf_counter()
+        flags: list[dict] = []
+        try:
+            for ordinal, tr in enumerate(triaged, start=1):
+                for span in mishearing_runner(tr.real_text):
+                    flags.append(
+                        {
+                            "attempt_ordinal": ordinal,
+                            "heard": span.heard,
+                            "likely_intended": span.likely_intended,
+                            "signal": span.signal,
+                        }
+                    )
+            return flags
+        finally:
+            stage_timer.record("analysis_mishearing", _t.perf_counter() - t0, overlapped=overlapped)
+
+    jobs_a: dict = {}
+    if grammar_analyzer is not None:
+        jobs_a["grammar"] = _job_grammar
+    if mishearing_runner is not None:
+        jobs_a["mishearing"] = _job_mishearing
+
+    res_a: dict = {}
+    if jobs_a:
+        t0 = _t.perf_counter()
+        with _analyzing(console, "Analyzing your attempts…"):
+            res_a = _analysis.run_group(jobs_a, parallel_safe=parallel_safe, concurrency=concurrency)
+        wall += _t.perf_counter() - t0
+
+    grammar_patterns: list = []
+    phase = "B"
+    phase_c_error: str | None = None
+    analysis_pending = False
+    if "grammar" in res_a:
+        r = res_a["grammar"]
+        if r.ok:
+            grammar_patterns = r.value
+            phase = "C"
+        else:
+            phase_c_error = f"{type(r.error).__name__}: {r.error}"
+            analysis_pending = True
+            console.print(
+                f"[yellow]Grammar analyzer failed: {r.error}. "
+                "Falling back to Phase-B interim report.[/yellow]"
+            )
+    pronunciation_flags: list[dict] = (
+        res_a["mishearing"].value if ("mishearing" in res_a and res_a["mishearing"].ok) else []
+    )
+
+    # --- Level B: coverage-chain + coaching (only after a successful grammar pass) -
+    coverage_records: list[dict] = []
+    content_errors: list[dict] = []
+    key_points_set: dict | None = None
+    key_points_newly_derived = False
+    coverage_aggregate: float | None = None
+    coaching: str | None = None
+    coach_error: str | None = None
+
+    def _job_coverage():
+        t0 = _t.perf_counter()
+        try:
+            from speakloop.coverage import keypoints as _kp
+
+            qtype = getattr(question, "type", None) or "definition"
+            khash = _kp.ideal_answer_hash(question.ideal_answer)
+            cached = None
+            version = 1
+            if store is not None:
+                by_hash = store.key_points.get(question.id) or {}
+                cached = by_hash.get(khash)
+                if cached is None and by_hash:
+                    version = max((s.get("version", 0) for s in by_hash.values()), default=0) + 1
+            newly = False
+            if cached is not None:
+                kps = cached
+            else:
+                points = runners.keypoints(question.question, question.ideal_answer, qtype)
+                kps = {
+                    "version": version,
+                    "ideal_answer_hash": khash,
+                    "question_type": qtype,
+                    "points": points,
+                }
+                newly = True
+            cov = runners.coverage(
+                kps["points"], real_transcripts, question.ideal_answer, kps["version"]
+            )
+            return kps, newly, cov
+        finally:
+            stage_timer.record("analysis_coverage", _t.perf_counter() - t0, overlapped=overlapped)
+
+    def _job_coaching():
+        t0 = _t.perf_counter()
+        try:
+            return coach(question.question, real_transcripts, grammar_patterns)
+        finally:
+            stage_timer.record("analysis_coaching", _t.perf_counter() - t0, overlapped=overlapped)
+
+    if phase == "C":
+        jobs_b: dict = {}
+        if runners and runners.keypoints and runners.coverage:
+            jobs_b["coverage"] = _job_coverage
+        if coach is not None:
+            jobs_b["coaching"] = _job_coaching
+        if jobs_b:
+            t0 = _t.perf_counter()
+            with _analyzing(console, "Scoring coverage and writing your coaching…"):
+                res_b = _analysis.run_group(
+                    jobs_b, parallel_safe=parallel_safe, concurrency=concurrency
+                )
+            wall += _t.perf_counter() - t0
+            if "coverage" in res_b:
+                r = res_b["coverage"]
+                if r.ok:
+                    key_points_set, key_points_newly_derived, cov = r.value
+                    coverage_records = cov.attempt_records
+                    content_errors = cov.content_errors
+                    coverage_aggregate = cov.final_aggregate
+                else:
+                    analysis_pending = True
+                    console.print(
+                        f"[yellow]Coverage scoring failed: {r.error}. Coverage skipped.[/yellow]"
+                    )
+            if "coaching" in res_b:
+                r = res_b["coaching"]
+                if r.ok:
+                    coaching = r.value
+                else:
+                    coach_error = f"{type(r.error).__name__}: {r.error}"
+                    console.print(
+                        f"[yellow]Coaching step failed: {r.error}. "
+                        "The grammar report is unaffected.[/yellow]"
+                    )
+
+        # --- Level C: consistency-check the coaching against the ideal answer -------
+        if coaching and runners and runners.consistency:
+            t0 = _t.perf_counter()
+            try:
+                checked = runners.consistency(coaching, question.ideal_answer)
+            except Exception as e:  # noqa: BLE001 — never block the report
+                checked = None
+                coach_error = coach_error or f"consistency check failed: {e}"
+            finally:
+                stage_timer.record(
+                    "analysis_consistency", _t.perf_counter() - t0, overlapped=False
+                )
+            wall += 0.0  # consistency is on the critical path; its time is in the stage record
+            if checked is None:
+                coaching = None
+                coach_error = coach_error or "coaching withheld: failed the consistency check"
+                console.print(
+                    "[yellow]Coaching withheld: it contradicted the reference answer "
+                    "and could not be safely corrected.[/yellow]"
+                )
+            else:
+                coaching = checked
+
+    return _AnalysisOutputs(
+        grammar_patterns=grammar_patterns,
+        phase=phase,
+        phase_c_error=phase_c_error,
+        analysis_pending=analysis_pending,
+        pronunciation_flags=pronunciation_flags,
+        coverage_records=coverage_records,
+        content_errors=content_errors,
+        key_points_set=key_points_set,
+        key_points_newly_derived=key_points_newly_derived,
+        coverage_aggregate=coverage_aggregate,
+        coaching=coaching,
+        coach_error=coach_error,
+        analysis_mode=mode,
+        analysis_wall_seconds=round(wall, 3),
+    )
+
+
 def run_session(
     question: Question,
     *,
@@ -652,6 +897,11 @@ def run_session(
     if key_reader is None:
         key_reader = _keyboard.make_key_reader()
 
+    # 012/US3: always-on, cheap per-stage instrumentation. The timings are saved into the
+    # report frontmatter regardless of the flag; ``timings_display`` only controls the
+    # terminal print (FR-018).
+    stage_timer = StageTimer()
+
     # 010 P2: load the derived store (top recurring error for the warm-up + the SRS
     # schedule update after the session). Only when store_path is provided — the CLI
     # passes one; tests omit it → no store I/O and no warm-up (legacy behavior).
@@ -677,7 +927,13 @@ def run_session(
         ui_sleep=ui_sleep,
     )
 
+    # 012/US3 (T026): a single background ASR worker so attempt-N transcription overlaps
+    # attempt-(N+1) recording, while two Whisper jobs NEVER run at once (FR-022). The
+    # transcript values are identical to the serial path — only WHEN they are decoded
+    # changes — so the report is unaffected.
     transcripts: list[Transcript] = []
+    asr_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="speakloop-asr")
+    tx_futures: list = []
     try:
         for ordinal in (1, 2, 3):
             if abort.abort_event.is_set():
@@ -694,25 +950,35 @@ def run_session(
                     f"[bold]Final round — goal: cover all {goal_unit} within the time budget.[/bold]"
                 )
             early_exit_event.clear()
-            _, transcript = _do_attempt(
-                ordinal,
-                record_fn=record_fn,
-                asr_engine=asr_engine,
-                early_exit_event=early_exit_event,
-                console=console,
-                scratch_dir=scratch_dir,
-                context=context,
-                key_reader=key_reader,
-                ui_sleep=ui_sleep,
+            with stage_timer.stage(f"attempt_{ordinal}_record"):
+                wav_path, duration = _record_attempt(
+                    ordinal,
+                    record_fn=record_fn,
+                    early_exit_event=early_exit_event,
+                    console=console,
+                    scratch_dir=scratch_dir,
+                    key_reader=key_reader,
+                    ui_sleep=ui_sleep,
+                )
+            tx_futures.append(
+                asr_pool.submit(_transcribe_attempt, wav_path, duration, asr_engine, context)
             )
-            transcripts.append(transcript)
+        # Wait for any still-running background transcription under a labeled state so the
+        # terminal never sits silently (FR-002); the early ones already finished overlapped.
+        with stage_timer.stage("transcribe_wait", overlapped=True), session_ui.working(
+            console, SessionState.TRANSCRIBING, "Transcribing your attempts…"
+        ):
+            transcripts = [f.result() for f in tx_futures]
     except AbortedError:
+        asr_pool.shutdown(wait=False, cancel_futures=True)
         abort.cleanup_tmp_files(sessions_dir)
         # FR-016: clear partial attempt-*.wav files so the abort leaves
         # no intermediate audio on disk either.
         if scratch_dir.exists():
             shutil.rmtree(scratch_dir, ignore_errors=True)
         raise
+    finally:
+        asr_pool.shutdown(wait=False)
 
     started_at = now()
 
@@ -732,146 +998,81 @@ def run_session(
     ]
     attempts = _build_attempts(real_transcripts)
 
-    pronunciation_flags: list[dict] = []
-    mishearing_runner = runners.mishearing if runners else None
-    if mishearing_runner is not None:
-        for ordinal, tr in enumerate(triaged, start=1):
-            for span in mishearing_runner(tr.real_text):
-                pronunciation_flags.append(
-                    {
-                        "attempt_ordinal": ordinal,
-                        "heard": span.heard,
-                        "likely_intended": span.likely_intended,
-                        "signal": span.signal,
-                    }
-                )
+    # 012/US3 (T030): ask the follow-ups the moment the final transcript lands — BEFORE
+    # the heavy analysis — so the gap from the last attempt to the first spoken follow-up
+    # is minimal (SC-002). Follow-up entries are independent of the main grammar pass, so
+    # the report is byte-identical regardless of this reordering. No-op unless a follow-up
+    # runner + TTS playback are injected (existing callers unaffected).
+    with stage_timer.stage("followups"):
+        follow_ups = _run_follow_ups(
+            question,
+            real_transcripts,
+            runners=runners,
+            grammar_analyzer=grammar_analyzer,
+            asr_engine=asr_engine,
+            record_fn=record_fn,
+            tts_engine=tts_engine,
+            play_fn=play_fn,
+            context=context,
+            scratch_dir=scratch_dir,
+            early_exit_event=early_exit_event,
+            console=console,
+            key_reader=key_reader,
+            ui_sleep=ui_sleep,
+        )
+
+    # 012/US3 (T028/T029): engine-capability-aware post-attempt analysis. A parallel-safe
+    # engine (Claude Code / OpenRouter) runs the independent calls concurrently (≥40%
+    # wall-clock reduction, SC-003); the local in-process model stays serial. Both paths
+    # yield a byte-identical report (FR-027). If the user aborted during the follow-ups,
+    # skip the (minute-long) analysis and write a resumable pending report rather than
+    # making them wait past their Ctrl-C (never lose the finished attempts).
+    if abort.abort_event.is_set():
+        outs = _AnalysisOutputs(
+            grammar_patterns=[], phase="B", phase_c_error=None, analysis_pending=True,
+            pronunciation_flags=[], coverage_records=[], content_errors=[], key_points_set=None,
+            key_points_newly_derived=False, coverage_aggregate=None, coaching=None,
+            coach_error=None, analysis_mode="serial", analysis_wall_seconds=0.0,
+        )
+    else:
+        outs = _analyze(
+            real_transcripts=real_transcripts,
+            triaged=triaged,
+            question=question,
+            runners=runners,
+            grammar_analyzer=grammar_analyzer,
+            coach=coach,
+            store=store,
+            console=console,
+            parallel_safe=analysis_parallel_safe,
+            concurrency=analysis_concurrency,
+            stage_timer=stage_timer,
+        )
+    grammar_patterns = outs.grammar_patterns
+    phase = outs.phase
+    phase_c_error = outs.phase_c_error
+    analysis_pending = outs.analysis_pending
+    pronunciation_flags = outs.pronunciation_flags
+    coverage_records = outs.coverage_records
+    content_errors = outs.content_errors
+    key_points_set = outs.key_points_set
+    coverage_aggregate = outs.coverage_aggregate
+    coaching = outs.coaching
+    coach_error = outs.coach_error
+
+    # The ONLY store mutation from analysis: cache a newly-derived key-point set. Applied
+    # on the main thread after the group completes (jobs are pure), so concurrency never
+    # reorders persisted state (contract analysis-concurrency.md).
+    if outs.key_points_newly_derived and store is not None and key_points_set is not None:
+        store.key_points.setdefault(question.id, {})[
+            key_points_set["ideal_answer_hash"]
+        ] = key_points_set
+
     triage_summary = {
         "real": sum(len(tr.real_regions) for tr in triaged),
         "mishearing": len(pronunciation_flags),
         "hallucination_dropped": sum(len(tr.dropped) for tr in triaged),
     }
-
-    grammar_patterns: list[frontmatter.GrammarPattern] = []
-    phase: str = "B"
-    phase_c_error: str | None = None
-    analysis_pending: bool = False
-    if grammar_analyzer is not None:
-        try:
-            with _analyzing(console, "Analyzing grammar across your attempts…"):
-                grammar_patterns = grammar_analyzer(real_transcripts)
-            phase = "C"
-        except Exception as e:
-            # Persist the failure into the report (phase_c_error) so it is
-            # diagnosable from the saved file alone, not just transient console.
-            # 010: also mark analysis_pending so `speakloop resume` can re-run the
-            # analysis later over the preserved transcripts (FR-035/FR-035a).
-            phase_c_error = f"{type(e).__name__}: {e}"
-            analysis_pending = True
-            console.print(
-                f"[yellow]Grammar analyzer failed: {e}. Falling back to Phase-B interim report.[/yellow]"
-            )
-
-    # 010 P3: content coverage + content errors (one LLM call over all attempts),
-    # using key points derived from the ideal answer (hash-versioned, cached in the
-    # store). Runs only after a successful grammar analysis; degrades gracefully.
-    coverage_records: list[dict] = []
-    content_errors: list[dict] = []
-    key_points_set: dict | None = None
-    coverage_aggregate: float | None = None
-    if runners and runners.keypoints and runners.coverage and phase == "C":
-        try:
-            from speakloop.coverage import keypoints as _kp
-
-            qtype = getattr(question, "type", None) or "definition"
-            khash = _kp.ideal_answer_hash(question.ideal_answer)
-            cached = None
-            version = 1
-            if store is not None:
-                by_hash = store.key_points.get(question.id) or {}
-                cached = by_hash.get(khash)
-                if cached is None and by_hash:
-                    version = max((s.get("version", 0) for s in by_hash.values()), default=0) + 1
-            if cached is not None:
-                key_points_set = cached
-            else:
-                with _analyzing(console, "Deriving key points from the model answer…"):
-                    points = runners.keypoints(question.question, question.ideal_answer, qtype)
-                key_points_set = {
-                    "version": version,
-                    "ideal_answer_hash": khash,
-                    "question_type": qtype,
-                    "points": points,
-                }
-                if store is not None:
-                    store.key_points.setdefault(question.id, {})[khash] = key_points_set
-            with _analyzing(console, "Scoring how well you covered the key points…"):
-                result = runners.coverage(
-                    key_points_set["points"], real_transcripts, question.ideal_answer,
-                    key_points_set["version"],
-                )
-            coverage_records = result.attempt_records
-            content_errors = result.content_errors
-            coverage_aggregate = result.final_aggregate
-        except Exception as e:  # noqa: BLE001 — coverage is best-effort; never crash
-            analysis_pending = True
-            console.print(f"[yellow]Coverage scoring failed: {e}. Coverage skipped.[/yellow]")
-
-    # 009: cloud coaching — a SECOND, additive call after the grammar analyzer.
-    # Runs ONLY after a SUCCESSFUL grammar analysis (phase == "C"); a degraded
-    # grammar step (phase_c_error) skips coaching too. `coach` is None in local
-    # mode, so this whole block is a no-op off the --cloud path. Any failure
-    # degrades gracefully: no coaching section, a non-fatal `coach_error` note,
-    # the rest of the report intact — the grammar report is never blocked.
-    coaching: str | None = None
-    coach_error: str | None = None
-    if coach is not None and phase == "C":
-        try:
-            with _analyzing(console, "Writing your coaching feedback…"):
-                coaching = coach(question.question, real_transcripts, grammar_patterns)
-        except Exception as e:  # noqa: BLE001 — coaching is best-effort; never crash
-            coach_error = f"{type(e).__name__}: {e}"
-            console.print(
-                f"[yellow]Coaching step failed: {e}. The grammar report is unaffected.[/yellow]"
-            )
-        # 010 P4 (FR-027): the coach is the fact-bearing generated artifact (it can
-        # invent a wrong exception name etc.) and deliberately never saw the ideal
-        # answer, so consistency-check it against the ideal answer BEFORE writing —
-        # correct it, or drop it entirely rather than show a contradiction (SC-004).
-        if coaching and runners and runners.consistency:
-            try:
-                checked = runners.consistency(coaching, question.ideal_answer)
-            except Exception as e:  # noqa: BLE001 — never block the report
-                checked = None
-                coach_error = coach_error or f"consistency check failed: {e}"
-            if checked is None:
-                coaching = None
-                coach_error = coach_error or "coaching withheld: failed the consistency check"
-                console.print(
-                    "[yellow]Coaching withheld: it contradicted the reference answer "
-                    "and could not be safely corrected.[/yellow]"
-                )
-            else:
-                coaching = checked
-
-    # 010 P1: interactive follow-ups — spoken, grounded in the learner's own words,
-    # recorded + analyzed. No-op unless a follow-up runner + TTS playback are
-    # injected (so existing callers are unaffected). Live-audio = smoke-validated.
-    follow_ups = _run_follow_ups(
-        question,
-        real_transcripts,
-        runners=runners,
-        grammar_analyzer=grammar_analyzer,
-        asr_engine=asr_engine,
-        record_fn=record_fn,
-        tts_engine=tts_engine,
-        play_fn=play_fn,
-        context=context,
-        scratch_dir=scratch_dir,
-        early_exit_event=early_exit_event,
-        console=console,
-        key_reader=key_reader,
-        ui_sleep=ui_sleep,
-    )
 
     # ASR provenance (FR-007), recorded additively only when the caller names the
     # engine that ran (the CLI / engine selection supplies engine_name + model_id
@@ -957,6 +1158,12 @@ def run_session(
             else None
         ),
         analysis_pending=analysis_pending,
+        # 012/US3: always-on per-stage timings (additive optional; schema_version stays 1).
+        timings=stage_timer.to_frontmatter(
+            analysis_mode=outs.analysis_mode,
+            analysis_concurrency=analysis_concurrency,
+            analysis_wall_seconds=outs.analysis_wall_seconds,
+        ),
     )
     body = report_builder.build(session)
     markdown_writer.write_atomic(report_path, body)
@@ -984,5 +1191,10 @@ def run_session(
     # 012/US2: compact closing summary so opening the report file is optional (FR-015).
     # Degrades honestly on an analysis-pending session (FR-016).
     session_ui.render_summary(console, session, next_due=next_due)
+
+    # 012/US3: print the per-stage breakdown when requested (display-only; the timings are
+    # saved into the report regardless of the flag — instrumentation is always-on, FR-018).
+    if timings_display:
+        console.print(stage_timer.render())
 
     return SessionResult(report_path=report_path, session=session)
