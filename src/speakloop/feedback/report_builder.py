@@ -199,8 +199,9 @@ def _coverage_section(session: frontmatter.Session) -> str | None:
         point_ids = [int(pp["id"]) for pp in records[0].get("per_point", [])]
 
     ordinals = [r.get("attempt_ordinal") for r in records]
+    goal_unit = "STAR components" if session.question_type == "behavioral" else "key points"
     lines = ["## Content coverage", ""]
-    lines.append("_Final-round goal: all key points within the time budget._")
+    lines.append(f"_Final-round goal: all {goal_unit} within the time budget._")
     lines.append("")
     header = "| Key point | " + " | ".join(f"R{o}" for o in ordinals) + " |"
     sep = "|" + "---|" * (len(ordinals) + 1)
@@ -284,14 +285,58 @@ def _follow_ups_section(session: frontmatter.Session) -> str | None:
     return "\n".join(lines).rstrip()
 
 
+_CONDITIONAL_MARKERS = (" if ", " would ", " could ", " were ", " might ")
+
+
+def _type_guidance_section(session: frontmatter.Session) -> str | None:
+    """P5: type-specific guidance — STAR-structure check (behavioral) or
+    conditional/future-form guidance (hypothetical). Definition questions get none."""
+    qtype = session.question_type
+    if qtype == "behavioral":
+        # The key points ARE the STAR components for behavioral questions; report
+        # which were present in the final round (covered/partial = present, FR-031).
+        records = session.coverage or []
+        if not records or not session.key_points:
+            return None
+        final = max(records, key=lambda r: r.get("attempt_ordinal", 0))
+        text_by_id = {int(p["id"]): str(p.get("text", "")) for p in session.key_points.get("points", [])}
+        lines = ["## STAR structure check", ""]
+        for pp in final.get("per_point", []):
+            present = pp.get("state") in ("covered", "partial")
+            mark = "✓ present" if present else "✗ missing"
+            lines.append(f"- **{text_by_id.get(int(pp['id']), pp['id'])}:** {mark}")
+        return "\n".join(lines)
+
+    if qtype == "hypothetical":
+        lines = ["## Hypothetical — conditional & future forms", ""]
+        final = max(session.attempts, key=lambda a: a.ordinal) if session.attempts else None
+        transcript = (final.transcript if final else "") or ""
+        lowered = f" {transcript.lower()} "
+        used = [m.strip() for m in _CONDITIONAL_MARKERS if m in lowered]
+        if used:
+            lines.append(
+                f"Good — you used conditional/future forms ({', '.join(sorted(set(used)))}). "
+                "Keep framing scenario answers as *if … I would …*."
+            )
+        else:
+            lines.append(
+                "Your answer used few conditional forms. A hypothetical answer should be framed "
+                "with conditionals and future modals — e.g. *if the app ANRs, I **would** capture a trace*."
+            )
+        return "\n".join(lines)
+
+    return None
+
+
 # Ordered list of section renderers (data-model §10): warm-up → (coverage, P3) →
-# content-errors → pronunciation-flags → follow-ups → (type-guidance, P5).
+# content-errors → pronunciation-flags → follow-ups → type-guidance (P5).
 _INTERVIEW_LOOP_RENDERERS = [
     _warmup_section,
     _coverage_section,
     _content_errors_section,
     _pronunciation_flags_section,
     _follow_ups_section,
+    _type_guidance_section,
 ]
 
 

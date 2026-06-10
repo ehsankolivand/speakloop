@@ -61,3 +61,25 @@ questions:
       The pre Pie workaround was to use commitAllowingStateLoss, or to move the commit earlier. On API 28 and newer, the window where this bug could fire is eliminated, as long as you stop doing work in onStop.
     tags: [android, activity, lifecycle, fragments, api-changes]
     difficulty: hard
+
+  - id: behavioral-anr-debugging
+    type: behavioral
+    question: |
+      Tell me about a time you had to debug a difficult ANR or performance problem in an Android app. What did you do?
+    ideal_answer: |
+      A strong STAR answer covers four parts. Situation: set the scene — which app, what the user impact was (for example, the app froze on startup for some users). Task: state your responsibility — you owned finding and fixing the root cause. Action: describe the concrete steps in past tense — you reproduced it, captured a trace with the Android profiler or the ANR traces in the bug report, found the main thread was blocked on a synchronous disk or network call, and moved that work to a background dispatcher. Result: state the measurable outcome — ANRs dropped to near zero, startup time improved, and you added a StrictMode check to catch regressions.
+
+      Keep it in the past tense, make your own actions the focus (use "I", not "we", for what you did), and end with a concrete, ideally quantified result.
+    tags: [android, behavioral, star, performance, anr]
+    difficulty: medium
+
+  - id: hypothetical-startup-anr
+    type: hypothetical
+    question: |
+      If your app started ANRing on startup only on low-end devices after a release, how would you investigate and fix it?
+    ideal_answer: |
+      A good answer reasons in conditionals and future steps. First, I would confirm and scope it: if the ANRs are concentrated on low-end devices, I would check Play Console vitals and the ANR rate by device and Android version. Then I would reproduce: if I can get a low-end device or throttle a profiler, I would capture a startup trace. I would look for main-thread work that would block longer on slow hardware — synchronous I/O, large JSON parsing, or eager initialization in Application.onCreate.
+
+      If the cause were heavy initialization, I would move non-critical work off the startup path, defer it with App Startup or a background dispatcher, and lazy-initialize. If it were a third-party SDK, I would initialize it asynchronously. Finally, I would add a guardrail: a StrictMode policy and a startup-time metric, so a regression would surface before release. Throughout, the answer should use conditionals ("if … I would …") because the scenario is hypothetical.
+    tags: [android, hypothetical, anr, startup, performance]
+    difficulty: medium

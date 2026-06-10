@@ -211,14 +211,14 @@ key points; all types keep the 4/3/2 structure.
 which of S/T/A/R were present and the hypothetical shows conditional/future-form guidance citing the
 learner's clauses; definition questions unchanged (spec US5 acceptance + SC-008).
 
-- [ ] T077 [US5] Add the additive-optional `type` field + validation (default `definition`; loader accepts it; question-file `schema_version` unchanged) in `src/speakloop/content/schema.py`
-- [ ] T078 [P] [US5] Add one behavioral/STAR and one hypothetical example question to `content/questions.yaml`
-- [ ] T079 [US5] Make key-point derivation type-aware (4 STAR components for behavioral; 5–7 otherwise) in `src/speakloop/coverage/keypoints.py`
-- [ ] T080 [US5] Render the STAR-structure check + conditional/future-form guidance sections in `src/speakloop/feedback/report_builder.py`
-- [ ] T081 [US5] Route `question_type` into the session + set the type-specific final-round goal (behavioral = all STAR components within the time budget) in `src/speakloop/sessions/coordinator.py`
-- [ ] T082 [P] [US5] Table-driven test of `type` parsing/default/validation in `tests/unit/content/test_type_field.py`
-- [ ] T083 [P] [US5] Manual smoke-test checklist `specs/010-interview-loop/manual-tests/us5-types.md` — verify a behavioral answer's STAR check reads correctly and a hypothetical's conditional guidance is on-point
-- [ ] T084 [US5] Update report rendering + regenerate the sample report `tests/fixtures/reports/sample-us5-types.md`
+- [X] T077 [US5] Add the additive-optional `type` field + validation (default `definition`; loader accepts it; question-file `schema_version` unchanged) in `src/speakloop/content/schema.py`
+- [X] T078 [P] [US5] Add one behavioral/STAR and one hypothetical example question to `content/questions.yaml`
+- [X] T079 [US5] Make key-point derivation type-aware (4 STAR components for behavioral; 5–7 otherwise) in `src/speakloop/coverage/keypoints.py`
+- [X] T080 [US5] Render the STAR-structure check + conditional/future-form guidance sections in `src/speakloop/feedback/report_builder.py`
+- [X] T081 [US5] Route `question_type` into the session + set the type-specific final-round goal (behavioral = all STAR components within the time budget) in `src/speakloop/sessions/coordinator.py`
+- [X] T082 [P] [US5] Table-driven test of `type` parsing/default/validation in `tests/unit/content/test_type_field.py`
+- [X] T083 [P] [US5] Manual smoke-test checklist `specs/010-interview-loop/manual-tests/us5-types.md` — verify a behavioral answer's STAR check reads correctly and a hypothetical's conditional guidance is on-point
+- [X] T084 [US5] Update report rendering + regenerate the sample report `tests/fixtures/reports/sample-us5-types.md`
 
 **Checkpoint**: all five stories independently functional.
 

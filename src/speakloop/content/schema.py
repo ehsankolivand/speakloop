@@ -34,6 +34,10 @@ class Question:
     tags: list[str] = field(default_factory=list)
     difficulty: str | None = None
     voice_override: str | None = None
+    # 010-interview-loop (P5): additive optional question type. Absent → definition,
+    # so existing question files load unchanged. The question-file `schema_version`
+    # is NOT bumped (it is separate from the report schema_version).
+    type: str = "definition"
 
 
 @dataclass(frozen=True)
@@ -44,8 +48,9 @@ class QAFile:
 
 
 _REQUIRED_FIELDS = ("id", "question", "ideal_answer")
-_KNOWN_FIELDS = {"id", "question", "ideal_answer", "tags", "difficulty", "voice_override"}
+_KNOWN_FIELDS = {"id", "question", "ideal_answer", "tags", "difficulty", "voice_override", "type"}
 _VALID_DIFFICULTIES = {"easy", "medium", "hard"}
+_VALID_TYPES = {"definition", "behavioral", "hypothetical"}
 
 
 def parse(doc: dict) -> QAFile:
@@ -127,6 +132,11 @@ def parse(doc: dict) -> QAFile:
         if voice_override is not None:
             voice_override = str(voice_override)
 
+        qtype = entry.get("type") or "definition"
+        if qtype not in _VALID_TYPES:
+            warnings.append(f"Question {qid!r}: unknown type {qtype!r}; treated as definition.")
+            qtype = "definition"
+
         unknown = set(entry.keys()) - _KNOWN_FIELDS
         if unknown:
             warnings.append(f"Question {qid!r}: unknown keys ignored: {sorted(unknown)}.")
@@ -139,6 +149,7 @@ def parse(doc: dict) -> QAFile:
                 tags=tags,
                 difficulty=difficulty,
                 voice_override=voice_override,
+                type=qtype,
             )
         )
 

@@ -1,19 +1,19 @@
 ---
 schema_version: 1
-session_id: 2026-06-10-rotation
+session_id: 2026-06-10-behavioral-anr-debugging
 started_at: '2026-06-10T09:00:00'
-question_id: activity-rotation-callbacks
+question_id: behavioral-anr-debugging
 question: |
-  Walk me through what happens to an Activity when the user rotates the device.
+  Tell me about a time you debugged a difficult ANR.
 ideal_answer: |
-  By default a rotation is a configuration change; the Activity is torn down and recreated; the ViewModel survives; Android 12 changed trace collection.
+  Cover Situation, Task, Action, and Result; past tense; quantified result.
 attempts:
 - ordinal: 1
   time_budget_seconds: 240
-  actual_duration_seconds: 210.0
+  actual_duration_seconds: 205.0
   metrics:
     words_total: 70
-    speech_rate_wpm: 84.0
+    speech_rate_wpm: 82.0
     filler_words_count: 3
     filler_density_per_100_words: 4.3
     pauses_count: 4
@@ -21,10 +21,10 @@ attempts:
     self_corrections_count: 1
 - ordinal: 2
   time_budget_seconds: 180
-  actual_duration_seconds: 170.0
+  actual_duration_seconds: 165.0
   metrics:
     words_total: 70
-    speech_rate_wpm: 90.0
+    speech_rate_wpm: 89.0
     filler_words_count: 3
     filler_density_per_100_words: 4.3
     pauses_count: 4
@@ -32,60 +32,55 @@ attempts:
     self_corrections_count: 1
 - ordinal: 3
   time_budget_seconds: 120
-  actual_duration_seconds: 115.0
+  actual_duration_seconds: 118.0
   metrics:
     words_total: 70
-    speech_rate_wpm: 98.0
+    speech_rate_wpm: 97.0
     filler_words_count: 3
     filler_density_per_100_words: 4.3
     pauses_count: 4
     mean_pause_ms: 520.0
     self_corrections_count: 1
 grammar_patterns:
-- label: subject-verb agreement
-  occurrence_count: 1
+- label: past tense
+  occurrence_count: 2
   impact_rank: 1
-  explanation: Use the singular verb form after a singular subject.
+  explanation: Behavioral answers need consistent past tense.
   evidence:
   - attempt_ordinal: 1
-    quote: when the phone rotate
-    corrected: when the phone rotates
+    quote: I am look into it
+    corrected: I looked into it
 generated_by_phase: C
 cross_attempt_narrative: |-
-  Your speech rate climbed from 84 to 98 WPM across the three attempts.
+  Your speech rate climbed from 82 to 97 WPM; past-tense slips fell across rounds.
 top_priority: |-
-  Lock in third-person singular verb agreement under time pressure.
+  Keep every verb in the past tense when telling a STAR story.
+question_type: behavioral
 warmup:
-  target_pattern: subject-verb agreement
+  target_pattern: past tense
   items:
   - index: 1
-    target_sentence: The system creates a new Activity.
+    target_sentence: I fixed the crash last week.
     result: pass
   - index: 2
-    target_sentence: The phone rotates and the state saves.
+    target_sentence: I am fixed the bug.
     result: fail
   - index: 3
-    target_sentence: The ViewModel survives the change.
+    target_sentence: I moved the work off the main thread.
     result: pass
 follow_ups:
 - index: 1
-  question_text: Why does the ViewModel survive the configuration change?
-  probe_ref: ViewModel
+  question_text: You said the main thread was blocked — how did you confirm that specifically?
+  probe_ref: main thread
   answered: true
-  transcript: Because it is stored in the retained non configuration instance, so
-    it is not cleared.
+  transcript: I read the ANR trace and saw the main thread stuck in a synchronous
+    read.
   metrics:
-    words_total: 17
-    speech_rate_wpm: 88.0
-  grammar_patterns:
-  - label: article use
-    occurrence_count: 1
-    from_followup: true
-    evidence:
-    - quote: in retained instance
-      corrected: in the retained instance
+    words_total: 15
+    speech_rate_wpm: 90.0
+  grammar_patterns: []
 - index: 2
-  question_text: What happens to the bundle if the OS kills the process?
+  question_text: What would you do if it only reproduced on low-end devices?
   probe_ref: edge_case
   answered: false
 coverage:
@@ -113,131 +108,127 @@ coverage:
     state: covered
   - id: 4
     state: partial
-content_errors:
-- attempt_ordinal: 3
-  learner_claim: Android 11
-  ideal_claim: Android 12
-  key_point_id: 4
 pronunciation_flags:
-- attempt_ordinal: 2
-  heard: mouse
-  likely_intended: must
+- attempt_ordinal: 1
+  heard: freeze
+  likely_intended: frozen
   signal: llm_mishearing
 key_points:
   version: 1
-  ideal_answer_hash: abc123
-  question_type: definition
+  ideal_answer_hash: star01
+  question_type: behavioral
   points:
   - id: 1
-    text: rotation is a configuration change
+    text: Situation
   - id: 2
-    text: the Activity is destroyed and recreated
+    text: Task
   - id: 3
-    text: the ViewModel survives the change
+    text: Action
   - id: 4
-    text: Android 12 changed trace collection
+    text: Result
 answer_grade: good
 triage_summary:
-  real: 9
+  real: 12
   mishearing: 1
   hallucination_dropped: 1
 pattern_trends:
-  subject-verb agreement: 5 → 3 → 1
+  past tense: 8 → 4 → 2
 ---
 
-# activity-rotation-callbacks — 2026-06-10
+# behavioral-anr-debugging — 2026-06-10
 
 ## Question & reference answer
 
-**Question:** Walk me through what happens to an Activity when the user rotates the device.
+**Question:** Tell me about a time you debugged a difficult ANR.
 
 **Reference answer:**
 
-By default a rotation is a configuration change; the Activity is torn down and recreated; the ViewModel survives; Android 12 changed trace collection.
+Cover Situation, Task, Action, and Result; past tense; quantified result.
 
 ## Top priority for next session
 
-Lock in third-person singular verb agreement under time pressure.
+Keep every verb in the past tense when telling a STAR story.
 
 ## Attempt-by-attempt summary
 
 | Round | Budget | Used | WPM | Fillers/100w | Pauses |
 |-------|--------|------|-----|--------------|--------|
-| 1     | 4:00   | 3:30 | 84 | 4.3          | 4     |
-| 2     | 3:00   | 2:50 | 90 | 4.3          | 4     |
-| 3     | 2:00   | 1:55 | 98 | 4.3          | 4     |
+| 1     | 4:00   | 3:25 | 82 | 4.3          | 4     |
+| 2     | 3:00   | 2:45 | 89 | 4.3          | 4     |
+| 3     | 2:00   | 1:58 | 97 | 4.3          | 4     |
 
 ## Cross-attempt comparison
 
-Your speech rate climbed from 84 to 98 WPM across the three attempts.
+Your speech rate climbed from 82 to 97 WPM; past-tense slips fell across rounds.
 
 ## Grammar patterns
 
-### subject-verb agreement *(1×)*
-- **You said:** “when the phone rotate”
-- **Better:** “when the phone rotates”
-- **Because:** Use the singular verb form after a singular subject.
-- **Trend (recent sessions):** 5 → 3 → 1
+### past tense *(2×)*
+- **You said:** “I am look into it”
+- **Better:** “I looked into it”
+- **Because:** Behavioral answers need consistent past tense.
+- **Trend (recent sessions):** 8 → 4 → 2
 
 ## Warm-up drill
 
-_Exercising your recurring pattern: **subject-verb agreement**._
+_Exercising your recurring pattern: **past tense**._
 
-- ✓ The system creates a new Activity. — **pass**
-- ✗ The phone rotates and the state saves. — **fail**
-- ✓ The ViewModel survives the change. — **pass**
+- ✓ I fixed the crash last week. — **pass**
+- ✗ I am fixed the bug. — **fail**
+- ✓ I moved the work off the main thread. — **pass**
 
 ## Content coverage
 
-_Final-round goal: all key points within the time budget._
+_Final-round goal: all STAR components within the time budget._
 
 | Key point | R1 | R3 |
 |---|---|---|
-| rotation is a configuration change | ✓ | ✓ |
-| the Activity is destroyed and recreated | ✗ | ✓ |
-| the ViewModel survives the change | ✗ | ✓ |
-| Android 12 changed trace collection | ✗ | ~ |
+| Situation | ✓ | ✓ |
+| Task | ✗ | ✓ |
+| Action | ✗ | ✓ |
+| Result | ✗ | ~ |
 
 **Coverage:** 25% (R1) → 88% (R3), Δ +62%
-
-## Content errors (vs. reference answer)
-
-- You said **Android 11**, but the reference answer says **Android 12**. *(round 3)*
 
 ## Pronunciation flags
 
 _These look like the recognizer mishearing a word you said — practice the pronunciation; they are not grammar mistakes._
 
-- heard **“mouse”** — likely you meant **“must”**
+- heard **“freeze”** — likely you meant **“frozen”**
 
 ## Follow-ups
 
 ### Follow-up 1
 
-**Interviewer:** Why does the ViewModel survive the configuration change?
+**Interviewer:** You said the main thread was blocked — how did you confirm that specifically?
 
-**You said:** Because it is stored in the retained non configuration instance, so it is not cleared.
-
-- article use *(1×)*
+**You said:** I read the ANR trace and saw the main thread stuck in a synchronous read.
 
 ### Follow-up 2
 
-**Interviewer:** What happens to the bundle if the OS kills the process?
+**Interviewer:** What would you do if it only reproduced on low-end devices?
 
 _No answer — timed out._
+
+## STAR structure check
+
+- **Situation:** ✓ present
+- **Task:** ✓ present
+- **Action:** ✓ present
+- **Result:** ✓ present
 
 ## Transcripts
 
 ### Attempt 1
 
-So when the phone rotate the activity is destroyed and the system make a new one.
+So we had a app that freeze on startup and I am look into it.
 
 
 ### Attempt 2
 
-On rotation the activity is destroyed and recreated, and onSaveInstanceState saves the bundle.
+I captured a trace and I found the main thread was blocked on disk IO.
 
 
 ### Attempt 3
 
-Rotation is a configuration change; the ViewModel survives via the retained instance.
+I moved the work to a background dispatcher and ANRs dropped to near zero.

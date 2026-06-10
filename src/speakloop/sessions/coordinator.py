@@ -550,6 +550,17 @@ def run_session(
         for ordinal in (1, 2, 3):
             if abort.abort_event.is_set():
                 raise AbortedError()
+            if ordinal == 3:
+                # 010 P3/P5 (FR-022): state the final-round content goal before the
+                # last attempt — type-aware (STAR components for behavioral).
+                goal_unit = (
+                    "STAR components"
+                    if (getattr(question, "type", None) == "behavioral")
+                    else "key points"
+                )
+                console.print(
+                    f"[bold]Final round — goal: cover all {goal_unit} within the time budget.[/bold]"
+                )
             early_exit_event.clear()
             _, transcript = _do_attempt(
                 ordinal,
