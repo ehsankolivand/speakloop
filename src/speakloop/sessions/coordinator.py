@@ -6,6 +6,7 @@ A SIGINT at any state up to and including `reporting` aborts cleanly without wri
 
 from __future__ import annotations
 
+import contextlib
 import os
 import select
 import shutil
@@ -13,6 +14,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
@@ -32,6 +34,29 @@ from speakloop.content import Question
 from speakloop.feedback import frontmatter, markdown_writer, narrative, report_builder
 from speakloop.metrics import compute_all
 from speakloop.sessions import abort, timer
+from speakloop.triage import hallucination as _halluc
+
+# Default time budget (seconds) for a spoken follow-up answer (P1, FR-002).
+FOLLOWUP_BUDGET_SECONDS = 60
+
+
+@dataclass
+class Runners:
+    """Injected Interview Loop LLM runners (010), all over ONE engine instance.
+
+    Built once in ``cli/practice.py`` (local or ``--cloud``) and passed into
+    ``run_session``. Each is optional so a slice that is not yet present (or a
+    missing local model) simply leaves its capability off — the session still
+    runs. Signatures:
+
+    * ``mishearing(real_text: str) -> list[TriagedSpan]`` (P4 enrichment; [] on failure)
+    * ``followups(question_text: str, transcripts: list[Transcript]) -> list[dict]`` (P1)
+    * ``consistency(artifact: str, ideal_answer: str) -> str | None`` (P4; wired in US4)
+    """
+
+    mishearing: Callable | None = None
+    followups: Callable | None = None
+    consistency: Callable | None = None
 
 
 class AbortedError(Exception):
@@ -183,11 +208,15 @@ def _do_attempt(
         f"{duration:.1f}s captured. [dim]Transcribing…[/dim]"
     )
     transcript = asr_engine.transcribe(wav_path, context=context)
-    # Override the engine-reported duration with the wall-clock recording duration.
+    # Override the engine-reported duration with the wall-clock recording duration,
+    # preserving the per-segment decode signals + VAD regions (010 P4 triage needs
+    # them) — they were previously dropped here.
     transcript = Transcript(
         text=transcript.text,
         words=transcript.words,
         audio_duration_seconds=duration,
+        segments=transcript.segments,
+        vad_regions=transcript.vad_regions,
     )
     return duration, transcript
 
@@ -197,7 +226,10 @@ def _build_attempts(
 ) -> list[frontmatter.Attempt]:
     attempts: list[frontmatter.Attempt] = []
     for i, t in enumerate(transcripts, start=1):
-        m = compute_all(t)
+        # 010 P4: when triage supplied real-speech regions, metrics are computed
+        # over them only (hallucinated/silence spans excluded). Empty regions
+        # (legacy / Parakeet) → byte-identical to before.
+        m = compute_all(t, vad_regions=t.vad_regions or None)
         attempts.append(
             frontmatter.Attempt(
                 ordinal=i,
@@ -231,6 +263,127 @@ def _vad_settings_for(engine_name: str, context: TranscriptionContext) -> dict |
     return None
 
 
+def _metrics_dict(m: dict) -> dict:
+    """Shape a compute_all() result into the frontmatter metrics dict."""
+    return {
+        "words_total": int(m["words_total"]),
+        "speech_rate_wpm": float(m["speech_rate_wpm"]),
+        "filler_words_count": int(m["filler_words_count"]),
+        "filler_density_per_100_words": float(m["filler_density_per_100_words"]),
+        "pauses_count": int(m["pauses_count"]),
+        "mean_pause_ms": float(m["mean_pause_ms"]),
+        "self_corrections_count": int(m["self_corrections_count"]),
+    }
+
+
+def _patterns_to_dicts(patterns: list[frontmatter.GrammarPattern]) -> list[dict]:
+    """Minimal serialisation of follow-up grammar patterns for the report + trends.
+
+    Tagged ``from_followup`` so cross-session aggregation can attribute them (FR-036)."""
+    out: list[dict] = []
+    for p in patterns:
+        out.append(
+            {
+                "label": p.label,
+                "occurrence_count": int(p.occurrence_count),
+                "from_followup": True,
+                "evidence": [
+                    {"quote": ev.get("quote", ""), "corrected": ev.get("corrected", "")}
+                    for ev in p.evidence
+                ],
+            }
+        )
+    return out
+
+
+def _run_follow_ups(
+    question: Question,
+    real_transcripts: list[Transcript],
+    *,
+    runners: Runners | None,
+    grammar_analyzer,
+    asr_engine: ASREngine,
+    record_fn,
+    tts_engine,
+    play_fn,
+    context: TranscriptionContext | None,
+    scratch_dir: Path,
+    early_exit_event: threading.Event,
+    console: Console,
+) -> list[dict]:
+    """P1: ask 1–2 unscripted, spoken follow-ups grounded in the learner's own
+    words; record + transcribe + analyze each (FR-001..FR-006).
+
+    No-op (returns []) unless a follow-up runner AND TTS playback are available, so
+    every existing caller (which passes neither) is unaffected. Live-audio behavior
+    (TTS pronunciation, recording, ~10s latency, silence timeout) is validated by
+    the manual voice smoke test — it cannot be exercised automatically."""
+    if not (runners and runners.followups and tts_engine is not None and play_fn is not None):
+        return []
+    try:
+        specs = runners.followups(question.question, real_transcripts) or []
+    except Exception as e:  # noqa: BLE001 — follow-ups are best-effort; never crash
+        console.print(f"[yellow]Follow-up generation failed: {e}. Skipping follow-ups.[/yellow]")
+        return []
+    if not specs:
+        console.print("[dim]No probe-worthy material for a follow-up this round.[/dim]")
+        return []
+
+    follow_ups: list[dict] = []
+    for i, spec in enumerate(specs[:2], start=1):
+        if abort.abort_event.is_set():
+            # Abort during follow-ups: stop asking more, but DON'T discard the
+            # session — the 3 attempts + analysis are already complete, so
+            # run_session still writes that report (never lose finished work).
+            break
+        q_text = str((spec or {}).get("question", "")).strip()
+        if not q_text:
+            continue
+        console.print(f"\n[bold]Follow-up {i}:[/bold] {q_text}")
+        try:
+            play_fn(tts_engine.synthesize(q_text, voice=question.voice_override))
+        except Exception as e:  # noqa: BLE001 — TTS/playback failure → skip this follow-up
+            console.print(f"[yellow]Could not play follow-up {i}: {e}. Skipping.[/yellow]")
+            continue
+        wav_path = scratch_dir / f"followup-{i}.wav"
+        early_exit_event.clear()
+        try:
+            duration = record_fn(
+                wav_path,
+                time_budget_seconds=FOLLOWUP_BUDGET_SECONDS,
+                early_exit_event=early_exit_event,
+            )
+        except Exception as e:  # noqa: BLE001 — device failure (not silence) → skip
+            console.print(f"[yellow]Recording failed for follow-up {i}: {e}. Skipping.[/yellow]")
+            continue
+        transcript = asr_engine.transcribe(wav_path, context=context)
+        triaged = _halluc.filter_hallucinations(transcript)
+        answered = bool(triaged.real_text.strip())
+        entry: dict = {
+            "index": i,
+            "question_text": q_text,
+            "probe_ref": str((spec or {}).get("probe_ref") or (spec or {}).get("probe_type") or ""),
+            "answered": answered,
+            "transcript": triaged.real_text,
+        }
+        if answered:
+            real = Transcript(
+                text=triaged.real_text,
+                words=transcript.words,
+                audio_duration_seconds=duration,
+                vad_regions=triaged.real_regions,
+            )
+            entry["metrics"] = _metrics_dict(compute_all(real, vad_regions=triaged.real_regions or None))
+            if grammar_analyzer is not None:
+                # follow-up grammar is best-effort; a failure just omits it
+                with contextlib.suppress(Exception):
+                    entry["grammar_patterns"] = _patterns_to_dicts(grammar_analyzer([real]))
+        else:
+            console.print(f"[dim]No answer to follow-up {i} (timed out).[/dim]")
+        follow_ups.append(entry)
+    return follow_ups
+
+
 def run_session(
     question: Question,
     *,
@@ -240,6 +393,8 @@ def run_session(
     record_fn: Callable | None = None,
     grammar_analyzer=None,
     coach=None,
+    runners: Runners | None = None,
+    listen_in_session: bool = False,
     console: Console | None = None,
     sessions_dir: Path | None = None,
     scratch_dir: Path | None = None,
@@ -263,7 +418,11 @@ def run_session(
     abort.reset()
     abort.install_signal_handler(sessions_dir)
 
-    if tts_engine is not None and play_fn is not None:
+    # The in-session listen block is opt-in (``listen_in_session``). The CLI does
+    # its own listen loop before calling run_session and passes tts_engine/play_fn
+    # only to drive the follow-up stage, so it leaves this False to avoid a
+    # double-play. (010: gated; previously fired whenever tts_engine+play_fn were set.)
+    if listen_in_session and tts_engine is not None and play_fn is not None:
         q_wav = tts_engine.synthesize(question.question, voice=question.voice_override)
         a_wav = tts_engine.synthesize(question.ideal_answer, voice=question.voice_override)
         console.print(f"\n[bold]Listening to question: {question.id}[/bold]")
@@ -310,19 +469,57 @@ def run_session(
         raise
 
     started_at = now()
-    attempts = _build_attempts(transcripts)
+
+    # 010 P4: deterministic ASR-hallucination triage BEFORE any analysis. Drops
+    # phantom/silence spans so no hallucination text reaches grammar evidence or
+    # metrics (SC-003/FR-028) — works offline, independent of the LLM. Real-speech
+    # regions feed metrics; mishearings (LLM enrichment) become pronunciation flags.
+    triaged = [_halluc.filter_hallucinations(t) for t in transcripts]
+    real_transcripts = [
+        Transcript(
+            text=tr.real_text,
+            words=t.words,
+            audio_duration_seconds=t.audio_duration_seconds,
+            vad_regions=tr.real_regions,
+        )
+        for t, tr in zip(transcripts, triaged, strict=True)
+    ]
+    attempts = _build_attempts(real_transcripts)
+
+    pronunciation_flags: list[dict] = []
+    mishearing_runner = runners.mishearing if runners else None
+    if mishearing_runner is not None:
+        for ordinal, tr in enumerate(triaged, start=1):
+            for span in mishearing_runner(tr.real_text):
+                pronunciation_flags.append(
+                    {
+                        "attempt_ordinal": ordinal,
+                        "heard": span.heard,
+                        "likely_intended": span.likely_intended,
+                        "signal": span.signal,
+                    }
+                )
+    triage_summary = {
+        "real": sum(len(tr.real_regions) for tr in triaged),
+        "mishearing": len(pronunciation_flags),
+        "hallucination_dropped": sum(len(tr.dropped) for tr in triaged),
+    }
 
     grammar_patterns: list[frontmatter.GrammarPattern] = []
     phase: str = "B"
     phase_c_error: str | None = None
+    analysis_pending: bool = False
     if grammar_analyzer is not None:
         try:
-            grammar_patterns = grammar_analyzer(transcripts)
+            grammar_patterns = grammar_analyzer(real_transcripts)
             phase = "C"
         except Exception as e:
             # Persist the failure into the report (phase_c_error) so it is
             # diagnosable from the saved file alone, not just transient console.
+            # 010: also mark analysis_pending so `speakloop resume` can re-run the
+            # analysis later over the preserved transcripts (FR-035/FR-035a).
             phase_c_error = f"{type(e).__name__}: {e}"
+            analysis_pending = True
             console.print(
                 f"[yellow]Grammar analyzer failed: {e}. Falling back to Phase-B interim report.[/yellow]"
             )
@@ -337,12 +534,30 @@ def run_session(
     coach_error: str | None = None
     if coach is not None and phase == "C":
         try:
-            coaching = coach(question.question, transcripts, grammar_patterns)
+            coaching = coach(question.question, real_transcripts, grammar_patterns)
         except Exception as e:  # noqa: BLE001 — coaching is best-effort; never crash
             coach_error = f"{type(e).__name__}: {e}"
             console.print(
                 f"[yellow]Coaching step failed: {e}. The grammar report is unaffected.[/yellow]"
             )
+
+    # 010 P1: interactive follow-ups — spoken, grounded in the learner's own words,
+    # recorded + analyzed. No-op unless a follow-up runner + TTS playback are
+    # injected (so existing callers are unaffected). Live-audio = smoke-validated.
+    follow_ups = _run_follow_ups(
+        question,
+        real_transcripts,
+        runners=runners,
+        grammar_analyzer=grammar_analyzer,
+        asr_engine=asr_engine,
+        record_fn=record_fn,
+        tts_engine=tts_engine,
+        play_fn=play_fn,
+        context=context,
+        scratch_dir=scratch_dir,
+        early_exit_event=early_exit_event,
+        console=console,
+    )
 
     # ASR provenance (FR-007), recorded additively only when the caller names the
     # engine that ran (the CLI / engine selection supplies engine_name + model_id
@@ -377,6 +592,20 @@ def run_session(
         phase_c_error=phase_c_error,
         coaching=coaching,
         coach_error=coach_error,
+        # 010 additive: question type (P5), triage outputs (P4), follow-ups (P1),
+        # and the degradation flag. All default-empty for legacy/local callers.
+        question_type=getattr(question, "type", None) or "definition",
+        follow_ups=follow_ups,
+        pronunciation_flags=pronunciation_flags,
+        # Emit the triage summary only when there is something to summarize (a
+        # dropped hallucination or a pronunciation flag), so a clean session stays
+        # byte-identical (additive-optional key, SC-012).
+        triage_summary=(
+            triage_summary
+            if triage_summary.get("hallucination_dropped", 0) > 0 or pronunciation_flags
+            else None
+        ),
+        analysis_pending=analysis_pending,
     )
     body = report_builder.build(session)
     markdown_writer.write_atomic(report_path, body)

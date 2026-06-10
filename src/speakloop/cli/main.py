@@ -129,5 +129,17 @@ def trends_cmd(
     _trends.run(sessions_dir=sessions_dir, top_patterns=top_patterns, since=since)
 
 
+@app.command("rebuild")
+def rebuild_cmd(
+    sessions_dir: Path = typer.Option(
+        None, "--sessions-dir", help="Override the report directory (default: data/sessions/)."
+    ),
+) -> None:
+    """Rebuild the derived store (SRS schedule + key-point cache + pattern series) from session files."""
+    from speakloop.cli import rebuild as _rebuild
+
+    _rebuild.run(sessions_dir=sessions_dir)
+
+
 if __name__ == "__main__":
     app()

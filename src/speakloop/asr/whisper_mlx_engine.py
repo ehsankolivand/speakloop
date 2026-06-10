@@ -25,7 +25,13 @@ from pathlib import Path
 
 import soundfile as sf
 
-from speakloop.asr.interface import ASREngineError, Transcript, TranscriptionContext, WordTiming
+from speakloop.asr.interface import (
+    ASREngineError,
+    SegmentMeta,
+    Transcript,
+    TranscriptionContext,
+    WordTiming,
+)
 from speakloop.installer.manifest import WHISPER_LARGE_V3_TURBO
 
 logger = logging.getLogger(__name__)
@@ -168,6 +174,8 @@ class WhisperMLXEngine:
             return Transcript(text="", words=[], audio_duration_seconds=duration)
         texts: list[str] = []
         words: list[WordTiming] = []
+        segments: list[SegmentMeta] = []
+        kept_regions: list[tuple[float, float]] = []
         for region in regions:
             start = max(0, int(region.start_seconds * sr))
             end = min(len(audio), int(region.end_seconds * sr))
@@ -183,7 +191,10 @@ class WhisperMLXEngine:
                 word_timestamps=True,
                 **_DECODE_GUARDS,
             )
-            piece = _result_to_transcript(result, 0.0)
+            # Offset region-relative word/segment times back onto the original
+            # timeline so inter-region silences survive as gaps (pause metrics stay
+            # correct) and the surfaced segments/VAD regions align (P4 triage).
+            piece = _result_to_transcript(result, 0.0, time_offset=region.start_seconds)
             if _is_degenerate(piece.text):
                 logger.warning(
                     "Whisper produced a degenerate repetition loop in the "
@@ -196,37 +207,60 @@ class WhisperMLXEngine:
                 continue
             if piece.text:
                 texts.append(piece.text)
-            # Offset each region's word timings back onto the original timeline so
-            # the inter-region silences survive as gaps (pause metrics stay correct).
-            for w in piece.words:
-                words.append(
-                    WordTiming(
-                        word=w.word,
-                        start_seconds=w.start_seconds + region.start_seconds,
-                        end_seconds=w.end_seconds + region.start_seconds,
-                    )
-                )
+            words.extend(piece.words)
+            segments.extend(piece.segments)
+            kept_regions.append((region.start_seconds, region.end_seconds))
         return Transcript(
             text=" ".join(texts).strip(),
             words=words,
             audio_duration_seconds=duration,
+            segments=tuple(segments),
+            vad_regions=tuple(kept_regions),
         )
 
 
-def _result_to_transcript(result: dict, duration: float) -> Transcript:
-    """Map an mlx_whisper result dict to a Transcript (timeline as returned)."""
+def _opt_float(value) -> float | None:
+    """None-safe float coercion for optional mlx-whisper segment signals."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _result_to_transcript(result: dict, duration: float, *, time_offset: float = 0.0) -> Transcript:
+    """Map an mlx_whisper result dict to a Transcript.
+
+    ``time_offset`` (010-interview-loop) shifts word/segment times back onto the
+    original timeline when transcribing a VAD region clip. Per-segment decode
+    signals (``avg_logprob``/``no_speech_prob``/``compression_ratio``) and per-word
+    ``probability`` are surfaced for the P4 triage step (previously discarded)."""
     words: list[WordTiming] = []
+    segments: list[SegmentMeta] = []
     for segment in result.get("segments", []) or []:
+        segments.append(
+            SegmentMeta(
+                start_seconds=float(segment.get("start", 0.0)) + time_offset,
+                end_seconds=float(segment.get("end", 0.0)) + time_offset,
+                text=str(segment.get("text", "")).strip(),
+                avg_logprob=_opt_float(segment.get("avg_logprob")),
+                no_speech_prob=_opt_float(segment.get("no_speech_prob")),
+                compression_ratio=_opt_float(segment.get("compression_ratio")),
+            )
+        )
         for w in segment.get("words", []) or []:
             words.append(
                 WordTiming(
                     word=str(w.get("word", "")).strip(),
-                    start_seconds=float(w.get("start", 0.0)),
-                    end_seconds=float(w.get("end", 0.0)),
+                    start_seconds=float(w.get("start", 0.0)) + time_offset,
+                    end_seconds=float(w.get("end", 0.0)) + time_offset,
+                    probability=_opt_float(w.get("probability")),
                 )
             )
     return Transcript(
         text=str(result.get("text", "")).strip(),
         words=words,
         audio_duration_seconds=duration,
+        segments=tuple(segments),
     )

@@ -149,6 +149,100 @@ def _coaching_section(session: frontmatter.Session) -> str | None:
     return coaching or None
 
 
+# --- Interview Loop sections (010) -----------------------------------------
+# Additive, body-only sections rendered AFTER grammar/coaching and BEFORE the
+# transcripts, in a fixed order (data-model §10). Each renderer returns None when
+# its data is absent, so a pre-feature report (and any session missing the data)
+# is byte-identical to before. Story phases append their own renderers to
+# `_INTERVIEW_LOOP_RENDERERS`.
+
+
+def _content_errors_section(session: frontmatter.Session) -> str | None:
+    """P3: factual contradictions vs the ideal answer, SEPARATE from grammar."""
+    errors = session.content_errors or []
+    if not errors:
+        return None
+    lines = ["## Content errors (vs. reference answer)", ""]
+    for e in errors:
+        learner = str(e.get("learner_claim", "")).strip()
+        ideal = str(e.get("ideal_claim", "")).strip()
+        if not learner and not ideal:
+            continue
+        ordinal = e.get("attempt_ordinal")
+        where = f" *(round {ordinal})*" if ordinal else ""
+        lines.append(f"- You said **{learner}**, but the reference answer says **{ideal}**.{where}")
+    return "\n".join(lines) if len(lines) > 2 else None
+
+
+def _pronunciation_flags_section(session: frontmatter.Session) -> str | None:
+    """P4: likely pronunciation mishearings, reported here — NEVER as grammar."""
+    flags = session.pronunciation_flags or []
+    if not flags:
+        return None
+    lines = [
+        "## Pronunciation flags",
+        "",
+        "_These look like the recognizer mishearing a word you said — practice the "
+        "pronunciation; they are not grammar mistakes._",
+        "",
+    ]
+    for f in flags:
+        heard = str(f.get("heard", "")).strip()
+        intended = str(f.get("likely_intended", "")).strip()
+        if heard and intended:
+            lines.append(f"- heard **“{heard}”** — likely you meant **“{intended}”**")
+    return "\n".join(lines) if len(lines) > 4 else None
+
+
+def _follow_ups_section(session: frontmatter.Session) -> str | None:
+    """P1: the interactive follow-ups, each with the spoken question, the learner's
+    transcribed answer (or a timed-out note), and its grammar feedback."""
+    follow_ups = session.follow_ups or []
+    if not follow_ups:
+        return None
+    lines = ["## Follow-ups", ""]
+    for f in follow_ups:
+        idx = f.get("index", "")
+        lines.append(f"### Follow-up {idx}")
+        lines.append("")
+        lines.append(f"**Interviewer:** {str(f.get('question_text', '')).strip()}")
+        lines.append("")
+        if f.get("answered"):
+            answer = str(f.get("transcript", "")).strip() or "_(no transcript)_"
+            lines.append(f"**You said:** {answer}")
+            patterns = f.get("grammar_patterns") or []
+            if patterns:
+                lines.append("")
+                for p in patterns:
+                    label = str(p.get("label", "")).strip()
+                    count = p.get("occurrence_count", 0)
+                    if label:
+                        lines.append(f"- {label} *({count}×)*")
+        else:
+            lines.append("_No answer — timed out._")
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+# Ordered list of section renderers (data-model §10). Story phases append theirs:
+# US2 warm-up, US3 coverage, US5 type-guidance — inserted in order.
+_INTERVIEW_LOOP_RENDERERS = [
+    _content_errors_section,
+    _pronunciation_flags_section,
+    _follow_ups_section,
+]
+
+
+def _interview_loop_sections(session: frontmatter.Session) -> list[str]:
+    """Render all present Interview Loop sections, in order; [] when none apply."""
+    out: list[str] = []
+    for renderer in _INTERVIEW_LOOP_RENDERERS:
+        section = renderer(session)
+        if section:
+            out += ["", section]
+    return out
+
+
 def _transcripts_section(attempts: list[frontmatter.Attempt]) -> str:
     parts = ["## Transcripts"]
     for a in attempts:
@@ -188,6 +282,10 @@ def build(session: frontmatter.Session, *, title: str | None = None) -> str:
     coaching = _coaching_section(session)
     if coaching is not None:
         parts += ["", coaching]
+
+    # 010: additive Interview Loop sections, AFTER grammar/coaching and BEFORE the
+    # transcripts. Empty when no such data is present → byte-identical to before.
+    parts += _interview_loop_sections(session)
 
     parts += ["", _transcripts_section(session.attempts)]
     return "\n".join(parts)

@@ -55,7 +55,7 @@ and the graceful-degradation contract.
 ### ASR signals + metrics (prereq for triage & real-speech metrics)
 
 - [X] T005 Surface decode signals on the transcript dataclasses in `src/speakloop/asr/interface.py`: add `WordTiming.probability`, new frozen `SegmentMeta`, and `Transcript.segments`/`Transcript.vad_regions` (all additive optional, defaulted so existing call sites + Parakeet path are unchanged)
-- [ ] T006 Populate the new fields in `src/speakloop/asr/whisper_mlx_engine.py` `_result_to_transcript` (extract per-segment `avg_logprob`/`no_speech_prob`/`compression_ratio`, per-word `probability`, and attach the Silero VAD regions)
+- [X] T006 Populate the new fields in `src/speakloop/asr/whisper_mlx_engine.py` `_result_to_transcript` (extract per-segment `avg_logprob`/`no_speech_prob`/`compression_ratio`, per-word `probability`, and attach the Silero VAD regions)
 - [X] T007 Add optional `vad_regions=None` to `compute_all` in `src/speakloop/metrics/__init__.py` (compute over real-speech spans when present; **byte-identical** to today when `None`)
 - [X] T008 [P] Add optional real-speech-duration param in `src/speakloop/metrics/speech_rate.py` (denominator = real-speech duration when supplied; unchanged default)
 - [X] T009 [P] Add optional real-speech-regions param in `src/speakloop/metrics/pauses.py` (filter inter-word gaps to within speech regions; unchanged default)
@@ -64,31 +64,31 @@ and the graceful-degradation contract.
 
 - [X] T010 [P] Add the phantom-phrase data file `src/speakloop/triage/phantom_phrases.txt` (known Whisper silence hallucinations: "thank you", "I'll see you later", subtitle/subscribe boilerplate)
 - [X] T011 Implement the **deterministic** hallucination filter in `src/speakloop/triage/hallucination.py` (drop spans on VAD-silence overlap, `no_speech_prob ≥ 0.6`, `avg_logprob ≤ −1.0`, `compression_ratio ≥ 2.4`, or phantom-list match — runs BEFORE grammar; no LLM)
-- [ ] T012 [P] Add the triage system prompt default `src/speakloop/triage/triage_prompt_default.txt` (mishearing classification instructions + strict-JSON contract per contracts/llm-calls.md C4)
-- [ ] T013 Implement the LLM mishearing classifier in `src/speakloop/triage/mishearing.py` (injected `LLMEngine` + reuse `grammar_analyzer._extract_json`; returns pronunciation-flag spans; **skipped** when no LLM — never raises into the loop)
-- [ ] T014 Implement the artifact consistency checker in `src/speakloop/triage/consistency.py` (verdict JSON via `_extract_json`; apply `fix` or `drop`; **withhold** the artifact on `LLMEngineError` per C5)
-- [ ] T015 [P] Write `src/speakloop/triage/CLAUDE.md` (purpose, public interface, deps = injected LLMEngine + asr Transcript, consumers = coordinator/practice)
+- [X] T012 [P] Add the triage system prompt default `src/speakloop/triage/triage_prompt_default.txt` (mishearing classification instructions + strict-JSON contract per contracts/llm-calls.md C4)
+- [X] T013 Implement the LLM mishearing classifier in `src/speakloop/triage/mishearing.py` (injected `LLMEngine` + reuse `grammar_analyzer._extract_json`; returns pronunciation-flag spans; **skipped** when no LLM — never raises into the loop)
+- [X] T014 Implement the artifact consistency checker in `src/speakloop/triage/consistency.py` (verdict JSON via `_extract_json`; apply `fix` or `drop`; **withhold** the artifact on `LLMEngineError` per C5)
+- [X] T015 [P] Write `src/speakloop/triage/CLAUDE.md` (purpose, public interface, deps = injected LLMEngine + asr Transcript, consumers = coordinator/practice)
 
 ### Derived store + rebuild
 
-- [ ] T016 [P] Implement store dataclasses + `store_version` in `src/speakloop/store/model.py`
-- [ ] T017 Implement JSON `load(path)` + `save_atomic(path, store)` (stdlib `json` + `os.replace`) in `src/speakloop/store/io.py`
-- [ ] T018 Implement `rebuild(sessions_dir) -> Store` (fold session reports → schedule/key_points/patterns) in `src/speakloop/store/rebuild.py`
-- [ ] T019 [P] Write `src/speakloop/store/CLAUDE.md`
-- [ ] T020 Add the `speakloop rebuild` delegate in `src/speakloop/cli/rebuild.py` and register it in `src/speakloop/cli/main.py` (lazy imports; loads no engines)
+- [X] T016 [P] Implement store dataclasses + `store_version` in `src/speakloop/store/model.py`
+- [X] T017 Implement JSON `load(path)` + `save_atomic(path, store)` (stdlib `json` + `os.replace`) in `src/speakloop/store/io.py`
+- [X] T018 Implement `rebuild(sessions_dir) -> Store` (fold session reports → schedule/key_points/patterns) in `src/speakloop/store/rebuild.py`
+- [X] T019 [P] Write `src/speakloop/store/CLAUDE.md`
+- [X] T020 Add the `speakloop rebuild` delegate in `src/speakloop/cli/rebuild.py` and register it in `src/speakloop/cli/main.py` (lazy imports; loads no engines)
 
 ### Frontmatter + report scaffold + runner bundle + degradation
 
 - [X] T021 Add the additive-optional `Session` fields (`question_type`, `warmup`, `follow_ups`, `coverage`, `content_errors`, `pronunciation_flags`, `key_points`, `answer_grade`, `analysis_pending`, `triage_summary`) + their `dump`/`parse` round-trip in `src/speakloop/feedback/frontmatter.py` (**`schema_version` stays 1**)
-- [ ] T022 Add the section-dispatch scaffold in `src/speakloop/feedback/report_builder.py` (render new sections only when present; fixed order grammar → warm-up → coverage → content-errors → pronunciation-flags → follow-ups → type-guidance → transcripts; absent data ⇒ byte-identical to a pre-feature report)
-- [ ] T023 Generalize engine construction into ONE runner bundle in `src/speakloop/cli/practice.py` (build the `--cloud`/local engine **once**; wire existing grammar+coach; provide an extensible bundle for the new runners; keep engine imports function-local)
-- [ ] T024 Add the pre-grammar **triage hook** + real-speech metrics wiring + **graceful degradation** in `src/speakloop/sessions/coordinator.py` (run hallucination filter before `grammar_analyzer`; call `compute_all(vad_regions=real_regions)`; on any analytic `LLMEngineError` save audio+transcripts, set `analysis_pending`, write deterministic report, never crash)
+- [X] T022 Add the section-dispatch scaffold in `src/speakloop/feedback/report_builder.py` (render new sections only when present; fixed order grammar → warm-up → coverage → content-errors → pronunciation-flags → follow-ups → type-guidance → transcripts; absent data ⇒ byte-identical to a pre-feature report)
+- [X] T023 Generalize engine construction into ONE runner bundle in `src/speakloop/cli/practice.py` (build the `--cloud`/local engine **once**; wire existing grammar+coach; provide an extensible bundle for the new runners; keep engine imports function-local)
+- [X] T024 Add the pre-grammar **triage hook** + real-speech metrics wiring + **graceful degradation** in `src/speakloop/sessions/coordinator.py` (run hallucination filter before `grammar_analyzer`; call `compute_all(vad_regions=real_regions)`; on any analytic `LLMEngineError` save audio+transcripts, set `analysis_pending`, write deterministic report, never crash)
 
 ### Foundational deterministic tests
 
 - [X] T025 [P] Table-driven test of the hallucination filter on **real-transcript fixtures** in `tests/unit/triage/test_hallucination.py` (asserts silence phantoms dropped, real speech kept — recorded fixtures, no golden file)
-- [ ] T026 [P] Table-driven test of consistency resolution (apply-fix / drop / withhold-on-error) on recorded verdict fixtures in `tests/unit/triage/test_consistency.py`
-- [ ] T027 [P] Test store rebuild from sample sessions in `tests/unit/store/test_rebuild.py` (fixtures → expected schedule/patterns; rebuild idempotent; recovers from missing file)
+- [X] T026 [P] Table-driven test of consistency resolution (apply-fix / drop / withhold-on-error) on recorded verdict fixtures in `tests/unit/triage/test_consistency.py`
+- [X] T027 [P] Test store rebuild from sample sessions in `tests/unit/store/test_rebuild.py` (fixtures → expected schedule/patterns; rebuild idempotent; recovers from missing file)
 - [X] T028 [P] Back-compat test: every existing `tests/fixtures/sessions/*.md` still parses after the frontmatter additions in `tests/integration/test_schema_backcompat.py` (SC-012)
 
 **Checkpoint**: ASR signals, triage, consistency, store, frontmatter, report scaffold, runner bundle,
@@ -105,14 +105,14 @@ answer by voice (~60 s, repeat/skip/timeout); show them in a Follow-ups report s
 references a content word the learner used (or names a gap), is not a bank question, records a voice
 answer under budget, and appears in the report with grammar/fluency feedback (spec US1 acceptance + SC-010).
 
-- [ ] T029 [P] [US1] Add the follow-up system prompt default `src/speakloop/interviewer/followups_prompt_default.txt` (grounded-probe instructions + strict-JSON contract per C1)
-- [ ] T030 [US1] Implement follow-up generation + probe-worthiness gate in `src/speakloop/interviewer/followups.py` (injected `LLMEngine` + `_extract_json`; ≥30 real-speech words gate; 1–2 grounded follow-ups; post-parse check that each references a transcript content word or a missed point; raises `LLMEngineError`)
-- [ ] T031 [P] [US1] Write `src/speakloop/interviewer/CLAUDE.md`
-- [ ] T032 [US1] Wire the follow-up runner into the bundle + add `--no-followups` in `src/speakloop/cli/practice.py`
-- [ ] T033 [US1] Add the follow-up stage after attempt 3 in `src/speakloop/sessions/coordinator.py` (warm the model during attempt-3 recording for latency; speak via TTS; record ~60 s honoring repeat/skip/silence-timeout; transcribe + per-attempt analysis; store as `Session.follow_ups`; follow-ups never spawn follow-ups)
-- [ ] T034 [US1] Render the Follow-ups section in `src/speakloop/feedback/report_builder.py` (per follow-up: question, answer transcript or "no answer — timed out", grammar/fluency feedback; no coverage)
-- [ ] T035 [P] [US1] Manual smoke-test checklist `specs/010-interview-loop/manual-tests/us1-followups.md` — verify by ear/stopwatch: **follow-up latency ≤ ~10 s** after attempt-3 end; **TTS pronunciation** of technical terms (e.g. `onSaveInstanceState`, `ViewModelStore`, `ANR`); **silence → timeout** records unanswered and continues; **repeat** replays once without consuming budget; **skip** works
-- [ ] T036 [US1] Update report rendering + regenerate the sample report `tests/fixtures/reports/sample-us1-followups.md` (diff aid showing the Follow-ups section — not a byte-exact golden)
+- [X] T029 [P] [US1] Add the follow-up system prompt default `src/speakloop/interviewer/followups_prompt_default.txt` (grounded-probe instructions + strict-JSON contract per C1)
+- [X] T030 [US1] Implement follow-up generation + probe-worthiness gate in `src/speakloop/interviewer/followups.py` (injected `LLMEngine` + `_extract_json`; ≥30 real-speech words gate; 1–2 grounded follow-ups; post-parse check that each references a transcript content word or a missed point; raises `LLMEngineError`)
+- [X] T031 [P] [US1] Write `src/speakloop/interviewer/CLAUDE.md`
+- [X] T032 [US1] Wire the follow-up runner into the bundle + add `--no-followups` in `src/speakloop/cli/practice.py`
+- [X] T033 [US1] Add the follow-up stage after attempt 3 in `src/speakloop/sessions/coordinator.py` (warm the model during attempt-3 recording for latency; speak via TTS; record ~60 s honoring repeat/skip/silence-timeout; transcribe + per-attempt analysis; store as `Session.follow_ups`; follow-ups never spawn follow-ups)
+- [X] T034 [US1] Render the Follow-ups section in `src/speakloop/feedback/report_builder.py` (per follow-up: question, answer transcript or "no answer — timed out", grammar/fluency feedback; no coverage)
+- [X] T035 [P] [US1] Manual smoke-test checklist `specs/010-interview-loop/manual-tests/us1-followups.md` — verify by ear/stopwatch: **follow-up latency ≤ ~10 s** after attempt-3 end; **TTS pronunciation** of technical terms (e.g. `onSaveInstanceState`, `ViewModelStore`, `ANR`); **silence → timeout** records unanswered and continues; **repeat** replays once without consuming budget; **skip** works
+- [X] T036 [US1] Update report rendering + regenerate the sample report `tests/fixtures/reports/sample-us1-followups.md` (diff aid showing the Follow-ups section — not a byte-exact golden)
 
 **Checkpoint**: US1 is the MVP — a complete interactive session end to end.
 

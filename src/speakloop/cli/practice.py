@@ -332,6 +332,9 @@ def run(
     else:
         grammar_analyzer = _build_grammar_analyzer()
         coach_runner = None
+    # 010: the Interview Loop runner bundle rides on the grammar-runner callable
+    # (None when no Phase-C model is installed → follow-ups/triage simply stay off).
+    runners = getattr(grammar_analyzer, "runners", None)
 
     current = chosen
     need_listen = True
@@ -349,6 +352,12 @@ def run(
             console=console,
             grammar_analyzer=grammar_analyzer,
             coach=coach_runner,
+            runners=runners,
+            # 010: pass TTS + playback so the coordinator can SPEAK the follow-ups.
+            # listen_in_session stays False (the listen loop already ran above), so
+            # this does not re-play the question/answer.
+            tts_engine=tts_engine,
+            play_fn=play_fn,
             asr_engine_name=asr_engine_name,
             asr_model_id=asr_model_id,
             asr_fell_back=selection.fell_back,
@@ -391,7 +400,42 @@ def _build_grammar_analyzer():
     def _runner(transcripts):
         return analyze(transcripts, qwen)
 
+    # 010: attach the Interview Loop runner bundle (mishearing/consistency/follow-ups)
+    # built over the SAME engine. Stored as an attribute so the return type stays a
+    # plain callable (existing callers/tests unaffected); run() reads it via getattr.
+    _runner.runners = _build_runners(qwen)
     return _runner
+
+
+def _build_runners(engine):
+    """Build the Interview Loop LLM runners over ONE shared engine (010, FR-039).
+
+    Every new LLM call (mishearing triage, artifact consistency, follow-up
+    generation) goes through the injected engine — no new engine client code
+    (Principle V). Each loads its own seeded prompt. Returns a coordinator.Runners.
+    """
+    from speakloop.interviewer import followups as _fu
+    from speakloop.interviewer.prompts import load_followups_prompt
+    from speakloop.sessions.coordinator import Runners
+    from speakloop.triage import consistency as _cons
+    from speakloop.triage import mishearing as _mis
+    from speakloop.triage.prompts import load_consistency_prompt, load_triage_prompt
+
+    triage_prompt, _ = load_triage_prompt()
+    consistency_prompt = load_consistency_prompt()
+    followups_prompt, _ = load_followups_prompt()
+
+    def _mishearing(real_text):
+        return _mis.detect_mishearings(real_text, engine, system_prompt=triage_prompt)
+
+    def _consistency(artifact, ideal_answer):
+        verdict = _cons.check_artifact(artifact, ideal_answer, engine, system_prompt=consistency_prompt)
+        return _cons.resolve(artifact, verdict)
+
+    def _followups(question_text, transcripts):
+        return _fu.generate_followups(question_text, transcripts, engine, system_prompt=followups_prompt)
+
+    return Runners(mishearing=_mishearing, followups=_followups, consistency=_consistency)
 
 
 # --- Cloud mode (008) ------------------------------------------------------
@@ -509,4 +553,7 @@ def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input):
             system_prompt=coach_system_prompt,
         )
 
+    # 010: the Interview Loop runners reuse the SAME OpenRouter engine (FR-039),
+    # attached to the grammar runner so the (grammar, coach) return type is unchanged.
+    _grammar_runner.runners = _build_runners(engine)
     return _grammar_runner, _coach_runner
