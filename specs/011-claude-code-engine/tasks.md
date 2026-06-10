@@ -12,7 +12,7 @@ binary or consumes credit (Constitution: "Live model calls in tests are forbidde
 
 ## Phase 1: Foundational (blocking prerequisites)
 
-- [ ] T001 [P] Create `src/speakloop/llm/claude_code_engine.py` scaffolding: the `LLMEngineError`
+- [X] T001 [P] Create `src/speakloop/llm/claude_code_engine.py` scaffolding: the `LLMEngineError`
   subclasses (`ClaudeCodeNotInstalledError`, `ClaudeCodeAuthError`, `ClaudeCodeRateLimitError`,
   `ClaudeCodeTimeoutError`, `ClaudeCodeBadOutputError`), the `ClaudeCliResult` dataclass
   (`stdout`/`stderr`/`returncode`), pinned named constants for flags + envelope fields + stripped
@@ -21,7 +21,7 @@ binary or consumes credit (Constitution: "Live model calls in tests are forbidde
   `ANTHROPIC_API_URL`/`CLAUDE_CODE_USE_BEDROCK`/`CLAUDE_CODE_USE_VERTEX`), and `default_runner()` —
   the ONLY `subprocess` spawn of `claude` (timeout, user prompt on stdin, env from `build_env()`).
   Import `subprocess` function-locally so `--help` stays model-free.
-- [ ] T002 [P] Add a fake-CLI runner harness in `tests/helpers/fake_claude.py`: a factory returning
+- [X] T002 [P] Add a fake-CLI runner harness in `tests/helpers/fake_claude.py`: a factory returning
   a fake `runner` callable (records the argv + env it was given, returns a canned `ClaudeCliResult`),
   plus convenience builders for a success envelope, an `is_error` auth/rate envelope, a non-JSON
   blob, and a `FileNotFoundError`/`TimeoutExpired`-raising runner.
@@ -37,7 +37,7 @@ Code, subscription-billed, with identical reports and graceful `analysis_pending
 claude engine; with a failing fake runner the session degrades to `analysis_pending`; `doctor` shows
 the Claude Code rows. (Live equivalent verified in T017.)
 
-- [ ] T003 [US1] Implement `ClaudeCodeEngine` in `src/speakloop/llm/claude_code_engine.py`:
+- [X] T003 [US1] Implement `ClaudeCodeEngine` in `src/speakloop/llm/claude_code_engine.py`:
   `__init__(*, model, runner=default_runner, timeout=90.0, binary="claude")` and
   `generate(system_prompt, user_prompt, max_tokens=2048, temperature=0.7, retry=False) -> str` —
   builds argv (`--print --output-format json --model <model> --safe-mode --tools "" \
@@ -68,10 +68,10 @@ the Claude Code rows. (Live equivalent verified in T017.)
   (`claude auth status --json` → `loggedIn`/`authMethod`/`subscriptionType`), the configured default
   engine (`loop_config.load().engine`), and an informational WARN if `ANTHROPIC_API_KEY` is in the
   ambient env; rows never FAIL the exit code; probe helpers monkeypatchable. Register in `_collect()`.
-- [ ] T010 [P] [US1] Parametrize the contract suite in `tests/contract/test_llm_interface.py` over
+- [X] T010 [P] [US1] Parametrize the contract suite in `tests/contract/test_llm_interface.py` over
   `ClaudeCodeEngine(runner=fake_success)` — `generate("sys","user")` returns the canned string; keep
   the existing `StubLLMEngine` case green.
-- [ ] T011 [P] [US1] Unit tests in `tests/unit/test_claude_code_engine.py`: table-driven over every
+- [X] T011 [P] [US1] Unit tests in `tests/unit/test_claude_code_engine.py`: table-driven over every
   taxonomy branch (not_installed / not_authenticated / rate_limited / timeout / bad_output incl.
   unknown-flag stderr), `retry=True` user-prompt nudge with system prompt unchanged, `max_tokens`/
   `temperature` ignored, success returns `.result`, fenced output passes through, and an assertion

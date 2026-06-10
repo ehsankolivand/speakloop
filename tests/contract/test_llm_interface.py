@@ -26,3 +26,26 @@ def test_stub_satisfies_llm_protocol():
 
 def test_llm_engine_error_is_exception():
     assert issubclass(LLMEngineError, Exception)
+
+
+def test_claude_code_engine_satisfies_llm_protocol(fake_claude):
+    """011: the new engine honors the same LLMEngine contract (fake runner — no real CLI)."""
+    from speakloop.llm.claude_code_engine import ClaudeCodeEngine
+
+    engine: LLMEngine = ClaudeCodeEngine(
+        model="haiku", runner=fake_claude.Runner(fake_claude.success("Hello, world."))
+    )
+    out = engine.generate("sys", "user")
+    assert out == "Hello, world."
+    assert isinstance(out, str)
+    assert "<think>" not in out
+
+
+def test_claude_code_engine_accepts_retry_intent(fake_claude):
+    """The retry flag is part of the contract; the engine accepts it (Principle V)."""
+    from speakloop.llm.claude_code_engine import ClaudeCodeEngine
+
+    engine: LLMEngine = ClaudeCodeEngine(
+        model="haiku", runner=fake_claude.Runner(fake_claude.success("ok"))
+    )
+    assert engine.generate("sys", "user", retry=True) == "ok"
