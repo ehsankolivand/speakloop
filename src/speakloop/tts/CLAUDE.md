@@ -26,7 +26,9 @@ stable interface so the TTS engine can be swapped in one file (Principle V).
 - `kokoro_engine.py` — `KokoroEngine`; the only `import kokoro_mlx`.
 - `cache.py` — content-addresses synthesised clips by `sha256(voice|[speed|]text)` under
   `~/.speakloop/cache/tts/<key>.wav`. `speed` is folded into the key ONLY when it differs from
-  `1.0`, so default-speed entries keep the historical formula and stay hot.
+  `1.0`, so default-speed entries keep the historical formula and stay hot. **012:** `prune(
+  max_bytes, *, keep)` evicts least-recently-modified WAVs over a size cap (`TTS_CACHE_MAX_BYTES`,
+  512 MB) without ever deleting the just-stored clip; called at the end of `KokoroEngine.synthesize`.
 
 ## Common modification patterns
 

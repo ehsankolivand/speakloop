@@ -63,6 +63,13 @@ def test_practice_help_lists_cloud_flag():
     assert "--cloud" in result.output
 
 
+def test_practice_help_lists_timings_flag():
+    """012: the `--timings` flag is discoverable and `practice --help` stays model-free."""
+    result = CliRunner().invoke(app, ["practice", "--help"])
+    assert result.exit_code == 0
+    assert "--timings" in result.output
+
+
 def test_importing_openrouter_engine_loads_no_engine_packages():
     """008: the cloud engine is stdlib-only (urllib) — importing it must pull in
     none of the local engine packages, so the `--help` model-free guarantee holds

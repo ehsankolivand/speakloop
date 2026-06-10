@@ -184,7 +184,7 @@ not prose (FR-007). Leaves: `config`, `content`, `trends`. Orchestrators: `cli` 
 | [`metrics/`](src/speakloop/metrics/CLAUDE.md) | Per-attempt fluency metrics | asr |
 | [`feedback/`](src/speakloop/feedback/CLAUDE.md) | Frontmatter, atomic writer, report builder, grammar analyzer | asr, config, llm |
 | [`debrief/`](src/speakloop/debrief/CLAUDE.md) | Post-session interactive debrief (render + audio + menu) | feedback, tts |
-| [`sessions/`](src/speakloop/sessions/CLAUDE.md) | 4/3/2 coordinator, timer, abort handling | asr, audio, config, content, feedback, metrics |
+| [`sessions/`](src/speakloop/sessions/CLAUDE.md) | 4/3/2 coordinator, timer, abort, [012] keyboard + session_ui + analysis executor | asr, audio, config, content, feedback, metrics |
 | [`trends/`](src/speakloop/trends/CLAUDE.md) | Cross-session dashboard + per-pattern series | — (leaf) |
 | [`triage/`](src/speakloop/triage/CLAUDE.md) | [010] Hallucination filter (pre-grammar) + mishearing + artifact consistency | asr, config, feedback, llm |
 | [`coverage/`](src/speakloop/coverage/CLAUDE.md) | [010] Key points (hash-versioned) + coverage scoring + content errors | asr, feedback, llm |
@@ -242,6 +242,14 @@ same commit. No calendar cadence.
 
 ## Traps (evidence-cited)
 
+0. **[012] Serial and concurrent analysis MUST produce a byte-identical report.** Analysis
+   jobs (`sessions/analysis.run_group`) are PURE — never mutate the store inside a job;
+   apply store writes on the main thread after the group returns, and assemble the `Session`
+   from name-keyed slots in a fixed order. The gate is
+   `tests/integration/test_analysis_equivalence.py` (serial vs concurrent, incl. a failing
+   call). Concurrency is engine-declared (`engine.parallel_safe`) — local Qwen stays serial.
+   The `timings` frontmatter is additive-optional + non-deterministic (wall-clock), so it is
+   stripped before any byte-comparison; `schema_version` STAYS 1.
 1. **Don't bump `torchaudio` past `<2.9`** without `uv run pytest -m live_asr`: ≥2.11 moves
    decoding to unbundled `torchcodec`, crashing the first live VAD call (`pyproject.toml:29`,
    `asr/CLAUDE.md`, commit `21dfb86`).

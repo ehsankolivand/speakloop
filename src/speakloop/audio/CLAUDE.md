@@ -8,6 +8,10 @@ Local audio I/O — microphone recording, clip playback, and device probing via 
 ## Public interface
 
 - `playback.play(wav_path)` — blocking playback [Phase A].
+- `playback.play_interruptible(wav_path, *, should_stop, ...)` (012) — non-blocking play +
+  ~30 ms poll + `sd.stop()` (≈110 ms) so a single keypress skips a clip within 500 ms (SC-004);
+  returns whether it was interrupted. `warm_output_device()` pays the one-time CoreAudio open up
+  front. Both reuse `play()`'s device-loss/resample recovery.
 - `recorder.record(out_path, time_budget_seconds, early_exit_event)` — records to WAV; the
   event lets the coordinator stop before the budget ends [Phase B].
 - `devices.default_input()`, `devices.default_output()`, `devices.list_devices()` — enumeration

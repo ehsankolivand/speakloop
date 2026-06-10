@@ -72,6 +72,11 @@ grammar/coherence analysis that feeds the report. The "what the user reads after
 - `openrouter_coach_prompt_default.txt` (009) — packaged default coaching system prompt (its OWN
   content; the three teaching headings + Anki-card format).
 - `coherence.py`, `narrative.py` — garble filter, narrative + top priority selection.
+- `timings.py` (012) — `StageTimer` (injectable clock): records per-stage wall-clock,
+  `to_frontmatter()` builds the additive optional `timings` frontmatter block (inner
+  `schema` versions only the block; the report `schema_version` STAYS 1), `render()` →
+  `rich.Table` for `--timings`. Always-on + cheap; the flag only controls display.
+  `Session.timings` is the additive optional key (emitted only when present).
 
 ## Common modification patterns
 

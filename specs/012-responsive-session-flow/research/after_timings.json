@@ -1,0 +1,36 @@
+{
+  "wall": 175.5,
+  "block": {
+    "schema": 1,
+    "total_seconds": 175.494,
+    "analysis_mode": "concurrent",
+    "analysis_concurrency": 3,
+    "analysis_wall_seconds": 163.211,
+    "stages": [
+      {
+        "name": "analysis_mishearing",
+        "seconds": 24.885,
+        "overlapped": true
+      },
+      {
+        "name": "analysis_grammar",
+        "seconds": 131.286,
+        "overlapped": true
+      },
+      {
+        "name": "analysis_coverage",
+        "seconds": 25.836,
+        "overlapped": true
+      },
+      {
+        "name": "analysis_coaching",
+        "seconds": 31.918,
+        "overlapped": true
+      },
+      {
+        "name": "analysis_consistency",
+        "seconds": 12.283
+      }
+    ]
+  }
+}

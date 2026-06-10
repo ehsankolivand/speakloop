@@ -172,19 +172,19 @@ degrades only its dimension; per-stage timings recorded.
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T037 [P] Update/author module CLAUDE.md: `sessions/CLAUDE.md` (keyboard, session_ui,
+- [x] T037 [P] Update/author module CLAUDE.md: `sessions/CLAUDE.md` (keyboard, session_ui,
   analysis), `audio/CLAUDE.md` (play_interruptible), `tts/CLAUDE.md` (prune), `feedback/CLAUDE.md`
   (timings), `llm/CLAUDE.md` (parallel_safe), `config/CLAUDE.md` (new loop keys), `cli/CLAUDE.md`
   (--timings, autoplay, keyboard consolidation).
-- [ ] T038 [P] Extend the help-without-models guard so importing the CLI still loads no engine
+- [x] T038 [P] Extend the help-without-models guard so importing the CLI still loads no engine
   package after the new modules land (`tests/integration/test_help_without_models.py`); keep all
   engine imports function-local.
-- [ ] T039 Update the root `CLAUDE.md` module table + traps for the new modules; re-measure the
+- [x] T039 Update the root `CLAUDE.md` module table + traps for the new modules; re-measure the
   launch footprint stays ≤ 6000 tokens.
-- [ ] T040 Final measured before/after: run `research/measure_tts_asr.py` + a capped
+- [x] T040 Final measured before/after: run `research/measure_tts_asr.py` + a capped
   `research/measure_claude.py` (≤ remaining budget); fill the baseline-vs-after timings table and
   the manual voice-UX checklist into `RETURN_REPORT.md`.
-- [ ] T041 Full suite green (`uv run pytest -q`); confirm no test touches the real binary/mic/
+- [x] T041 Full suite green (`uv run pytest -q`); confirm no test touches the real binary/mic/
   keyboard; ruff on changed files no worse than baseline.
 
 ---

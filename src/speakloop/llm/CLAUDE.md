@@ -10,6 +10,9 @@ behind one stable interface so the model can be swapped in one file (Principle V
 
 - `interface.LLMEngine` (Protocol) — the stable contract consumers depend on.
 - `interface.LLMEngineError`.
+- **012:** each engine declares a `parallel_safe` class attribute (`QwenEngine` False —
+  single in-process MLX model; `OpenRouterEngine`/`ClaudeCodeEngine` True — independent
+  HTTP / subprocess). The coordinator reads it to choose serial vs concurrent analysis.
 - `claude_code_engine.ClaudeCodeEngine` (011) — a third engine driving the local Claude Code
   CLI; `ClaudeCodeError` + subclasses (`ClaudeCodeNotInstalledError`, `…AuthError`,
   `…RateLimitError`, `…TimeoutError`, `…BadOutputError`) all subclass `LLMEngineError`.

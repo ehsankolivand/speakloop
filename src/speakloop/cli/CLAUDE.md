@@ -24,6 +24,13 @@ module that wires every other module together for a run.
     engine (also loads the coach prompt + prints its path once); `run()` passes `coach=` into
     `run_session` (the local branch passes `coach=None`). The coach is a SECOND cloud call run
     after a successful grammar analysis; its free-form Markdown is appended to the report.
+    **012:** `practice`/`resume` gain `--timings` (print the per-stage breakdown; the
+    `timings` frontmatter is saved regardless). `run()` builds ONE `KeyReader`
+    (`sessions/keyboard.make_key_reader`) for the listen loop + session, reads
+    `loop.yaml autoplay_ideal_answer` (skippable ideal answer) + `analysis_concurrency`,
+    warms the output device, and passes the engine's declared `parallel_safe` into
+    `run_session` (concurrent analysis for claude/openrouter; serial for local). The listen
+    loop uses `playback.play_interruptible` so clips are skippable (`space`) / replayable (`r`).
   - `doctor` — environment + model health check (`cli/doctor.py`); includes a "Cloud
     (OpenRouter)" section (model id, token present?, prompt path).
   - `trends` — Phase C dashboard.
