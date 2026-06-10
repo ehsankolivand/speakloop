@@ -71,6 +71,12 @@ def test_max_tokens_and_temperature_are_ignored(fake_claude):
     assert "99" not in argv and "0.0" not in argv
 
 
+def test_custom_timeout_is_threaded_to_the_runner(fake_claude):
+    runner = fake_claude.Runner(fake_claude.success("{}"))
+    ClaudeCodeEngine(model="haiku", runner=runner, timeout=42.0).generate("sys", "user")
+    assert runner.calls[0].timeout == 42.0
+
+
 def test_retry_nudges_user_prompt_keeping_system_verbatim(fake_claude):
     runner = fake_claude.Runner(fake_claude.success("{}"))
     ClaudeCodeEngine(model="haiku", runner=runner).generate("SYS", "USER", retry=True)
@@ -130,6 +136,14 @@ def test_non_object_json_is_bad_output(fake_claude):
 
 def test_success_envelope_missing_result_is_bad_output(fake_claude):
     eng = _engine(fake_claude, fake_claude.cli_result('{"is_error": false}'))
+    with pytest.raises(ClaudeCodeBadOutputError):
+        eng.generate("sys", "user")
+
+
+@pytest.mark.parametrize("result_json", ['123', 'true', '{}', '[1, 2]', 'null'])
+def test_non_string_result_is_bad_output(fake_claude, result_json):
+    # The .result field must be a string; numbers/bools/objects/null are rejected.
+    eng = _engine(fake_claude, fake_claude.cli_result(f'{{"is_error": false, "result": {result_json}}}'))
     with pytest.raises(ClaudeCodeBadOutputError):
         eng.generate("sys", "user")
 

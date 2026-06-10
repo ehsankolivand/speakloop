@@ -13,9 +13,11 @@ installed, logged-in **Claude Code** (subscription-billed, zero marginal token c
 `--engine claude` or set it once in `~/.speakloop/loop.yaml`. `--cloud` still works (now an alias for
 `--engine openrouter`). The local Qwen default is byte-identical and offline. Zero new dependencies.
 
-- **Suite**: `616 passed, 3 skipped, 2 deselected` (was `567 passed` at the start → **+49 tests**).
+- **Suite**: `622 passed, 3 skipped, 2 deselected` (was `567 passed` at the start → **+55 tests**).
 - **Live-verified 11/11** against the real CLI (`claude 2.1.170`), including subscription billing safety.
-- **6 commits** pushed across 6 phases (spec → plan → tasks → engine → US1 → US2).
+- **Adversarial review pass**: 5 review lenses + per-finding verification (13 agents) found **no real
+  code defects** — only 2 low-severity test-coverage gaps, now filled. See "Adversarial review" below.
+- **8 commits** pushed across the phases (spec → plan → tasks → engine → US1 → US2 → report → review).
 
 ---
 
@@ -195,11 +197,29 @@ All recorded in `specs/011-claude-code-engine/spec.md` (Assumptions) and `resear
 
 ---
 
+## Adversarial review pass
+
+After the tasks finished, I ran one adversarial review over all the new code (per your "if tasks
+finish early" instruction): 5 independent review lenses (engine-correctness, billing-security,
+cli-wiring, test-quality, constitution-spec) → each finding adversarially verified by a separate
+agent before being accepted (13 agents total).
+
+- **No real code defects were found.** Every substantive risk raised was verified and **rejected** as a
+  false positive — notably the "doctor_probe doesn't strip billing-override env vars" finding was
+  rejected because `doctor_probe` makes **no model call** (just `--version` + `auth status`), so there is
+  no billing impact (this matches the FR-007 scope, which targets the analysis subprocess).
+- **2 confirmed findings, both LOW severity and test-only** (the implementation was already correct):
+  1. No test exercised a non-string `.result` value (e.g. `123`/`true`/`{}`) → added a parametrized test
+     (`test_non_string_result_is_bad_output`).
+  2. No test asserted a custom `timeout` is threaded to the runner → added
+     `test_custom_timeout_is_threaded_to_the_runner`.
+- Both fixes are pure test additions (zero production-code change). Suite re-run green: **622 passed**.
+
 ## Merge readiness
 
 **Ready for your review and merge.** ✅
 - Branch `011-claude-code-engine` pushed; 6 conventional-commit commits; clean working tree.
-- Full suite green (`616 passed`); 51 new claude-engine tests; `--help` stays model-free; path-portability
+- Full suite green (`622 passed`); 57 new claude-engine tests; `--help` stays model-free; path-portability
   audit passes; all new files ruff-clean.
 - Live-verified 11/11 against the real CLI, including the billing-safety guarantee.
 - Constitution-compliant: zero new dependencies, local Qwen stays the default, default path
