@@ -41,7 +41,11 @@ def _resolve_qa_file(console: Console) -> Path:
 
 
 def _pick_question(qa_file, console: Console) -> speakloop.content.Question | None:  # noqa: F821
-    """Render a numbered picker and return the chosen Question (or None on cancel)."""
+    """Render a numbered picker and return the chosen Question (or None on cancel).
+
+    Invalid/out-of-range input re-prompts; only Enter / q / quit / EOF cancels —
+    a typo must not exit the program (and after a session it would also throw
+    away the warm resident engines)."""
     console.print()
     console.print("[bold]Available questions:[/bold]")
     for i, q in enumerate(qa_file.questions, start=1):
@@ -50,17 +54,21 @@ def _pick_question(qa_file, console: Console) -> speakloop.content.Question | No
             first_line = first_line[:77] + "…"
         console.print(f"  [cyan]{i}[/cyan]. {q.id} — {first_line}")
     console.print()
-    raw = input("Pick a question by number (or q to quit): ").strip().lower()
-    if raw in {"", "q", "quit"}:
-        return None
-    if not raw.isdigit():
-        console.print("[red]Invalid input.[/red]")
-        return None
-    idx = int(raw) - 1
-    if idx < 0 or idx >= len(qa_file.questions):
-        console.print("[red]Out of range.[/red]")
-        return None
-    return qa_file.questions[idx]
+    while True:
+        try:
+            raw = input("Pick a question by number (or q to quit): ").strip().lower()
+        except EOFError:
+            return None
+        if raw in {"", "q", "quit"}:
+            return None
+        if not raw.isdigit():
+            console.print("[red]Invalid input.[/red]")
+            continue
+        idx = int(raw) - 1
+        if idx < 0 or idx >= len(qa_file.questions):
+            console.print(f"[red]Out of range (1–{len(qa_file.questions)}).[/red]")
+            continue
+        return qa_file.questions[idx]
 
 
 def _read_key() -> str:
@@ -497,6 +505,7 @@ def run(
         if choice == debrief.DebriefChoice.NEW:
             picked = _pick_question(qa_file, console)
             if picked is None:
+                console.print("Bye.")
                 return
             current = picked
             need_listen = True
