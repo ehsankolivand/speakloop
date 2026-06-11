@@ -2,104 +2,81 @@
 
 ## Purpose
 
-Model lifecycle: compute missing → consent → resumable download (aria2c when present, else
-`snapshot_download` fallback) → re-validate. Keeps the Mac awake via `caffeinate` for the
-duration of `ensure_models(...)`. Owns the model manifest (which model build each phase
-needs) and the consent flow. No engine packages here.
+Model lifecycle: compute missing → consent → resumable download (aria2c when present,
+else `snapshot_download` fallback) → re-validate. Owns the manifest, consent flow,
+and download orchestration. Keeps the Mac awake via `caffeinate`. No engine packages.
 
 ## Public interface
 
-- `ensure_models(phase, *, console=None, consent_fn=…, download_fn=…, input_fn=input)` — the
-  orchestrator; raises `InstallDeclinedError` (user declines) or `InstallFailedError`
-  (validation still fails after download). The four 007-typed subclasses of
-  `InstallFailedError` — `DownloadAuthError`, `DownloadNotFoundError`, `DownloadDiskError`,
-  `ShardDiscoveryError` — propagate from the new download path.
-- `manifest` — `Model`, `Phase`, `models_for_phase(phase)`, the per-phase model lists.
-- `consent.prompt_for_consent(models) -> bool` (decline-by-default, size disclosure).
-- `downloader.download_model(model)` — orchestrates curl-for-metadata, shard discovery,
-  aria2c-for-shards, indefinite outer retry, caffeinate; falls back to
-  `huggingface_hub.snapshot_download(resume_download=True)` when `aria2c` is missing.
+- `ensure_models(phase, *, console=None, consent_fn=…, download_fn=…, input_fn=input)`
+  — main orchestrator; raises `InstallDeclinedError` or `InstallFailedError`.
+  Four `InstallFailedError` subclasses: `DownloadAuthError`, `DownloadNotFoundError`,
+  `DownloadDiskError`, `ShardDiscoveryError`.
+- `manifest.Model` (dataclass: name, hf_repo_id, expected_size_bytes, required_for_phase,
+  local_path property). Named constants: `KOKORO_82M`, `WHISPER_LARGE_V3_TURBO`,
+  `PARAKEET_TDT_06B_V3`, `QWEN3_14B_4BIT`.
+- `manifest.Phase` — `Literal["A", "B", "C"]`.
+- `manifest.PHASE_A_MODELS`, `PHASE_B_MODELS`, `PHASE_C_MODELS` — typed `list[Model]`.
+- `manifest.models_for_phase(phase) -> list[Model]`.
+- `consent.prompt_for_consent(models) -> bool` — decline-by-default, size disclosure.
+- `downloader.download_model(model)` — curl metadata → shard discovery → aria2c shards
+  → outer retry; fallback to `huggingface_hub.snapshot_download(resume_download=True)`
+  when aria2c absent. `spawn_caffeinate(console)` / `terminate_caffeinate(proc)` called
+  once per install by `ensure_models`.
 - `validator.validate(model) -> ValidationResult`.
+  `ValidationResult` fields: `ok: bool`, `reason: Reason`, `measured_bytes: int`,
+  `expected_bytes: int` (validator.py:14-18). `SIZE_TOLERANCE = 0.25` (±25%; validator.py:22).
 
-## Dependencies
+## Dependencies & consumers
 
-- Third-party (Python): `huggingface_hub` (fallback path only), `rich`. Internal:
-  `speakloop.config` (model paths).
-- System binaries: `aria2c` (`brew install aria2`, optional — fallback path runs without
-  it), `curl` (ships with macOS), `caffeinate` (ships with macOS).
-
-## Consumers
-
-`asr`, `cli`, `llm`, `tts` (each ensures/locates its model via the manifest).
+- Third-party: `huggingface_hub` (fallback path), `rich`.
+- Internal: `speakloop.config` (model paths).
+- System binaries: `aria2c` (optional, `brew install aria2`), `curl`, `caffeinate` (both macOS-native).
+- Consumers: `asr`, `cli`, `llm`, `tts`.
 
 ## File map
 
-- `manifest.py` — model definitions incl. the Qwen3-14B-4bit entry and thinking-on
-  rationale (see `doc/research_llm.md` May 2026 update). 4-bit (not 6-bit) is the
-  right precision for the M3 Pro 18 GB target — the 6-bit variant exceeded unified
-  memory alongside the resident Whisper encoder.
-- `consent.py` — consent prompt with per-model size disclosure.
-- `downloader.py` — per-model orchestrator: detect aria2 → curl metadata pass →
-  `shards.discover_shards` → aria2 shard loop (outer retry on `TRANSIENT_FAILURE`,
-  raise on `HARD_FAILURE`) → on missing aria2, one-line yellow warning +
-  `huggingface_hub.snapshot_download(resume_download=True, token=…)`. Exposes
-  `spawn_caffeinate(console) -> Popen|None` and `terminate_caffeinate(proc)`,
-  which `ensure_models(...)` calls once per install (contract §2).
-- `aria.py` — `subprocess.Popen` wrapper around `aria2c`: parses progress lines,
-  classifies the exit code into `Aria2Outcome` (SUCCESS / TRANSIENT_FAILURE /
-  HARD_FAILURE), bridges progress into Rich. Only this file invokes `aria2c`.
-- `tokens.py` — env > `~/.cache/huggingface/token` > anonymous resolver. Pure
-  function, no I/O at import time, `__repr__` redacts the token value.
-- `shards.py` — parses `model.safetensors.index.json` → sorted unique shard list;
-  single-file fallback `["model.safetensors"]` when no index exists.
-- `validator.py` — byte-size/presence validation.
+- `manifest.py` — model constants, `PHASE_A/B/C_MODELS` lists, `models_for_phase()`.
+- `consent.py` — user consent prompt with per-model size disclosure.
+- `downloader.py` — per-model orchestrator: aria2 detection → curl metadata →
+  `shards.discover_shards` → aria2 shard loop (retry `TRANSIENT_FAILURE`, raise
+  `HARD_FAILURE`) → fallback `snapshot_download`. Also `spawn_caffeinate` /
+  `terminate_caffeinate`.
+- `aria.py` — `subprocess.Popen` wrapper for `aria2c`. `Aria2Outcome` enum
+  (SUCCESS / TRANSIENT_FAILURE / HARD_FAILURE). `Aria2Progress` dataclass:
+  bytes_received, bytes_total, download_rate_bps, eta_seconds, shard_filename.
+  Only file that invokes `aria2c`.
+- `tokens.py` — HF token resolver: env → `~/.cache/huggingface/token` → anonymous.
+  Pure function; `__repr__` redacts the value.
+- `shards.py` — parses `model.safetensors.index.json` → sorted shard list;
+  single-file fallback `["model.safetensors"]`.
+- `validator.py` — directory-size validation against `expected_size_bytes ± 25%`.
+
+## Invariants & traps
+
+- **aria2c flag values are pinned** in `contracts/downloader-cli-contract.md §8`
+  (`--max-connection-per-server=16 --split=16 --min-split-size=1M --continue=true
+  --max-tries=0 --retry-wait=5 --connect-timeout=30`). Changing any value requires
+  updating the contract AND the test assertions in the same commit.
+- **Token never leaves tokens.py** except through three call sites (curl `-H`,
+  aria2c `--header=`, `snapshot_download(token=...)`). Must not appear in logs,
+  repr, exception messages, or committed files.
+- **Do not add a second parallel-download backend.** aria2c covers parallel streams,
+  indefinite retry, and sleep prevention; a second backend fragments the path.
+- **Fallback `snapshot_download` still passes `resume_download=True`** — no shard
+  is re-downloaded from zero after an interruption.
+- `expected_size_bytes` is approximate; the ±25% tolerance in `validator.py:22`
+  covers imprecision until the measured byte sum replaces the estimate.
 
 ## Common modification patterns
 
-- **Add/swap a model build**: edit the `manifest.py` entry (id, repo, expected size) only.
+- **Add/swap a model**: edit the `manifest.py` entry (id, repo, expected size) only.
 - **Change consent UX**: edit `consent.py`.
-- **Tune aria2 concurrency / retry / connect-timeout**: edit the pinned constants
-  in `contracts/downloader-cli-contract.md §8` AND the matching assertions in
-  `tests/unit/installer/test_downloader.py` / `test_aria.py` in the same commit.
-
-## Constitution Principle VIII justification (007)
-
-`brew install aria2` is a non-Python prerequisite — friction Principle VIII explicitly
-minimises. Justified because aria2 is the mechanism that delivers FR-001/-002/-003
-(parallel streams + byte-accurate resume + indefinite retry) on the user's already-
-validated configuration (`download_aria.sh`). Friction is mitigated by:
-
-- **Auto-fallback** (FR-019): no aria2 on `PATH` ⇒ `snapshot_download(resume_download=
-  True)` keeps `git clone && uv run speakloop` working at parity with today.
-- **`speakloop doctor`** surfaces the missing tool with the exact `brew install aria2`
-  command (Principle VIII's "guide the user" intent).
-- **README** lists `brew install aria2` immediately after the `uv` prerequisite.
-
-See `specs/007-robust-model-download/plan.md § Complexity Tracking` and
-`doc/research_install.md` for the full decision trail.
-
-## Traps
-
-- **Byte-range resume is delivered by aria2c's `--continue=true`** (formerly by
-  `snapshot_download(resume_download=True)`); the fallback path STILL passes
-  `resume_download=True` for the snapshot_download branch. Either way, no shard is
-  re-downloaded from zero after an interruption (Constitution Principle VI).
-- **`aria2c` flag values are pinned** in `contracts/downloader-cli-contract.md §8`
-  (`--max-connection-per-server=16 --split=16 --min-split-size=1M --continue=true
-  --max-tries=0 --retry-wait=5 --connect-timeout=30`). Don't change a value
-  in code without updating the contract AND the test assertions in the same commit.
-- **Don't add a second parallel-download backend.** `hf-transfer` was removed in
-  feature 007 because the chosen mechanism (aria2c) already covers parallel byte-
-  range streams AND indefinite retry AND sleep prevention; a second backend would
-  re-fragment the path.
-- **The token value never leaves `tokens.py` except through three call sites**
-  (curl `-H Authorization: Bearer …`, aria2c `--header=Authorization: Bearer …`,
-  `snapshot_download(token=…)`). It must NOT appear in logs, `repr()`, exception
-  messages, or any committed file. The HF token format `r"\bhf_[A-Za-z0-9]{20,}\b"`
-  is scanned by `tests/integration/test_path_portability_audit.py`.
+- **Tune aria2 concurrency / retry / connect-timeout**: update the pinned constants
+  in the contract file AND the matching test assertions in the same commit.
 
 ## Pointers
 
-- Root map: [`../../../CLAUDE.md`](../../../CLAUDE.md).
-- Feature spec/plan: [`../../../specs/007-robust-model-download/`](../../../specs/007-robust-model-download/).
-- Install-mechanism research: [`../../../doc/research_install.md`](../../../doc/research_install.md).
+- Root map: `CLAUDE.md`.
+- Feature spec/plan: `specs/007-robust-model-download/`.
+- Install-mechanism research: `doc/research_install.md`.

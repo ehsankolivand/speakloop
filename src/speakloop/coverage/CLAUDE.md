@@ -4,47 +4,58 @@
 
 Content-coverage scoring (010-interview-loop, P3). Derives 5–7 key points from a
 question's ideal answer (hash-versioned), scores each attempt covered/partial/missed
-against them, and flags content errors (factual contradictions vs the ideal answer),
-kept separate from grammar. The coverage aggregate drives the answer-quality grade.
+against them, and flags content errors (factual contradictions vs the ideal answer).
+Coverage aggregate drives the answer-quality grade.
 
 ## Public interface
 
 - `keypoints.derive_key_points(question_text, ideal_answer, question_type, llm, *, system_prompt)
-  -> list[{id, text}]` — 5–7 points (or the 4 STAR components for behavioral, P5).
-- `keypoints.ideal_answer_hash(ideal_answer) -> str` — content version key (R3).
+  -> list[{id, text}]` — behavioral type returns the 4 STAR components without an LLM call;
+  otherwise derives via LLM. Raises `LLMEngineError` on empty response.
+- `keypoints.star_key_points() -> list[dict]` — the 4 STAR components (behavioral path).
+- `keypoints.ideal_answer_hash(ideal_answer) -> str` — sha256[:16] of the normalized answer;
+  the version key (R3).
 - `scoring.score_coverage(key_points, transcripts, ideal_answer, llm, *, system_prompt, version)
-  -> CoverageResult` — ONE call over all attempts; returns per-attempt records
-  (with the `(covered + 0.5·partial)/N` aggregate) + validated content errors +
-  the final-round aggregate (drives the grade).
+  -> CoverageResult` — ONE LLM call over all attempts (`scoring.py:87`); returns
+  per-attempt records + content errors + `final_aggregate`. Raises `LLMEngineError` on failure.
+- `CoverageResult` dataclass: `attempt_records`, `content_errors`, `final_aggregate`.
 - `content_errors.validate_content_errors(raw) -> list[dict]` — keeps only
   mutually-exclusive contradictions (both claims present, distinct).
 
-## Dependencies
+## Dependencies & consumers
 
-- Internal: `speakloop.asr` (`Transcript`), `speakloop.llm` (`LLMEngine`/`LLMEngineError`),
-  `feedback.grammar_analyzer._extract_json`. **No engine package imported** (Principle V).
-
-## Consumers
-
-`sessions` (the coordinator derives/caches key points + scores coverage),
-`cli` (builds the keypoints/coverage runners over the shared engine).
+- Internal: `speakloop.asr` (`Transcript`), `speakloop.config` (paths via `prompts.py`),
+  `speakloop.llm` (`LLMEngine`/`LLMEngineError`). JSON recovery: shared `_extract_json` ladder
+  from `feedback.grammar_analyzer` (see `src/speakloop/feedback/CLAUDE.md`).
+- `ideal_answer` is legitimately passed here (it is the reference); see `.claude/rules/llm-calls.md` O7.
+- Consumers: `sessions` (coordinator derives/caches key points + scores coverage),
+  `cli/resume.py:133-143` (re-scores coverage on pending-report retry).
 
 ## File map
 
-- `keypoints.py` — derivation + content hashing + STAR components.
-- `scoring.py` — the coverage call + per-attempt aggregate records.
+- `keypoints.py` — derivation + hash + STAR components. `MIN_POINTS=5` (line 21) is a
+  prompt-soft bound only — code caps at `MAX_POINTS=7` (line 72); fewer than 5 is silently
+  accepted if the model returns fewer.
+- `scoring.py` — coverage call + per-attempt aggregate. Formula: `(covered + 0.5*partial)/N`
+  rounded to 3 decimal places (`scoring.py:32-36`).
 - `content_errors.py` — content-error validation.
-- `keypoints_prompt_default.txt`, `coverage_prompt_default.txt`, `prompts.py`.
+- `keypoints_prompt_default.txt`, `coverage_prompt_default.txt`, `prompts.py` — prompts.
 
-## Traps
+## Invariants & traps
 
-- The ideal answer IS passed to these calls (unlike grammar/coach) — it is the
-  reference coverage is scored against. Key points are stored in the session report
-  + the derived store, never written back into the question bank (R3).
-- Coverage comparisons are valid only within one `key_points_version`; an ideal-
-  answer edit bumps the hash → re-derivation → new version.
+- Coverage comparisons are valid only within one `key_points_version`; an ideal-answer edit
+  bumps the hash → re-derivation → new version. Never compare aggregates across versions.
+- Key points are stored in the session report + derived store; they are never written back
+  into the question bank.
+- `MIN_POINTS=5` is a prompt instruction, not a code guard — the code only enforces `MAX_POINTS=7`.
+
+## Common modification patterns
+
+- **Change the number of key points**: adjust `MIN_POINTS`/`MAX_POINTS` in `keypoints.py` AND
+  the keypoints prompt.
+- **Change aggregate formula**: edit `_aggregate` in `scoring.py:31-36`; re-run the equivalence suite.
 
 ## Pointers
 
-- Root map: [`../../../CLAUDE.md`](../../../CLAUDE.md);
-  contracts: `specs/010-interview-loop/contracts/llm-calls.md` (C2, C3).
+- Root CLAUDE.md: `../../../CLAUDE.md`. LLM degradation contract + `ideal_answer` boundary:
+  `.claude/rules/llm-calls.md` (O7, O8). Contracts: `specs/010-interview-loop/contracts/` (C2, C3).

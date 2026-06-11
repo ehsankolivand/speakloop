@@ -2,52 +2,78 @@
 
 ## Purpose
 
-Post-session interactive debrief — **render + audio + menu** (single responsibility). Renders a
-finished `Session` in the terminal, reads the educational parts aloud, and returns the user's
-next-step choice (replay / new / quit) [Phase C].
+Post-session interactive debrief — render + audio + menu (single responsibility).
+Renders a finished `Session` in the terminal, reads the educational parts aloud,
+and returns the user's next-step choice (replay / new / quit) [Phase C].
 
 ## Public interface
 
-- `DebriefChoice` — terminal menu selection (`replay` / `new` / `quit`).
-- `run(session, *, sessions_dir, tts_engine, play_fn, no_audio=False) -> DebriefChoice` — the
-  `DebriefRunner` contract.
+- `DebriefChoice` — `str` enum: `REPLAY / NEW / QUIT` (`menu.py:23`).
+- `run(session, *, sessions_dir, tts_engine=None, play_fn=None, no_audio=False, console=None, read_key=None) -> DebriefChoice`
+  (`debrief.py:30-39`). Testability seams: `console` (inject a `Console`),
+  `read_key` (inject a `Callable[[], str]` fake instead of real terminal reads).
+- `ANNOUNCEMENT_LINE` (`debrief.py:68`) — exact string asserted by tests; do not
+  change without updating those assertions.
+- `DebriefViewModel` (`view_model.py:77`) — top-level view-model dataclass built
+  from a `Session`; holds `audio_sections`, mutable `transcripts_expanded`. The
+  inner dataclasses (`AttemptRow`, `PatternCard`, `TranscriptPreview`, `AudioSection`)
+  are rediscoverable in `view_model.py`.
+- `DebriefRenderer.print_static(*, highlight_ref, progress_text)` and `.live()`
+  (`renderer.py:197-210`).
 
-## Dependencies
+## Dependencies & consumers
 
-- Internal: `speakloop.feedback` (the `Session` model), `speakloop.tts` (the `TTSEngine`
-  Protocol only). TTS audio is consumed ONLY through the injected `tts_engine` + `play_fn`.
-- **No engine package** is imported here (no `kokoro_mlx`/`mlx_lm`/`parakeet_mlx`) — Principle V.
-
-## Consumers
-
-`cli` — `cli/practice.py:290` imports it function-local; the only intended caller in v1.
+- Internal: `speakloop.feedback` (`Session` model), `speakloop.tts` (`TTSEngine`
+  Protocol, TYPE_CHECKING only — never a runtime engine import; Principle V).
+- No engine packages (`kokoro_mlx` / `mlx_lm` / etc.) are imported — TTS is used
+  exclusively through the injected `tts_engine` + `play_fn`.
+- Consumer: `cli/practice.py:393` imports this module function-local (the only
+  caller in production).
 
 ## File map
 
-- `view_model.py` — builds `DebriefViewModel` from a `Session`.
-- `renderer.py` — `rich.Live` banner / cards / trend table / transcripts + section highlight.
-- `audio_player.py` — synth + sync + any-key skip.
-- `menu.py` — `DebriefChoice` + r/n/q + `t` transcript toggle.
-- `debrief.py` — orchestrator: announcement → audio+highlight → menu.
+- `debrief.py` — orchestrator: view model → `print_static` → read aloud → menu;
+  `ANNOUNCEMENT_LINE` constant.
+- `view_model.py` — `build_view_model(session, *, sessions_dir)` + all dataclasses.
+- `renderer.py` — `DebriefRenderer`; `print_static` (one-shot) and `live` (`rich.Live`
+  for animated highlight); `GRAMMAR_UNAVAILABLE_LINE`, `NO_PATTERNS_LINE`,
+  `FIRST_TIME_LINE` constants.
+- `audio_player.py` — `KeyboardSkip` context manager (background any-key skip via
+  `select`/`termios`, `audio_player.py:37`); `read_aloud(sections, *, tts_engine,
+  play_fn, on_section, skip_check) -> AudioOutcome`.
+- `menu.py` — `DebriefChoice`, `run_menu(*, on_toggle, console, read_key, show_prompt)`;
+  `_cbreak_read_key(fd)` (raw tty reader at `menu.py:34`, stdin-then-/dev/tty two-tier,
+  with line-buffered `input()` fallback); handles `r/n/q` + `t` (transcript toggle,
+  invokes `on_toggle`, keeps menu open) + `↑/↓` arrows + `Enter` (default REPLAY).
+
+## Invariants & traps
+
+- `debrief/menu.py:34` has its own `_cbreak_read_key`. This is NOT consolidated into
+  `sessions/keyboard.py` — the root CLAUDE.md Trap 0 / R2 documents the divergence;
+  do not merge without updating the listen-loop and sessions paths too.
+- `ANNOUNCEMENT_LINE` (`debrief.py:68`) is asserted verbatim by tests — do not rename
+  or reword without updating those tests.
+- TTS/playback failure MUST still reach the menu: errors are swallowed inside
+  `audio_player.read_aloud` (FR-029); `no_audio=True` or `tts_engine=None` skips the
+  read-aloud stage entirely.
+- Never read transcripts or raw metrics aloud — only narrative, top priority, and each
+  pattern's explanation + corrected version (FR-017).
+- Never read/write the report file — the coordinator already wrote it; debrief renders
+  the in-memory `Session`.
+- `console` and `read_key` are the two testability injection seams — tests pass a
+  fake `Console` and a pre-programmed key sequence; no real terminal needed.
 
 ## Common modification patterns
 
-- **Change the menu**: edit `menu.py` (+ `DebriefChoice`).
-- **Change what is read aloud**: edit `audio_player.py` — keep transcripts/raw metrics silent.
-
-## Traps
-
-- **Never read transcripts or raw metrics aloud** — only the narrative, top priority, and each
-  pattern's explanation + corrected version (FR-017).
-- **Must never hang**: a TTS/playback failure still reaches the menu; a no-control terminal
-  falls back to plain `console.print`.
-
-## Never do
-
-- Import an engine package — TTS is injected via the `TTSEngine` Protocol + `play_fn` only.
-- Read/write the report file — the coordinator already wrote it; debrief renders the in-memory `Session`.
+- **Change the menu options**: edit `menu.py` (+ `DebriefChoice`) and the `run_menu`
+  dispatch table.
+- **Change what is read aloud**: edit `view_model._audio_sections` — keep transcripts
+  and raw metrics excluded.
+- **Change the rendered layout**: edit `renderer.py`; keep constants in place if
+  asserted by tests.
 
 ## Pointers
 
-- Root map: [`../../../CLAUDE.md`](../../../CLAUDE.md);
-  contract: `specs/002-post-session-debrief/contracts/debrief-interface.py`.
+- Root map: `CLAUDE.md` (repo root).
+- Testing rules: `.claude/rules/testing.md`.
+- Contract: `specs/002-post-session-debrief/contracts/debrief-interface.py`.

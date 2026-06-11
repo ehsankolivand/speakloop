@@ -2,51 +2,79 @@
 
 ## Purpose
 
-Single source of truth for filesystem paths and runtime constants. A leaf module — pure path
-resolution, no I/O beyond `mkdir -p`.
+Single source of truth for filesystem paths and the daily-loop runtime config.
+Two files with different stdlib footprints — see File map.
 
 ## Public interface
 
-- `paths.models_dir()` → `~/.speakloop/models/` (or `--models-dir` override).
-- `paths.sessions_dir()` → `data/sessions/` (CWD-relative; overridable).
-- `paths.default_qa_file()` → `content/questions.yaml` (CWD-relative in-repo default).
-- `paths.qa_file_path()` → the personal-override location (`--qa-file` / `SPEAKLOOP_QA_FILE` /
+### paths.py (stdlib-only, no I/O beyond mkdir)
+
+- `paths.models_dir()` — `~/.speakloop/models/`; env `SPEAKLOOP_MODELS_DIR` overrides.
+- `paths.sessions_dir()` — `<cwd>/data/sessions/`; env `SPEAKLOOP_SESSIONS_DIR` overrides.
+- `paths.tts_cache_dir()` — `~/.speakloop/cache/tts/`; env `SPEAKLOOP_TTS_CACHE_DIR`
+  overrides (paths.py:128).
+- `paths.default_qa_file()` — `<cwd>/content/questions.yaml` (repo default; pure, no exists check).
+- `paths.qa_file_path()` — personal-override location (`--qa-file` / `SPEAKLOOP_QA_FILE` /
   `~/.speakloop/qa.yaml`).
-- `paths.resolve_qa_file()` → active question file by precedence (`--qa-file` →
-  `~/.speakloop/qa.yaml` if present → `content/questions.yaml` if present → `None`).
-- `paths.tts_cache_dir()` → `~/.speakloop/cache/tts/`.
+- `paths.resolve_qa_file() -> Path | None` — active question file by precedence:
+  `--qa-file` / `SPEAKLOOP_QA_FILE` → `~/.speakloop/qa.yaml` (if exists) →
+  `content/questions.yaml` (if exists) → `None` (paths.py:103-124). **No auto-copy.**
 - `paths.openrouter_token_path()` / `openrouter_config_path()` / `openrouter_prompt_path()`
-  (008) → `~/.speakloop/openrouter_token` · `openrouter.yaml` · `openrouter_prompt.txt`;
-  `openrouter_coach_prompt_path()` (009) → `~/.speakloop/openrouter_coach_prompt.txt`.
-  **PATHS ONLY** — the YAML is *read* in `llm/openrouter_config.py` (via `pyyaml`), so this
-  leaf stays stdlib-only and does no I/O.
+  / `openrouter_coach_prompt_path()` — paths only; YAML read happens in `llm/`.
+- `paths.store_path()` — `~/.speakloop/store.json` (010 cross-session store).
+- `paths.loop_config_path()` — `~/.speakloop/loop.yaml` (010).
+- Five editable-prompt path functions (010): `openrouter_followups_prompt_path()`,
+  `openrouter_keypoints_prompt_path()`, `openrouter_coverage_prompt_path()`,
+  `openrouter_triage_prompt_path()`, `openrouter_drill_prompt_path()`.
+- `paths.ensure_dir(path) -> Path` — mkdir -p, returns path.
+- Env overrides: `SPEAKLOOP_HOME` (base home dir; default `~/.speakloop`);
+  XDG-aware: `XDG_DATA_HOME`, `XDG_CACHE_HOME` used for fallback resolution.
 
-## Dependencies
+### loop_config.py (imports pyyaml; reads ~/.speakloop/loop.yaml)
 
-- Standard library only. No internal module deps (leaf); no engine packages.
+- `LoopConfig` frozen dataclass — all fields optional with silent defaults.
+- `load() -> LoopConfig` — returns defaults on absent or malformed file (loop_config.py:58-65).
 
-## Consumers
+**loop.yaml key table** (all keys optional; parsed in `load()` at the cited lines):
 
-`cli`, `feedback`, `installer`, `sessions`, `tts`.
+| Key | Default | Validated | line |
+|---|---|---|---|
+| `daily_capacity` | 5 | max(1, int) | :66 |
+| `engine` | `"local"` | must be in `VALID_ENGINES` = (local, openrouter, claude) | :71-73 |
+| `claude_timeout_seconds` | 240 | max(1, int) | :75 |
+| `analysis_concurrency` | 3 | max(1, int) | :79 |
+| `autoplay_ideal_answer` | `True` | must be `bool` | :82-84 |
+| `warmup_enabled` | `True` | bool() cast | :87 |
+| `followups_enabled` | `True` | bool() cast | :88 |
+| `claude_fast_model` | `"haiku"` | non-empty str | :90 |
+| `claude_strong_model` | `"sonnet"` | non-empty str | :91 |
+
+## Dependencies & consumers
+
+- `paths.py`: stdlib only; no internal deps (leaf).
+- `loop_config.py`: imports `pyyaml` + `speakloop.config.paths`.
+- Consumers of config: `cli`, `coverage`, `feedback`, `installer`, `interviewer`,
+  `llm`, `sessions`, `triage`, `tts`, `warmup`.
 
 ## File map
 
-- `paths.py` — every path/constant + `resolve_qa_file()`.
+- `paths.py` — every path constant + `resolve_qa_file()` + `ensure_dir()`.
+- `loop_config.py` — `LoopConfig` dataclass + `load()` (reads `~/.speakloop/loop.yaml`).
+
+## Invariants & traps
+
+- **Q&A precedence (O10)**: `--qa-file` / `SPEAKLOOP_QA_FILE` → `~/.speakloop/qa.yaml`
+  (if exists) → `content/questions.yaml` (if exists) → `None`. The home file is an
+  opt-in override — never auto-created (paths.py:103-124, specs/004-public-release-readiness).
+- `paths.py` does no I/O except `ensure_dir()`; `loop_config.py` reads YAML at call time.
+  Never add a network call or engine import to either file.
 
 ## Common modification patterns
 
-- **Add a path/constant**: add a function in `paths.py`; never hard-code a path elsewhere.
-
-## Traps
-
-- **Q&A precedence is `--qa-file → ~/.speakloop/qa.yaml → content/questions.yaml`, no
-  auto-copy.** The home file is an opt-in override, not created for you (`resolve_qa_file`,
-  `specs/004-public-release-readiness/`).
-
-## Never do
-
-- Import an engine package, or do I/O beyond `mkdir -p`.
+- **Add a path or constant**: add a function in `paths.py`; never hard-code a path elsewhere.
+- **Add a loop.yaml key**: add the field to `LoopConfig`, a default constant, and a
+  parse branch in `load()` in the same commit.
 
 ## Pointers
 
-- Root map: [`../../../CLAUDE.md`](../../../CLAUDE.md).
+- Root map: `CLAUDE.md`.
