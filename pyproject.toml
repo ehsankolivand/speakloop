@@ -15,13 +15,15 @@ dependencies = [
     "huggingface_hub>=0.24",
     "python-frontmatter>=1.1",
     "numpy>=1.26",
+    # Used by the device-rate-mismatch resample fallback (audio/playback.py).
+    # Also arrives transitively via mlx-whisper, but the import is ours — declare it.
+    "scipy>=1.13",
     # 006-feedback-quality-reliability: post-hoc JSON recovery for the grammar
     # analyzer (replaces ~5 brittle hand-rolled repair regexes). Pure-Python,
     # offline, zero required runtime deps; the optional [schema] extra is NOT
     # taken (the flat grammar schema needs no Pydantic). research Decision 3.
     "json-repair>=0.30",
     "kokoro-mlx>=0.1.2",
-    "readchar>=4.2.2",
     "parakeet-mlx>=0.5.1",
     "mlx-lm>=0.31.3",
     # 003-asr-l2-accent-accuracy: default ASR (Whisper) + VAD. Lower-bound pins;
@@ -30,6 +32,8 @@ dependencies = [
     # (Constitution Principle V + VIII), so they never load at `--help` time.
     "mlx-whisper>=0.4.2",
     "silero-vad>=5.1",
+    # Load-bearing despite no direct import in src/: asr/vad.py loads silero with
+    # onnx=True, and silero-vad>=6 declares onnxruntime only under its onnx extras.
     "onnxruntime>=1.20",
     "torchaudio<2.9",
 ]

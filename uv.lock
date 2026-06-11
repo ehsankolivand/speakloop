@@ -1193,15 +1193,6 @@ wheels = [
 ]
 
 [[package]]
-name = "readchar"
-version = "4.2.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ed/49/a10341024c45bed95d13197ec9ef0f4e2fd10b5ca6e7f8d7684d18082398/readchar-4.2.2.tar.gz", hash = "sha256:e3b270fe16fc90c50ac79107700330a133dd4c63d22939f5b03b4f24564d5dd8", size = 9762 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3d/ca/36133653e00939922dd1416f4c56177361289172a30563fcb9552c9ccde4/readchar-4.2.2-py3-none-any.whl", hash = "sha256:92daf7e42c52b0787e6c75d01ecfb9a94f4ceff3764958b570c1dddedd47b200", size = 9401 },
-]
-
-[[package]]
 name = "referencing"
 version = "0.37.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1603,8 +1594,8 @@ dependencies = [
     { name = "parakeet-mlx" },
     { name = "python-frontmatter" },
     { name = "pyyaml" },
-    { name = "readchar" },
     { name = "rich" },
+    { name = "scipy" },
     { name = "silero-vad" },
     { name = "sounddevice" },
     { name = "soundfile" },
@@ -1631,8 +1622,8 @@ requires-dist = [
     { name = "parakeet-mlx", specifier = ">=0.5.1" },
     { name = "python-frontmatter", specifier = ">=1.1" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "readchar", specifier = ">=4.2.2" },
     { name = "rich", specifier = ">=13.7" },
+    { name = "scipy", specifier = ">=1.13" },
     { name = "silero-vad", specifier = ">=5.1" },
     { name = "sounddevice", specifier = ">=0.4" },
     { name = "soundfile", specifier = ">=0.12" },

@@ -44,9 +44,10 @@ via `sounddevice` + `soundfile`. No model packages here.
 
 ## Invariants & traps
 
-- `scipy` is imported in `playback.py:66` for the resample fallback but is NOT declared in
-  `pyproject.toml` — transitive-only via another dep. If the transitive dep is removed,
-  device-rate-mismatch playback will crash. (divergence — code fix pending)
+- The resample fallback imports `scipy.signal.resample_poly` function-local at
+  `playback.py:66`; `scipy` is declared in `pyproject.toml`. A SciPy import failure is
+  caught with the PortAudio handler (`playback.py:113`/`:156`) and surfaces as
+  `PlaybackError`, so playback degrades with one English error rather than a traceback.
 - `warm_output_device` is only called from `cli/practice.py` when `key_reader.raw_capable`
   is True (`practice.py:376-377`) — not unconditionally.
 - `recorder.py` lazy-imports `speakloop.sessions.abort` (not at module top) to avoid the

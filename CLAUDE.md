@@ -44,17 +44,15 @@ From `pyproject.toml`, confirmed against imports.
   package manager; run everything via `uv run`.
 - **CLI/UI**: `typer` ≥0.12, `rich` ≥13.7 (CLI only — no GUI, constitution constraint).
 - **Config/data**: `pyyaml` ≥6.0, `python-frontmatter`, `numpy` ≥1.26, `json-repair` ≥0.30.
-- **Audio**: `sounddevice` ≥0.4, `soundfile` ≥0.12.
+- **Audio**: `sounddevice` ≥0.4, `soundfile` ≥0.12, `scipy` ≥1.13 (resample fallback,
+  `src/speakloop/audio/playback.py:66`).
 - **Download**: `huggingface_hub` ≥0.24 (resumable).
 - **Engine packages** (each imported function-local in exactly ONE wrapper file):
   `mlx-whisper`, `parakeet-mlx`, `silero-vad`, `mlx-lm`, `kokoro-mlx`.
 - **`onnxruntime` ≥1.20**: a load-bearing direct dependency — `asr/vad.py:97` loads
   silero with `onnx=True`, and `silero-vad` ≥6 declares `onnxruntime` only under its
   onnx extras. Removing the declaration breaks the first live VAD call.
-- **`torchaudio<2.9`** (`pyproject.toml:34`) — capped; see Traps.
-- Known divergences (code fix pending, do not copy these patterns): `readchar`
-  (`pyproject.toml:24`) is declared but never imported anywhere in `src/`; `scipy` is
-  imported in the resample fallback (`src/speakloop/audio/playback.py:66`) but never declared.
+- **`torchaudio<2.9`** (`pyproject.toml:38`) — capped; see Traps.
 
 ## Layout
 
@@ -118,7 +116,7 @@ pre-existing findings — not a passing gate.
 
 ## Traps
 
-1. **Don't bump `torchaudio` past `<2.9`** (`pyproject.toml:34`) without
+1. **Don't bump `torchaudio` past `<2.9`** (`pyproject.toml:38`) without
    `uv run pytest -m live_asr`: ≥2.11 moves decoding to unbundled `torchcodec` and
    crashes the first live VAD call (commit `21dfb86`).
 2. **A module-level engine import breaks `--help`.**

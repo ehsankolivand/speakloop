@@ -90,10 +90,10 @@ unbuilt feature. Brainstorming should treat these as load-bearing constraints, n
 | `pyyaml` | `>=6.0` | YAML user config + report frontmatter parse |
 | `python-frontmatter` | `>=1.1` | read report YAML in `trends` |
 | `numpy` | `>=1.26` | audio buffers |
+| `scipy` | `>=1.13` | device-rate-mismatch resample fallback (`audio/playback.py:66`) |
 | `sounddevice` | `>=0.4` | record + playback |
 | `soundfile` | `>=0.12` | WAV I/O |
 | `huggingface_hub` | `>=0.24` | resumable model download |
-| `readchar` | `>=4.2.2` | key reads (declared; menus use raw `termios` two-tier reads) |
 | `kokoro-mlx` | `>=0.1.2` | **TTS engine** (Kokoro-82M) |
 | `mlx-whisper` | `>=0.4.2` | **default ASR engine** (Whisper-large-v3-turbo) |
 | `parakeet-mlx` | `>=0.5.1` | **fallback ASR engine** (Parakeet-TDT) |
@@ -102,7 +102,7 @@ unbuilt feature. Brainstorming should treat these as load-bearing constraints, n
 | `onnxruntime` | `>=1.20` | **required direct dep** (no import in `src/`): `asr/vad.py:97` loads silero with `onnx=True`, and `silero-vad` ≥6 declares `onnxruntime` only under its onnx extras (D-1 revised) |
 | `torchaudio` | `<2.9` | capped: ≥2.11 moves decode to unbundled `torchcodec` and crashes live VAD (see Invariants/Trap) |
 
-Dev deps: `pytest>=8.0`, `pytest-mock>=3.12`, `ruff>=0.6` (`pyproject.toml:42–47`).
+Dev deps: `pytest>=8.0`, `pytest-mock>=3.12`, `ruff>=0.6` (`pyproject.toml:51–56`).
 
 Each engine package is imported function-local inside exactly one wrapper file
 (Principle V); the owning files are annotated in bold in the [Module Map](#module-map).
@@ -382,7 +382,7 @@ Sourced from `.specify/memory/constitution.md` (v1.0.0, wins on conflict), the r
 | Q&A precedence is `--qa-file → ~/.speakloop/qa.yaml → repo default`, **no auto-copy** | The home file is opt-in, never created for you. | `config/paths.py:103–124`; CLAUDE.md Trap 5 |
 | `metrics` must **never import `speakloop.llm`** or a model package | Metrics are deterministic + offline. | `metrics/self_corrections.py:3`; `metrics/CLAUDE.md` |
 | Debrief **never reads transcripts/raw metrics aloud**, never re-reads the report file, and must never hang | FR-017; a TTS/playback failure still reaches the menu. | `debrief/CLAUDE.md` |
-| `onnxruntime` declared but **never imported in `src/`** | Load-bearing nonetheless: `asr/vad.py:97` calls `load_silero_vad(onnx=True)`, and `silero-vad` ≥6 declares `onnxruntime` only under its onnx extras — don't remove it (D-1 revised). | `pyproject.toml:33`; `asr/CLAUDE.md` |
+| `onnxruntime` declared but **never imported in `src/`** | Load-bearing nonetheless: `asr/vad.py:97` calls `load_silero_vad(onnx=True)`, and `silero-vad` ≥6 declares `onnxruntime` only under its onnx extras — don't remove it (D-1 revised). | `pyproject.toml:37`; `asr/CLAUDE.md` |
 | `.specify/memory/constitution.md` is **read-only** to normal features | Edits require the governance amendment process. | `constitution.md` "Governance"; CLAUDE.md Never-do |
 
 > **Known divergence, deferred (D-7):** `ruff check .` reports pre-existing findings on
@@ -421,12 +421,12 @@ across this file are defined inline below.
 
 | Item | Where it bites | Source |
 |------|----------------|--------|
-| **D-1 (revised)**: `onnxruntime` declared but never imported in `src/` | A search for its usage finds nothing in `src/`, but the declaration is load-bearing: `asr/vad.py:97` loads silero with `onnx=True` (importing `onnxruntime` inside `silero_vad`), and `silero-vad` ≥6 declares it only under its onnx extras. Don't "remove the unused dep." | `pyproject.toml:33`; `asr/CLAUDE.md`; CLAUDE.md |
+| **D-1 (revised)**: `onnxruntime` declared but never imported in `src/` | A search for its usage finds nothing in `src/`, but the declaration is load-bearing: `asr/vad.py:97` loads silero with `onnx=True` (importing `onnxruntime` inside `silero_vad`), and `silero-vad` ≥6 declares it only under its onnx extras. Don't "remove the unused dep." | `pyproject.toml:37`; `asr/CLAUDE.md`; CLAUDE.md |
 | **D-3**: `kokoro_mlx` import-isolation guard gap | The "no engine import at module top level" test covers `mlx_whisper`/`silero_vad`/`parakeet_mlx`/`mlx_lm` but **not** `kokoro_mlx`; a regression there would slip past CI. | `tests/integration/test_help_without_models.py`; CLAUDE.md Trap 2 |
 | **D-7**: `ruff check .` fails on committed code | Pre-existing lint findings mean `ruff check .` is **not** a listed passing command; fixing needs code edits, deferred. | CLAUDE.md "Commands"; `pyproject.toml [tool.ruff]` |
 | Recording loop can hang on the **final** 4/3/2 attempt | Known v1 bug; interim workaround is Ctrl-C (SIGINT cleans temp files). Underlying fix deferred. | README.md:251–258 |
 | LLM and research **agree** on Qwen3-14B at MLX 4-bit (closed divergence; re-quantised down from 6-bit) | The prior Qwen3.5-9B-VLM trap was retired in May 2026; the 6-bit variant of Qwen3-14B exceeded the M3 Pro 18 GB unified-memory budget alongside resident Whisper, so the manifest was re-quantised to 4-bit at the same parameter count (~8 GB on disk, ~9–10 GB resident). The hardware-budget rule is now codified: future LLM swaps MUST sanity-check resident size against ≈10 GB (18 GB − ~5 GB macOS+Python − ~3 GB resident ASR encoder). Don't reintroduce a divergence without a research-doc update. | `installer/manifest.py`; `llm/CLAUDE.md`; `doc/research_llm.md` (Update — 2026-05-25) |
-| `torchaudio` capped `<2.9` | Bumping to ≥2.11 moves decode to unbundled `torchcodec` and crashes the first live VAD call; only `-m live_asr` catches it (and it skips when deps absent). | `pyproject.toml:29`; commit `21dfb86`; CLAUDE.md Trap 1 |
+| `torchaudio` capped `<2.9` | Bumping to ≥2.11 moves decode to unbundled `torchcodec` and crashes the first live VAD call; only `-m live_asr` catches it (and it skips when deps absent). | `pyproject.toml:38`; commit `21dfb86`; CLAUDE.md Trap 1 |
 | Several `# noqa: BLE001` blanket-except swallows | Debrief audio (`audio_player.py:145,149`), grammar JSON parse (`grammar_analyzer.py:138,170`), and tty drain (`coordinator.py:89`) deliberately swallow exceptions so a session/debrief never hangs — but they also hide real errors. | `rg "noqa: BLE001"` |
 | Engine imports tagged `# noqa: PLC0415` | Function-local imports trip the linter's "import at top" rule on purpose; they must stay local (Principle V/VIII). Don't "clean up" by hoisting. | `asr/vad.py:81`, `asr/whisper_mlx_engine.py:77–159` |
 | `live_asr` / `repro` tests **skip** instead of fail | `test_vad_live_smoke.py` and the repro gate `importorskip`/`pytest.skip` when deps or the user's own recordings are absent — green CI does **not** mean these ran. | `tests/integration/test_vad_live_smoke.py:21–23`, `repro_gate_test.py:32,95,98` |
