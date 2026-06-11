@@ -30,7 +30,10 @@ per-session domain biasing + Silero-VAD pre-segmentation. Parakeet-TDT is the
   `transcribe` — three import sites within that file).
 - `silero_vad` → `vad.py` only (`vad.py:82`).
 - `parakeet_mlx` → `parakeet_engine.py` only (`:48`).
-- `onnxruntime` is transitive via `silero_vad` — no direct import in this module (D-1).
+- `onnxruntime` — no direct import in this module, but its `pyproject.toml` declaration
+  is load-bearing: `vad.py:97` calls `load_silero_vad(onnx=True)` (which imports
+  `onnxruntime` inside `silero_vad`), and `silero-vad` ≥6 declares `onnxruntime` only
+  under its onnx extras. Do NOT remove the declaration (D-1 revised).
 
 Audited by `tests/unit/asr/test_engine_import_isolation.py` and
 `tests/integration/test_help_without_models.py`.

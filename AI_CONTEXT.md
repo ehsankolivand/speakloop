@@ -99,7 +99,7 @@ unbuilt feature. Brainstorming should treat these as load-bearing constraints, n
 | `parakeet-mlx` | `>=0.5.1` | **fallback ASR engine** (Parakeet-TDT) |
 | `silero-vad` | `>=5.1` | voice-activity detection (Whisper path) |
 | `mlx-lm` | `>=0.31.3` | **LLM engine** (Qwen3-14B 4-bit; thinking ON, stripped at wrapper) |
-| `onnxruntime` | `>=1.20` | pinned but **never imported in `src/`** — transitive via `silero-vad` (divergence D-1) |
+| `onnxruntime` | `>=1.20` | **required direct dep** (no import in `src/`): `asr/vad.py:97` loads silero with `onnx=True`, and `silero-vad` ≥6 declares `onnxruntime` only under its onnx extras (D-1 revised) |
 | `torchaudio` | `<2.9` | capped: ≥2.11 moves decode to unbundled `torchcodec` and crashes live VAD (see Invariants/Trap) |
 
 Dev deps: `pytest>=8.0`, `pytest-mock>=3.12`, `ruff>=0.6` (`pyproject.toml:42–47`).
@@ -382,7 +382,7 @@ Sourced from `.specify/memory/constitution.md` (v1.0.0, wins on conflict), the r
 | Q&A precedence is `--qa-file → ~/.speakloop/qa.yaml → repo default`, **no auto-copy** | The home file is opt-in, never created for you. | `config/paths.py:103–124`; CLAUDE.md Trap 5 |
 | `metrics` must **never import `speakloop.llm`** or a model package | Metrics are deterministic + offline. | `metrics/self_corrections.py:3`; `metrics/CLAUDE.md` |
 | Debrief **never reads transcripts/raw metrics aloud**, never re-reads the report file, and must never hang | FR-017; a TTS/playback failure still reaches the menu. | `debrief/CLAUDE.md` |
-| `onnxruntime` declared but **never imported in `src/`** | Pinned only; arrives transitively via `silero-vad` (divergence D-1). | `pyproject.toml:28`; `asr/CLAUDE.md` |
+| `onnxruntime` declared but **never imported in `src/`** | Load-bearing nonetheless: `asr/vad.py:97` calls `load_silero_vad(onnx=True)`, and `silero-vad` ≥6 declares `onnxruntime` only under its onnx extras — don't remove it (D-1 revised). | `pyproject.toml:33`; `asr/CLAUDE.md` |
 | `.specify/memory/constitution.md` is **read-only** to normal features | Edits require the governance amendment process. | `constitution.md` "Governance"; CLAUDE.md Never-do |
 
 > **Known divergence, deferred (D-7):** `ruff check .` reports pre-existing findings on
@@ -421,7 +421,7 @@ across this file are defined inline below.
 
 | Item | Where it bites | Source |
 |------|----------------|--------|
-| **D-1**: `onnxruntime` declared but never imported in `src/` | A search for its usage finds nothing; it is pinned only and arrives transitively via `silero-vad`. Don't "remove the unused dep." | `pyproject.toml:28`; `asr/CLAUDE.md`; CLAUDE.md |
+| **D-1 (revised)**: `onnxruntime` declared but never imported in `src/` | A search for its usage finds nothing in `src/`, but the declaration is load-bearing: `asr/vad.py:97` loads silero with `onnx=True` (importing `onnxruntime` inside `silero_vad`), and `silero-vad` ≥6 declares it only under its onnx extras. Don't "remove the unused dep." | `pyproject.toml:33`; `asr/CLAUDE.md`; CLAUDE.md |
 | **D-3**: `kokoro_mlx` import-isolation guard gap | The "no engine import at module top level" test covers `mlx_whisper`/`silero_vad`/`parakeet_mlx`/`mlx_lm` but **not** `kokoro_mlx`; a regression there would slip past CI. | `tests/integration/test_help_without_models.py`; CLAUDE.md Trap 2 |
 | **D-7**: `ruff check .` fails on committed code | Pre-existing lint findings mean `ruff check .` is **not** a listed passing command; fixing needs code edits, deferred. | CLAUDE.md "Commands"; `pyproject.toml [tool.ruff]` |
 | Recording loop can hang on the **final** 4/3/2 attempt | Known v1 bug; interim workaround is Ctrl-C (SIGINT cleans temp files). Underlying fix deferred. | README.md:251–258 |

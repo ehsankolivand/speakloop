@@ -48,7 +48,9 @@ From `pyproject.toml`, confirmed against imports.
 - **Download**: `huggingface_hub` ≥0.24 (resumable).
 - **Engine packages** (each imported function-local in exactly ONE wrapper file):
   `mlx-whisper`, `parakeet-mlx`, `silero-vad`, `mlx-lm`, `kokoro-mlx`.
-- **`onnxruntime` ≥1.20**: declared only to pin the version; transitive via `silero-vad`.
+- **`onnxruntime` ≥1.20**: a load-bearing direct dependency — `asr/vad.py:97` loads
+  silero with `onnx=True`, and `silero-vad` ≥6 declares `onnxruntime` only under its
+  onnx extras. Removing the declaration breaks the first live VAD call.
 - **`torchaudio<2.9`** (`pyproject.toml:34`) — capped; see Traps.
 - Known divergences (code fix pending, do not copy these patterns): `readchar`
   (`pyproject.toml:24`) is declared but never imported anywhere in `src/`; `scipy` is

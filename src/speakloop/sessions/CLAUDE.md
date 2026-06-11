@@ -27,7 +27,7 @@ single-key controls, background ASR worker, concurrent analysis executor, and cl
   Key surface by stage:
   - Pre-session listen loop (driven by `cli/practice.py`, NOT this module): `space`/`enter`=skip,
     `r`=replay, `q`=quit. `cli/practice.py:118` and `debrief/menu.py:34` keep their own cbreak
-    readers; see root CLAUDE.md Trap 2.
+    readers; see root CLAUDE.md Trap 6.
   - Recording stage (`_spawn_key_poller`): `space`/`enter`=stop recording early; `s`=skip
     follow-up (follow-up case only). `q` is NOT wired inside the recording loop.
   `RawKeyReader` has a re-entrancy depth guard (`keyboard.py:88`) so a shared reader
@@ -102,6 +102,6 @@ Gate: `tests/integration/test_analysis_equivalence.py`.
 ## Pointers
 
 - Root map: `../../../CLAUDE.md` (engine-import rule O1, torchaudio O2, schema_version O3,
-  keyboard consolidation Trap 2).
+  keyboard consolidation Trap 6).
 - Concurrency contract: `specs/012-responsive-session-flow/contracts/analysis-concurrency.md`.
 - Testing rules: `.claude/rules/testing.md`.
