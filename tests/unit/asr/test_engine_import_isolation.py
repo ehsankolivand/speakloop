@@ -22,6 +22,8 @@ ENGINE_PACKAGES = {
     "parakeet_mlx": "asr/parakeet_engine.py",
     "silero_vad": "asr/vad.py",
     "onnxruntime": "asr/vad.py",
+    "mlx_lm": "llm/qwen_engine.py",
+    "kokoro_mlx": "tts/kokoro_engine.py",
 }
 
 

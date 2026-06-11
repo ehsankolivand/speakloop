@@ -121,8 +121,9 @@ pre-existing findings — not a passing gate.
    crashes the first live VAD call (commit `21dfb86`).
 2. **A module-level engine import breaks `--help`.**
    `tests/integration/test_help_without_models.py:27` asserts importing the CLI loads
-   none of `mlx_whisper`, `silero_vad`, `parakeet_mlx`, `mlx_lm`; `kokoro_mlx` is NOT
-   covered by that guard.
+   none of the five engine packages (`mlx_whisper`, `silero_vad`, `parakeet_mlx`,
+   `mlx_lm`, `kokoro_mlx`); `tests/unit/asr/test_engine_import_isolation.py` pins each
+   to its single wrapper file.
 3. **Serial and concurrent analysis must produce a byte-identical report** — rule
    owned by `src/speakloop/sessions/CLAUDE.md`; gate:
    `tests/integration/test_analysis_equivalence.py`.

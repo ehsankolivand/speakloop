@@ -25,7 +25,8 @@ Stable `TTSEngine` Protocol lets the engine be swapped by touching one file.
 
 - **Engine package (function-local in kokoro_engine.py only):** `kokoro_mlx` imported
   inside `_load()` at kokoro_engine.py:52. This is the ONLY file in the repo that imports
-  `kokoro_mlx`.
+  `kokoro_mlx` — guarded by `tests/unit/asr/test_engine_import_isolation.py` and
+  `tests/integration/test_help_without_models.py`.
 - Internal: `speakloop.config` (cache dir via `paths.tts_cache_dir()`),
   `speakloop.installer` (model path via `manifest.KOKORO_82M`).
 - Consumers: `cli`, `debrief` (via injected `TTSEngine` Protocol).
