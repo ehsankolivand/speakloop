@@ -62,6 +62,7 @@ The `speakloop` console script (entry point) — no internal module imports `cli
 
 - `speakloop --help` MUST work with no models present — never import engine packages at module load; guarded by `tests/integration/test_help_without_models.py`.
 - `--cloud` + `--engine <non-openrouter>` raises `EngineSelectionError`; CLI prints it and exits 2.
+- Mid-session Ctrl-C: `run()` catches `coordinator.AbortedError` around `run_session`, prints one yellow "Session aborted" line, and exits 130 (FR-016) — never a traceback. Follow-up-stage aborts don't raise (the coordinator writes a resumable report instead).
 - `_cbreak_read` in `practice.py:118` is separate from `sessions/keyboard.py`; do not remove it without also fixing the listen loop to use the `KeyReader` abstraction.
 
 ## Pointers

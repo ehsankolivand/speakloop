@@ -42,8 +42,11 @@ single-key controls, background ASR worker, concurrent analysis executor, and cl
   order) so assembly is identical regardless of strategy (`analysis.py:48-73`).
 - `timer.run(budget_seconds, early_exit_event)` — `rich.progress` countdown.
 - `abort.install_signal_handler(sessions_dir)` — SIGINT handler: removes `*.tmp` under
-  `sessions_dir` and sets `abort_event` (`abort.py:26-36`). There is NO `sys.exit(130)` in
-  the handler; the coordinator polls `abort_event` and raises `AbortedError`.
+  `sessions_dir` and sets `abort_event` (`abort.py:26-37`). There is NO `sys.exit(130)` in
+  the handler; the coordinator polls `abort_event` and raises `AbortedError`, which
+  `cli/practice.py` catches (one yellow line, `typer.Exit(130)`, FR-016). An abort during
+  the follow-up stage does NOT raise — the coordinator still writes a resumable
+  analysis-pending report (`coordinator.py:457`, `:1077`).
 
 ## O6 — serial == concurrent byte-identical report (owner)
 

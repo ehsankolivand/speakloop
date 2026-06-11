@@ -26,7 +26,8 @@ def cleanup_tmp_files(sessions_dir: Path) -> int:
 def install_signal_handler(sessions_dir: Path) -> None:
     """Install a SIGINT handler that cleans up tmp files and signals abort.
 
-    The coordinator polls `abort_event` and exits with code 130 (FR-016).
+    The coordinator polls `abort_event` and raises AbortedError; the CLI
+    (`cli/practice.py`) catches it and exits with code 130 (FR-016).
     """
 
     def _handler(signum, frame):  # noqa: ARG001

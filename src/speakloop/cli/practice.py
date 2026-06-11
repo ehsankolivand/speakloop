@@ -447,28 +447,38 @@ def run(
             if exit_key != " ":  # q / Enter / EOF → leave practice
                 return
 
-        result = coordinator.run_session(
-            current,
-            asr_engine=asr_engine,
-            console=console,
-            grammar_analyzer=grammar_analyzer,
-            coach=coach_runner,
-            runners=runners,
-            # 010: pass TTS + playback so the coordinator can SPEAK the warm-up +
-            # follow-ups. listen_in_session stays False (the listen loop already ran
-            # above), so this does not re-play the question/answer. store_path enables
-            # the warm-up's top-error lookup + the SRS schedule update.
-            tts_engine=tts_engine,
-            play_fn=play_fn,
-            store_path=paths.store_path(),
-            asr_engine_name=asr_engine_name,
-            asr_model_id=asr_model_id,
-            asr_fell_back=selection.fell_back,
-            timings_display=timings,
-            key_reader=key_reader,
-            analysis_parallel_safe=analysis_parallel_safe,
-            analysis_concurrency=analysis_concurrency,
-        )
+        try:
+            result = coordinator.run_session(
+                current,
+                asr_engine=asr_engine,
+                console=console,
+                grammar_analyzer=grammar_analyzer,
+                coach=coach_runner,
+                runners=runners,
+                # 010: pass TTS + playback so the coordinator can SPEAK the warm-up +
+                # follow-ups. listen_in_session stays False (the listen loop already ran
+                # above), so this does not re-play the question/answer. store_path enables
+                # the warm-up's top-error lookup + the SRS schedule update.
+                tts_engine=tts_engine,
+                play_fn=play_fn,
+                store_path=paths.store_path(),
+                asr_engine_name=asr_engine_name,
+                asr_model_id=asr_model_id,
+                asr_fell_back=selection.fell_back,
+                timings_display=timings,
+                key_reader=key_reader,
+                analysis_parallel_safe=analysis_parallel_safe,
+                analysis_concurrency=analysis_concurrency,
+            )
+        except coordinator.AbortedError:
+            # Raised only when no report exists yet (warm-up/recording/transcribe
+            # abort); an abort during follow-ups degrades inside the coordinator
+            # and still writes a resumable analysis-pending report.
+            console.print(
+                "[yellow]Session aborted — partial recordings discarded; "
+                "no report written.[/yellow]"
+            )
+            raise typer.Exit(130)
 
         choice = debrief.run(
             result.session,
