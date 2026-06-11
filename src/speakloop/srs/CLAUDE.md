@@ -29,7 +29,7 @@ and builds the daily due queue. No LLM, no engine; stdlib only.
 
 - Depends on: `speakloop.store` (`ScheduleEntry`). No engine packages.
 - Consumers: `sessions/coordinator.py` (grades session + advances schedule after
-  each report); `cli/resume.py:145,176` (grades resumed sessions + advances
+  each report); `cli/resume.py:147,183` (grades resumed sessions + advances
   schedule); `cli/today.py` (due-queue selection for daily loop).
 
 ## File map

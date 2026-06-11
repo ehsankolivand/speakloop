@@ -24,8 +24,8 @@ no engine imports.
   `last_grade`/`last_practiced`/`total_reviews`). `next_due` is set to the
   last-practiced date as a placeholder (rebuild.py:69) — `speakloop rebuild` does NOT
   restore the real SRS schedule. Schedule advance (interval ladder / next_due /
-  mastery) happens at session end in `sessions/coordinator.py:1227` and
-  `cli/resume.py:176`, not in rebuild.
+  mastery) happens at session end in `sessions/coordinator.py:1231` and
+  `cli/resume.py:183` (imports at :1227/:176), not in rebuild.
 
 ## Dependencies & consumers
 

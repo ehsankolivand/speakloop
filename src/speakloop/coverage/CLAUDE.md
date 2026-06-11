@@ -34,7 +34,7 @@ Coverage aggregate drives the answer-quality grade.
 ## File map
 
 - `keypoints.py` — derivation + hash + STAR components. `MIN_POINTS=5` (line 21) is a
-  prompt-soft bound only — code caps at `MAX_POINTS=7` (line 72); fewer than 5 is silently
+  prompt-soft bound only — code caps at `MAX_POINTS=7` (defined line 22, enforced line 72); fewer than 5 is silently
   accepted if the model returns fewer.
 - `scoring.py` — coverage call + per-attempt aggregate. Formula: `(covered + 0.5*partial)/N`
   rounded to 3 decimal places (`scoring.py:32-36`).

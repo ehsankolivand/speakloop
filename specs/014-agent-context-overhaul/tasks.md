@@ -67,7 +67,7 @@ research artifacts from /speckit-plan)*
 - [X] T027 Verify memory loading (/memory equivalent: enumerate launch-loaded files per documented rules) and record in `specs/014-agent-context-overhaul/audit/smoke-tests.md`.
 - [X] T028 Diff-scope guard + full suite: `git diff --name-only main...HEAD` confined to `*.md`, `.claude/**`, `specs/014-*/**`, guard test; `uv run pytest -q` = 696 passed baseline + 1 new (697), 3 skipped, 2 deselected. Record numbers.
 - [X] T029 Write `RETURN_REPORT.md` at repo root: before/after inventory (lines + tokens), claim-audit table pointer + verdict counts, rule-ownership map, smoke verdicts, suite numbers, merge readiness, Blocked section if any.
-- [ ] T030 Adversarial context-accuracy review (time permitting): reviewer subagent hunts for remaining claims contradicting code across all rewritten files; fix findings; update RETURN_REPORT.md.
+- [X] T030 Adversarial context-accuracy review (time permitting): reviewer subagent hunts for remaining claims contradicting code across all rewritten files; fix findings; update RETURN_REPORT.md.
 
 ## Dependencies
 

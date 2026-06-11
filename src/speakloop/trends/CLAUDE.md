@@ -19,8 +19,8 @@ on it (aggregator/renderer have intra-module imports only).
   summary. `TrendsSummary` fields: `total_sessions`, `date_range`, `metric_series`,
   `pattern_ranking`, `pattern_series` (010 P2a: `dict[str, list[tuple[date, int]]]`,
   `aggregator.py:37`).
-- `aggregator.format_series(series, *, window=5) -> str` — last `window` counts as
-  `"10 → 4 → 1"` (`aggregator.py:40`).
+- `aggregator.format_series(series, *, window=3) -> str` — last `window` counts as
+  `"10 → 4 → 1"` (`aggregator.py:40`; the renderer overrides with `window=5`, `renderer.py:76`).
 - `renderer.render(summary, *, console=None) -> str` (`renderer.py:13`) — returns
   captured plain-text output (uses an internal `StringIO` Console when `console` is
   `None`). Four tables: (1) totals + date range, (2) fluency metrics attempt-3

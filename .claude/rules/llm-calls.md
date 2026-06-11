@@ -23,7 +23,7 @@ parameter; keep it that way when changing signatures:
 - Legitimate exceptions (the ideal answer IS the reference there):
   `coverage.keypoints.derive_key_points` (keypoints.py:58-60),
   `coverage.scoring.score_coverage` (scoring.py:84),
-  `triage.consistency.check_artifact` (consistency.py:42-44).
+  `triage.consistency.check_artifact` (defined consistency.py:34; ideal_answer enters the prompt at :42-44).
 
 ## O8 — degradation contract for every LLM caller
 
