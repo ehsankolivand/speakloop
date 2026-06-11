@@ -223,11 +223,13 @@ def _listen_loop(
             console.print("[dim]↻ replay[/dim]")
 
     voice = question.voice_override
-    q_wav = tts_engine.synthesize(question.question, voice=voice)
-    a_wav = tts_engine.synthesize(question.ideal_answer, voice=voice)
-
     console.print(f"\n[bold]Question:[/bold] {question.id}\n")
     console.print(question.question.strip())
+    # Synthesize AFTER the question is on screen: a cache miss pays the lazy
+    # Kokoro load here, and a blank terminal would look hung.
+    console.print("[dim]Preparing audio…[/dim]")
+    q_wav = tts_engine.synthesize(question.question, voice=voice)
+    a_wav = tts_engine.synthesize(question.ideal_answer, voice=voice)
     _play("question", q_wav)
     console.print("\n[bold]Ideal answer:[/bold]\n")
     console.print(question.ideal_answer.strip())

@@ -43,7 +43,7 @@ The `speakloop` console script (entry point) — no internal module imports `cli
 ## File map
 
 - `main.py` — `typer` app + all six command registrations.
-- `practice.py` — full practice/debrief loop; `resolve_engine_choice`, `EngineSelectionError`, `CLAUDE_TIER_MAP`, `_build_runners`; `_cbreak_read` at line 118 (listen-loop raw reader — divergence note: `sessions/keyboard.py` is the session-path key reader, but the listen loop keeps its own `_cbreak_read`; code fix pending).
+- `practice.py` — full practice/debrief loop; `resolve_engine_choice`, `EngineSelectionError`, `CLAUDE_TIER_MAP`, `_build_runners`; `_cbreak_read` at line 118 (listen-loop raw reader — divergence note: `sessions/keyboard.py` is the session-path key reader, but the listen loop keeps its own `_cbreak_read`; code fix pending). `_listen_loop` prints the question text + a dim "Preparing audio…" line BEFORE synthesizing (a TTS cache miss pays the lazy Kokoro load there — don't reorder it back behind the synth calls).
 - `doctor.py` — four health-check section groups (Cloud, Interview Loop, Claude Code).
 - `trends.py` — `trends` command wiring.
 - `today.py` — `today` command wiring.
