@@ -35,7 +35,10 @@ single-key controls, background ASR worker, concurrent analysis executor, and cl
   `FakeKeyReader` has two modes: scripted list of keys per poll; or time-gated schedule
   with an injected clock (`keyboard.py:168-210`).
 - `session_ui.SessionState`, `control_hint`, `countdown`, `make_recording_progress` (`● REC`),
-  `working`, `render_summary` — one-state-at-a-time `rich` display (012, US1).
+  `working`, `render_summary` — one-state-at-a-time `rich` display (012, US1). Every
+  blocking LLM/ASR wait in the coordinator runs under a labeled `working` state —
+  warm-up drill (`_run_warmup`), follow-up generation (`_run_follow_ups`), analysis
+  (`_analyze`), and the transcribe wait — so the terminal never sits silent (FR-002).
 - `analysis.run_group(jobs, *, parallel_safe, concurrency) -> dict[str, JobResult]` — serial
   when `not parallel_safe` OR `concurrency <= 1` OR `len(jobs) <= 1`; otherwise
   `ThreadPoolExecutor(min(concurrency, len(jobs)))`. Results keyed by NAME (never completion

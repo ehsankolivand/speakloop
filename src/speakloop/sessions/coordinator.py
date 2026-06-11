@@ -587,7 +587,10 @@ def _run_warmup(
     if not top_error:
         return {"skipped_reason": "no_recurring_error", "items": []}
     try:
-        items = runners.drill(top_error)
+        # First LLM call of the session (may also pay the lazy model load) — show
+        # the labeled spinner so the terminal never sits silent (012, FR-002).
+        with _analyzing(console, "Preparing your warm-up drill…"):
+            items = runners.drill(top_error)
     except Exception as e:  # noqa: BLE001 — warm-up is best-effort; never block the session
         console.print(f"[yellow]Warm-up generation unavailable: {e}. Skipping warm-up.[/yellow]")
         return {"target_pattern": top_error, "skipped_reason": "generation_unavailable", "items": []}
