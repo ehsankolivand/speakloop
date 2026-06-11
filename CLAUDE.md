@@ -1,140 +1,29 @@
 <!-- SPECKIT START -->
-Active feature: 012-responsive-session-flow — re-engineer the practice-session FLOW
-  (not analysis logic/prompts/models) for transparency + speed. P1 UX: one unambiguous
-  state at a time (playing/recording/transcribing/analyzing) via the already-present
-  `rich`; single-key controls behind a NEW injectable `sessions/keyboard.py` `KeyReader`
-  (Raw/Null/Fake; the ONE raw-input module, consolidating `cli/practice._cbreak_read` +
-  `coordinator._spawn_enter_reader`): `space`=skip-playback/stop-recording, `r`=replay,
-  `s`=skip-followup, `q`=quit, `Enter`=space alias; visual `● REC` indicator + ~1.5s
-  `3·2·1` countdown before every recording; `autoplay_ideal_answer` loop.yaml toggle
-  (default true); compact end-of-session summary (grade/coverage/top-fix/next-due).
-  P2 speed (measurement-first, quality untouchable): `feedback/timings.py` StageTimer →
-  additive optional `timings` frontmatter key + `--timings` flag (schema_version STAYS 1);
-  `tts/cache.py` gains size-capped `prune` (cache already content-addressed); background
-  ASR transcription overlap (single worker; never 2 Whisper jobs at once) + ASR pre-warm
-  during playback; `audio/playback.play_interruptible` (non-blocking `sd.play`+poll+
-  `sd.stop` ≈110ms) + `warm_output_device`; follow-up generation reordered to fire the
-  instant the final transcript lands; NEW `sessions/analysis.py` runs the post-grammar
-  calls CONCURRENTLY (stdlib ThreadPoolExecutor, cap=3 via loop.yaml `analysis_concurrency`)
-  ONLY for engines that DECLARE `parallel_safe=True` (claude/openrouter; local Qwen stays
-  serial). HARD GATE: concurrent == serial report BYTE-IDENTICAL given identical model
-  outputs (pure jobs → named slots → fixed assembly order; store writes main-thread,
-  post-join); per-call degradation stays per-call; recordings/transcripts survive a
-  mid-analysis crash. Measured: skip ~110ms, analysis ~219s→~113s (~48% ↓, MET SC-003);
-  follow-up gap ~151s→~17s (SC-002 ≤12s missed by the 14s generation model call — a
-  documented model-latency floor, NOT a quality trade). ZERO new deps; tests use injected
-  fakes ONLY (no real binary/mic/keyboard). Local default stays offline + byte-identical.
+Active feature: 014-agent-context-overhaul — rewrite the agent-facing context layer
+  (root + 19 module CLAUDE.md files, new `.claude/rules/`) so every claim is verified
+  against current code, per `doc/research_context_engineering.md` (binding). Docs-only;
+  the single permitted code addition is `tests/integration/test_context_file_budget.py`
+  (every CLAUDE.md ≤200 lines). Claim audit, rule-ownership map (O1–O18), and decisions:
+  specs/014-agent-context-overhaul/{research.md,audit/claim-audit.md}.
+  Plan: specs/014-agent-context-overhaul/plan.md · Spec: specs/014-agent-context-overhaul/spec.md
 
-Plan: specs/012-responsive-session-flow/plan.md
-Spec: specs/012-responsive-session-flow/spec.md
-  (research.md empirical baseline · data-model.md · contracts/{keyboard-and-states,
-  analysis-concurrency,loop-config-and-timings}.md)
+Prior features (one line each; details live in specs/NNN-*/):
+  013-grammar-json-discipline — hardened packaged grammar-prompt JSON discipline (commit b611f8d; no spec dir)
+  012-responsive-session-flow — session UX (keyboard/countdown/REC) + speed (concurrent analysis, background ASR, interruptible playback, timings) · specs/012-responsive-session-flow/
+  011-claude-code-engine — third engine "claude" driving the local Claude Code CLI via subprocess · specs/011-claude-code-engine/
+  010-interview-loop — adaptive daily loop: follow-ups, SRS, warm-up, coverage, triage, store · specs/010-interview-loop/
+  009-cloud-coaching-feedback — second OpenRouter coaching call appended to cloud reports · specs/009-cloud-coaching-feedback/
+  008-openrouter-cloud-provider — opt-in `--cloud` grammar analysis via OpenRouter · specs/008-openrouter-cloud-provider/
+  007-robust-model-download — aria2c parallel shard downloads with snapshot fallback · specs/007-robust-model-download/
+  006-feedback-quality-reliability — free-form grammar prompt, json-repair recovery, thinking mode · specs/006-feedback-quality-reliability/
+  005-context-engineering-audit — first CLAUDE.md layer audit · specs/005-context-engineering-audit/
+  004-public-release-readiness — in-repo questions, path-portability audit, MIT · specs/004-public-release-readiness/
+  003-asr-l2-accent-accuracy — Whisper-turbo default, Parakeet fallback, VAD + biasing · specs/003-asr-l2-accent-accuracy/
+  002-post-session-debrief — LLM grammar feedback + interactive debrief · specs/002-post-session-debrief/
+  001-v1-product-spec — base local interview-practice CLI · specs/001-v1-product-spec/
 
-Prior feature: 011-claude-code-engine — THIRD analysis engine "claude" behind the
-  injected `LLMEngine` Protocol, driving the learner's local Claude Code CLI via stdlib
-  `subprocess` (`llm/claude_code_engine.py` is the ONLY spawner; ZERO new deps).
-  `--engine local|openrouter|claude` on `practice`/`resume` (`--cloud` aliases openrouter)
-  + `loop.yaml engine:` default. SUBSCRIPTION-BILLED: STRIPS `ANTHROPIC_API_KEY` + override
-  vars from the subprocess env; pinned to `claude 2.1.170` (`--print --output-format json
-  --model <alias> --safe-mode --tools "" --no-session-persistence --system-prompt`, prompt
-  on stdin; keys off envelope `is_error`, NOT `subtype`; `--safe-mode` NOT `--bare`).
-  Failures → `LLMEngineError` subclasses → `analysis_pending` (no auto-fallback). `doctor`
-  gains Claude rows. P2 per-call tiering (fast=haiku for mishearing+drills, strong=sonnet
-  else) via `loop.yaml claude_fast_model`/`claude_strong_model`/`claude_timeout_seconds`;
-  `_build_runners(fast_engine=…)`. Tests inject a FAKE RUNNER only. Local default stays
-  byte-identical + offline; `schema_version` stays 1.
-  Plan: specs/011-claude-code-engine/plan.md · Spec: specs/011-claude-code-engine/spec.md
-
-Prior feature: 010-interview-loop — adaptive daily loop: due-question selection →
-  warm-up drill → question + 4/3/2 attempts → 1–2 spoken follow-ups → richer report.
-  P1 follow-ups · P2 cross-session memory + SRS + warm-up · P3 content-coverage scoring
-  · P4 trustworthy pipeline (hallucination triage, mishearing, consistency) · P5
-  behavioral/STAR + hypothetical types. Each new LLM step is a NEW caller of `LLMEngine`
-  behind `--cloud` routing (no new engine client); additive optional frontmatter,
-  `schema_version` 1; one rebuildable derived JSON store (`speakloop rebuild`). New
-  modules: interviewer/ triage/ coverage/ srs/ warmup/ store/; new CLI: today, rebuild,
-  resume. Plan: specs/010-interview-loop/plan.md · Spec: specs/010-interview-loop/spec.md
-
-Prior feature: 009-cloud-coaching-feedback — richer COACHING layer for cloud mode
-  (`practice --cloud`): a SECOND OpenRouter call after the grammar analyzer
-  (corrected answer + focused teaching + paste-ready Anki cards), reusing the same
-  engine; FREE-FORM Markdown appended grammar→coaching→transcripts; own prompt file
-  `~/.speakloop/openrouter_coach_prompt.txt`; `coaching` body-only, `coach_error`
-  additive; degrades gracefully; schema_version 1; local mode byte-identical.
-  Plan: specs/009-cloud-coaching-feedback/plan.md · Spec: specs/009-cloud-coaching-feedback/spec.md
-
-Prior feature: 008-openrouter-cloud-provider — OPT-IN cloud mode
-  (`speakloop practice --cloud`) routing ONLY the Phase-C grammar/coherence step
-  to an OpenRouter model instead of the local Qwen3-14B weights (for users who
-  can't fit the local LLM in RAM). Speech (Kokoro) + transcription
-  (Whisper/Parakeet) stay local. New `OpenRouterEngine` implements the existing
-  `LLMEngine` Protocol (Principle V) so `feedback/grammar_analyzer.py` is REUSED
-  via one additive `analyze(..., system_prompt=None)` param; transport = stdlib
-  `urllib` (no new dep). Token env `OPENROUTER_API_KEY` > `~/.speakloop/openrouter_token`
-  (0600); model id `model:` in `~/.speakloop/openrouter.yaml` > default
-  `qwen/qwen3.7-max`; cloud prompt `~/.speakloop/openrouter_prompt.txt`. Preflight
-  `GET /key` fails fast; transient failures degrade through `phase_c_error`.
-  Default (no `--cloud`) byte-for-byte unchanged + offline.
-  Plan: specs/008-openrouter-cloud-provider/plan.md · Spec: specs/008-openrouter-cloud-provider/spec.md
-
-Prior feature: 007-robust-model-download — resilient model downloads: Python port
-  of `download_aria.sh` (aria2c parallel shards + curl metadata + caffeinate),
-  env `$HF_TOKEN` > `~/.cache/huggingface/token` > anon, auto-fallback to
-  snapshot_download when aria2 absent. Validation/consent/manifest/schema_version
-  unchanged. Plan: specs/007-robust-model-download/plan.md
-
-Prior feature: 006-feedback-quality-reliability — made the existing AI-derived
-  feedback (grammar suggestions, cross-attempt narrative, single top-priority)
-  reliably higher-quality. LLM is Qwen3-14B at MLX 4-bit; report format &
-  schema_version stay 1; fully offline; Persian-L1 catalog retired (free-form
-  grammar prompt); JSON recovery via `json-repair` + one bounded regenerate;
-  thinking mode ON, leading `<think>...</think>` stripped at wrapper boundary.
-  Plan: specs/006-feedback-quality-reliability/plan.md · Spec: specs/006-feedback-quality-reliability/spec.md
-
-Prior feature: 005-context-engineering-audit — audited & rewrote the CLAUDE.md layer
-  (root + 13 module files) as a code-true deliverable; launch footprint ≤ 6000 tokens.
-  Plan: specs/005-context-engineering-audit/plan.md · Spec: specs/005-context-engineering-audit/spec.md
-
-Prior feature: 004-public-release-readiness — cloneable & runnable by a stranger.
-  Default questions ship in-repo at `content/questions.yaml`; `~/.speakloop/qa.yaml`
-  is an opt-in override (precedence: --qa-file → home override → repo default).
-  Adds a stdlib+git path-portability audit (pytest, < 2 s). No new dependency;
-  report schema_version stays 1; MIT LICENSE present.
-  Plan: specs/004-public-release-readiness/plan.md · Spec: specs/004-public-release-readiness/spec.md
-
-Prior feature: 003-asr-l2-accent-accuracy — faithful transcripts on Persian-L1
-  accented technical English. Default ASR Whisper-large-v3-turbo (mlx-whisper),
-  Parakeet-TDT via `--asr-engine parakeet` + automatic fallback; per-session domain
-  biasing + Silero-VAD; additive `asr:` frontmatter key (schema_version stays 1).
-  Plan: specs/003-asr-l2-accent-accuracy/plan.md · Spec: specs/003-asr-l2-accent-accuracy/spec.md
-
-Prior feature: 002-post-session-debrief — educational LLM grammar feedback
-  (originally Persian-L1 catalog; the catalog was retired in May 2026 by 006
-  in favour of a free-form prompt) + in-terminal interactive debrief.
-  Plan: specs/002-post-session-debrief/plan.md · Spec: specs/002-post-session-debrief/spec.md
-  New module: src/speakloop/debrief/ (render + audio + menu).
-
-Base feature: speakloop v1 — local English interview-practice CLI.
-  Plan: specs/001-v1-product-spec/plan.md · Spec: specs/001-v1-product-spec/spec.md
-
-Engine selections cite the in-repo research documents:
-  doc/research_tts.md (Kokoro-82M),
-  doc/research_asr.md (Parakeet-TDT-0.6b-v3),
-  doc/research_llm.md (Qwen3-14B 4-bit — the original survey recommended
-    Qwen3.5-9B but that HF repo was a VLM incompatible with `mlx_lm.load()`; the
-    code first shipped Qwen3-8B-4bit, then Qwen3-14B-6bit, and now Qwen3-14B-4bit
-    after the 6-bit variant exceeded the M3 Pro 18 GB resident-RAM budget. See
-    `doc/research_llm.md` Update — 2026-05-25 and `installer/manifest.py`
-    rationale comment).
-
-Constitution: .specify/memory/constitution.md (v1.0.0).
-Shipping order is three phases (A: listen-only, B: attempts + metrics, C: LLM feedback + trends);
-each phase is a complete working system per Principle XII.
+Constitution: .specify/memory/constitution.md (v1.1.0) — wins on any conflict.
 <!-- SPECKIT END -->
-
-<!-- Human-authored map below. Anatomy (FR-010): overview · tech-stack · layout ·
-commands · conventions · maintenance · traps · never-do · pointers. Code is the
-source of truth; the constitution wins on any documentation conflict. -->
 
 # speakloop — top-level map
 
@@ -143,156 +32,140 @@ source of truth; the constitution wins on any documentation conflict. -->
 speakloop is a fully local, offline English speaking-practice CLI for non-native
 software engineers preparing for technical interviews. It runs three local AI models
 on Apple Silicon — TTS (Kokoro-82M), ASR (Whisper-large-v3-turbo), LLM (Qwen3-14B
-4-bit) — to drive a listen → attempt (4/3/2) → feedback loop, written as Obsidian-
-compatible Markdown reports. After the initial model download it makes zero network
-calls (Constitution Principles II, III).
+4-bit) — to drive a listen → attempt (4/3/2) → feedback loop with SRS scheduling,
+written as Obsidian-compatible Markdown reports. After the initial model download the
+default path makes zero network calls; `--cloud`/`--engine` opt into remote analysis.
 
 ## Tech stack
 
-Derived from `pyproject.toml`, confirmed against actual imports.
+From `pyproject.toml`, confirmed against imports.
 
-- **Python 3.12** — pinned `requires-python = ">=3.12,<3.13"` (`pyproject.toml:7`).
-- **`uv`** — the only package manager (no `pip` workflows). Run everything via `uv run`.
-- **CLI / UI**: `typer` (≥0.12), `rich` (≥13.7) — CLI only, no GUI (constitution constraint).
-- **Config / data**: `pyyaml` (≥6.0, YAML user config), `python-frontmatter` (report YAML), `numpy` (≥1.26).
-- **Audio**: `sounddevice` (≥0.4), `soundfile` (≥0.12).
-- **Models / download**: `huggingface_hub` (≥0.24, resumable).
-- **Engine packages** (each imported function-local in exactly ONE wrapper — Principle V):
-  `mlx-whisper` (ASR), `parakeet-mlx` (ASR fallback), `silero-vad` (VAD), `mlx-lm` (LLM),
-  `kokoro-mlx` (TTS).
-- **`onnxruntime` (≥1.20)**: declared to pin the version, but **no direct import** in `src/` —
-  it is transitive via `silero-vad` (divergence D-1).
-- **`torchaudio<2.9`** (capped): ≥2.11 moves decoding to the unbundled `torchcodec` and crashes
-  the first live VAD call — see Traps.
+- **Python 3.12** — pinned `>=3.12,<3.13` (`pyproject.toml:7`). **`uv`** is the only
+  package manager; run everything via `uv run`.
+- **CLI/UI**: `typer` ≥0.12, `rich` ≥13.7 (CLI only — no GUI, constitution constraint).
+- **Config/data**: `pyyaml` ≥6.0, `python-frontmatter`, `numpy` ≥1.26, `json-repair` ≥0.30.
+- **Audio**: `sounddevice` ≥0.4, `soundfile` ≥0.12.
+- **Download**: `huggingface_hub` ≥0.24 (resumable).
+- **Engine packages** (each imported function-local in exactly ONE wrapper file):
+  `mlx-whisper`, `parakeet-mlx`, `silero-vad`, `mlx-lm`, `kokoro-mlx`.
+- **`onnxruntime` ≥1.20**: declared only to pin the version; transitive via `silero-vad`.
+- **`torchaudio<2.9`** (`pyproject.toml:34`) — capped; see Traps.
+- Known divergences (code fix pending, do not copy these patterns): `readchar`
+  (`pyproject.toml:24`) is declared but never imported anywhere in `src/`; `scipy` is
+  imported in the resample fallback (`src/speakloop/audio/playback.py:66`) but never declared.
 
 ## Layout
 
-Thirteen single-responsibility modules under `src/speakloop/`, each with its own `CLAUDE.md`
-(Principles IV, XI). Dependency edges below are from an import scan (`rg "from speakloop\."`),
-not prose (FR-007). Leaves: `config`, `content`, `trends`. Orchestrators: `cli` → 9 modules,
-`sessions` → 6.
+Nineteen single-responsibility modules under `src/speakloop/`, each with its own
+CLAUDE.md (constitution Principle IV). Edges below are from an import scan
+(`rg -o "from speakloop\.(\w+)" src/speakloop/<mod>/`), regenerated 2026-06-11.
 
 | Module | Responsibility | Depends on (internal) |
 |--------|----------------|-----------------------|
-| [`config/`](src/speakloop/config/CLAUDE.md) | Filesystem paths, Q&A-file resolution | — (leaf) |
-| [`content/`](src/speakloop/content/CLAUDE.md) | Q&A YAML loader + schema (default `content/questions.yaml`) | — (leaf) |
-| [`installer/`](src/speakloop/installer/CLAUDE.md) | Model manifest, consent, resumable download, validation | config |
-| [`tts/`](src/speakloop/tts/CLAUDE.md) | TTS wrapper (**owns `kokoro_mlx`**) + clip cache | config, installer |
-| [`audio/`](src/speakloop/audio/CLAUDE.md) | Playback, recording, device probing | sessions |
-| [`asr/`](src/speakloop/asr/CLAUDE.md) | ASR wrapper (**owns `mlx_whisper`, `silero_vad`, `parakeet_mlx`**) + biasing | installer |
-| [`llm/`](src/speakloop/llm/CLAUDE.md) | LLM wrapper (**owns `mlx_lm`** — Qwen3-14B 4-bit) | installer |
-| [`metrics/`](src/speakloop/metrics/CLAUDE.md) | Per-attempt fluency metrics | asr |
-| [`feedback/`](src/speakloop/feedback/CLAUDE.md) | Frontmatter, atomic writer, report builder, grammar analyzer | asr, config, llm |
-| [`debrief/`](src/speakloop/debrief/CLAUDE.md) | Post-session interactive debrief (render + audio + menu) | feedback, tts |
-| [`sessions/`](src/speakloop/sessions/CLAUDE.md) | 4/3/2 coordinator, timer, abort, [012] keyboard + session_ui + analysis executor | asr, audio, config, content, feedback, metrics |
-| [`trends/`](src/speakloop/trends/CLAUDE.md) | Cross-session dashboard + per-pattern series | — (leaf) |
-| [`triage/`](src/speakloop/triage/CLAUDE.md) | [010] Hallucination filter (pre-grammar) + mishearing + artifact consistency | asr, config, feedback, llm |
-| [`coverage/`](src/speakloop/coverage/CLAUDE.md) | [010] Key points (hash-versioned) + coverage scoring + content errors | asr, feedback, llm |
-| [`srs/`](src/speakloop/srs/CLAUDE.md) | [010] Answer grade + interval ladder/mastery + due queue (pure logic) | store |
-| [`warmup/`](src/speakloop/warmup/CLAUDE.md) | [010] Warm-up drill generation + deterministic pass/fail judge | config, feedback, llm |
-| [`interviewer/`](src/speakloop/interviewer/CLAUDE.md) | [010] Unscripted follow-up generation (grounded in the learner's words) | asr, config, feedback, llm |
-| [`store/`](src/speakloop/store/CLAUDE.md) | [010] Derived JSON store (SRS schedule + key-points + patterns), rebuildable | feedback (+srs) |
-| [`cli/`](src/speakloop/cli/CLAUDE.md) | `typer` app: `practice`, `doctor`, `trends`, `today`, `rebuild`, `resume` | audio, config, content, feedback, installer, llm, sessions, trends, tts |
+| `config/` | Paths, Q&A precedence, `loop.yaml` parsing | — (leaf) |
+| `content/` | Q&A YAML loader + schema (`content/questions.yaml`) | — (leaf) |
+| `trends/` | Cross-session dashboard + per-pattern series | — (leaf) |
+| `installer/` | Model manifest, consent, resumable download, validation | config |
+| `asr/` | ASR wrapper (owns `mlx_whisper`, `silero_vad`, `parakeet_mlx`) | installer |
+| `llm/` | LLM engines (owns `mlx_lm`; OpenRouter; Claude Code CLI) | config, installer |
+| `tts/` | TTS wrapper (owns `kokoro_mlx`) + size-capped clip cache | config, installer |
+| `metrics/` | Per-attempt fluency metrics (deterministic, no LLM) | asr |
+| `audio/` | Playback (interruptible), recording, device probing | sessions |
+| `feedback/` | Frontmatter, atomic writer, report builder, grammar analyzer, coach, timings | asr, config, llm |
+| `debrief/` | Post-session interactive debrief | feedback, tts |
+| `triage/` | Hallucination filter, mishearing, artifact consistency | asr, config, feedback, llm |
+| `coverage/` | Key points + coverage scoring + content errors | asr, config, feedback, llm |
+| `interviewer/` | Grounded follow-up generation | asr, config, feedback, llm |
+| `warmup/` | Warm-up drill generation + deterministic judge | config, feedback, llm |
+| `srs/` | Grade + interval ladder + due queue (pure logic) | store |
+| `store/` | Derived JSON store, rebuildable cache | feedback |
+| `sessions/` | 4/3/2 coordinator, keyboard, session UI, analysis executor, timer, abort | asr, audio, config, content, coverage, feedback, metrics, srs, store, trends, triage, warmup |
+| `cli/` | `practice`, `doctor`, `trends`, `today`, `rebuild`, `resume` | all 16 others except debrief at module level (debrief imported function-local) |
 
 ## Commands
 
-Each verified by running it during this feature (see `specs/005-…/audit/command-matrix.md`).
-
 ```bash
-uv run speakloop --help     # works with NO models downloaded (Principle VIII)
-uv run speakloop doctor     # environment + model health check (exit 0 when healthy)
-uv run pytest               # full suite — re-measure after each feature lands
+uv run speakloop --help     # must work with NO models downloaded
+uv run speakloop doctor     # environment + model health (exit 0 when healthy)
+uv run speakloop practice [--listen-only] [--cloud] [--engine local|openrouter|claude] [--timings]
+uv run speakloop today | resume | rebuild | trends
+uv run pytest               # full suite — re-measure pass count after each feature
 uv run pytest -m live_asr   # real silero+torchaudio smoke — run when touching torchaudio
-uv run pytest tests/integration/test_path_portability_audit.py   # no personal-path leakage
+uv run pytest tests/integration/test_path_portability_audit.py  # no personal paths
+uv run pytest tests/integration/test_context_file_budget.py     # CLAUDE.md ≤200 lines
 ```
 
-Linting uses `ruff` (config in `pyproject.toml [tool.ruff]`), but `ruff check .` currently
-reports pre-existing findings on committed code, so it is **not** listed as a passing command
-here (divergence D-7, deferred — fixing needs code edits).
+`ruff` is configured (`pyproject.toml [tool.ruff]`) but `ruff check .` has known
+pre-existing findings — not a passing gate.
 
 ## Conventions
 
-Cross-verified against code and the constitution.
+- English-only user-facing output (constitution I).
+- Engine imports are function-local, each engine package in exactly one wrapper file,
+  so `--help` loads no models (constitution V + VIII). Replacing an engine touches
+  exactly one file.
+- Report `schema_version` stays 1 (`src/speakloop/feedback/frontmatter.py:11`); new
+  frontmatter keys are additive and optional — never bump, never make required.
+- Reports: Obsidian-compatible Markdown in `data/sessions/`, named
+  `YYYY-MM-DD-<question_id>.md` with `-2`/`-3` collision suffixes
+  (`feedback/markdown_writer.py:42`).
+- User config is YAML only; `loop.yaml` keys are all optional with silent defaults
+  (see `src/speakloop/config/CLAUDE.md` for the key table).
+- Conventional Commits (`feat:`, `fix:`, `docs:`, …).
+- Engine changes update the matching `doc/research_*.md` (constitution X).
 
-- **English-only** output everywhere (Principle I).
-- **Engine imports are function-local** in their one wrapper file, so `--help` loads no models
-  (Principle V + VIII).
-- **Swappable engines**: replacing TTS/ASR/LLM touches exactly one wrapper file (Principle V).
-- **`uv` only**; config is YAML; reports are Obsidian-compatible Markdown in `data/sessions/`
-  named `YYYY-MM-DD-qXX.md` (Principle IX).
-- **Report `schema_version` stays 1**; new frontmatter keys are additive only.
-- **Conventional Commits** (`feat:`, `fix:`, `docs:`, …); every module ships its own `CLAUDE.md`.
-- **Engine changes update the matching `doc/research_*.md`** (Principle X).
+## Traps
 
-## Maintenance — how to keep this context layer true
-
-Review is **feature-driven**: every new `specs/NNN-*` feature triggers this 7-item checklist
-(≤ 2 minutes); plus any PR that changes a convention updates the relevant `CLAUDE.md` in the
-same commit. No calendar cadence.
-
-1. Re-read this file against the new feature's scope; update the SPECKIT block's active/prior
-   lines and prune stale history (protects the ≤ 6000-token budget).
-2. Run the documented commands (`--help`, `doctor`, `pytest`); remove any that now fail, add any new one.
-3. For each module whose code changed (`git log --since=<last feature> -- src/speakloop/<mod>/`),
-   re-check that module's `CLAUDE.md`.
-4. Re-run the engine-import scan; confirm each engine package still resolves to exactly one wrapper (Principle V).
-5. **Correct-twice-then-record**: if an agent is corrected on the same thing twice, add it here as a trap or never-do.
-6. **PR-coupling**: any PR that changed a convention must have updated the relevant `CLAUDE.md` in the same commit — verify before merge.
-7. Re-measure the launch footprint; if over 6000 tokens, push detail into a module file or a `paths`-scoped rule.
-
-## Traps (evidence-cited)
-
-0. **[012] Serial and concurrent analysis MUST produce a byte-identical report.** Analysis
-   jobs (`sessions/analysis.run_group`) are PURE — never mutate the store inside a job;
-   apply store writes on the main thread after the group returns, and assemble the `Session`
-   from name-keyed slots in a fixed order. The gate is
-   `tests/integration/test_analysis_equivalence.py` (serial vs concurrent, incl. a failing
-   call). Concurrency is engine-declared (`engine.parallel_safe`) — local Qwen stays serial.
-   The `timings` frontmatter is additive-optional + non-deterministic (wall-clock), so it is
-   stripped before any byte-comparison; `schema_version` STAYS 1.
-1. **Don't bump `torchaudio` past `<2.9`** without `uv run pytest -m live_asr`: ≥2.11 moves
-   decoding to unbundled `torchcodec`, crashing the first live VAD call (`pyproject.toml:29`,
-   `asr/CLAUDE.md`, commit `21dfb86`).
-2. **Keep engine imports function-local** — a module-level engine import would break `--help`.
-   `tests/integration/test_help_without_models.py::test_importing_cli_loads_no_engine_packages`
-   asserts importing the CLI loads none of `mlx_whisper`, `silero_vad`, `parakeet_mlx`, `mlx_lm`;
-   `kokoro_mlx` is not yet covered by that guard (finding D-3).
-3. **Research and manifest agree** on Qwen3-14B-4bit (May 2026). The prior
-   Qwen3.5-9B-VLM divergence is **closed**; the historical context (Qwen3.5-9B-VLM →
-   Qwen3-8B-4bit → Qwen3-14B-6bit → Qwen3-14B-4bit) lives in `doc/research_llm.md`.
-   Thinking mode is ON; the wrapper strips the leading `<think>...</think>` block.
-4. **No personal absolute paths** (`/Users/...`) in any committed file — the path-portability
-   audit fails CI otherwise (`tests/integration/test_path_portability_audit.py`, `specs/004-…`).
-5. **Q&A precedence is `--qa-file → ~/.speakloop/qa.yaml → repo default`, no auto-copy** — the
-   home file is opt-in, not created for you (`config/paths.py:103` `resolve_qa_file`, `specs/004-…`).
-6. **Never bump report `schema_version`** — add frontmatter keys additively only
-   (`feedback/frontmatter.py:20,40,91`, specs 002/003).
-7. **Grammar uses a free-form prompt (no catalog).** `error_type` strings come straight
-   from the model and become `GrammarPattern.label`. The Persian-L1 catalog was retired
-   in May 2026; `feedback/catalog.py` and `persian_l1_catalog.yaml` no longer exist. JSON
-   recovery is `json-repair`, not hand-rolled regex — don't reintroduce the old repair
-   regexes. The Qwen generation config (sampler top_p 0.8 / top_k 20 / min_p 0;
-   `repetition_penalty` 1.05 / context 40; defensive `<|im_end|>` stop;
-   `enable_thinking=True`; the `retry=True` bump to 1.15 / −0.1) lives **only** in
-   `llm/qwen_engine.py`; the analyzer passes intent (`retry`) and `temperature=0.3`,
-   never other engine config (`feedback/grammar_analyzer.py`). **4-bit at the 14B size
-   is the current ship** (`mlx-community/Qwen3-14B-4bit`); 6-bit at 14B exceeded the
-   M3 Pro 18 GB resident-memory budget alongside resident Whisper and was re-quantised
-   down to 4-bit (CHANGELOG 2026-05-25). 8-bit stays out of scope.
+1. **Don't bump `torchaudio` past `<2.9`** (`pyproject.toml:34`) without
+   `uv run pytest -m live_asr`: ≥2.11 moves decoding to unbundled `torchcodec` and
+   crashes the first live VAD call (commit `21dfb86`).
+2. **A module-level engine import breaks `--help`.**
+   `tests/integration/test_help_without_models.py:27` asserts importing the CLI loads
+   none of `mlx_whisper`, `silero_vad`, `parakeet_mlx`, `mlx_lm`; `kokoro_mlx` is NOT
+   covered by that guard.
+3. **Serial and concurrent analysis must produce a byte-identical report** — rule
+   owned by `src/speakloop/sessions/CLAUDE.md`; gate:
+   `tests/integration/test_analysis_equivalence.py`.
+4. **The Claude Code engine has a strict invocation contract** (subscription billing,
+   env stripping, `is_error` keying) — owned by `src/speakloop/llm/CLAUDE.md`.
+5. **Grammar JSON recovery contract** (json-repair ladder, no hand-rolled regex,
+   bounded regenerate) — owned by `src/speakloop/feedback/CLAUDE.md`.
+6. **Raw keyboard input is NOT fully consolidated**: `sessions/keyboard.py` is the
+   session-path reader (KeyReader Protocol + Raw/Null/Fake), but the pre-session
+   listen loop keeps its own `_cbreak_read` (`src/speakloop/cli/practice.py:118`) and
+   the debrief menu its own `_cbreak_read_key` (`src/speakloop/debrief/menu.py:34`).
+7. **No personal absolute paths** (`/Users/...`) in any committed file —
+   `tests/integration/test_path_portability_audit.py` fails otherwise.
+8. **Q&A file precedence** is owned by `src/speakloop/config/CLAUDE.md`
+   (`resolve_qa_file`, `config/paths.py:103`) — no auto-copy to `~/.speakloop/`.
 
 ## Never do
 
-- Add a network call after model download (Principle II) — no telemetry, no auto-update.
-- Import an engine package (`mlx_whisper`/`silero_vad`/`parakeet_mlx`/`mlx_lm`/`kokoro_mlx`)
-  at module top level, or from more than one file (Principle V; breaks `--help`).
+- Add a network call to the default (local) path after model download (constitution II).
+- Import an engine package at module top level, or from more than one file (constitution V).
+- Bump report `schema_version` or make a frontmatter key required.
+- Ship non-English user-facing strings; introduce a GUI, non-YAML user config, or a
+  `pip install` workflow (constitution I + constraints).
 - Edit `.specify/memory/constitution.md` from a normal feature (governance amendment only).
-- Ship non-English user-facing strings (Principle I).
-- Introduce a GUI, a non-YAML user config, or a `pip install` workflow (constitution constraints).
+- Edit `specs/001`–`013` artifacts — they are immutable history; fix forward in context files.
+- Land a behavior-changing commit without updating the owning context file (CLAUDE.md /
+  rules file) in the same commit — constitution v1.1.0 anti-rot rule.
+- Touch the real `claude` binary, microphone, keyboard, or live models from tests —
+  owned by `.claude/rules/testing.md`.
+
+## Maintenance
+
+Anti-rot: every behavior-changing commit updates the owning context file in the same
+commit (constitution v1.1.0). `tests/integration/test_context_file_budget.py` enforces
+≤200 lines per CLAUDE.md. On each new `specs/NNN-*` feature: update the SPECKIT block
+(active ≤10 lines, prior features one line each) and re-check the module table edges.
 
 ## Pointers
 
-- Per-module guidance: each `src/speakloop/<module>/CLAUDE.md` (loaded on-demand).
-- Specs: `specs/001`–`specs/006` (plan.md · spec.md per feature).
-- Engine research: `doc/research_tts.md`, `doc/research_asr.md`, `doc/research_llm.md`,
-  `doc/research_methodology.md`; context-engineering reference: `doc/research_context_engineering.md`.
-- Governance: `.specify/memory/constitution.md` (v1.0.0) — wins on any conflict.
+- Per-module guidance: `src/speakloop/<module>/CLAUDE.md` (loads on demand).
+- Path-scoped rules: `.claude/rules/testing.md` (tests/**),
+  `.claude/rules/llm-calls.md` (LLM-caller modules).
+- Specs: `specs/001`–`specs/014` (plan.md · spec.md per feature).
+- Engine research: `doc/research_{tts,asr,llm,methodology}.md`; context engineering:
+  `doc/research_context_engineering.md`.
+- Governance: `.specify/memory/constitution.md` (v1.1.0) — wins on any conflict.

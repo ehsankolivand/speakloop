@@ -17,14 +17,14 @@ research artifacts from /speckit-plan)*
 
 ## Phase 2: Foundational
 
-- [ ] T001 Write the line-budget guard test in `tests/integration/test_context_file_budget.py`: discover every git-tracked CLAUDE.md (`git ls-files '*CLAUDE.md'` with `Path.rglob` fallback excluding `.venv`), assert each ≤200 lines, failure message names the offending file + count. Stdlib + pytest only. NOTE: lands in the same commit as T002 so the suite is green at every commit (root is currently 298 lines).
+- [X] T001 Write the line-budget guard test in `tests/integration/test_context_file_budget.py`: discover every git-tracked CLAUDE.md (`git ls-files '*CLAUDE.md'` with `Path.rglob` fallback excluding `.venv`), assert each ≤200 lines, failure message names the offending file + count. Stdlib + pytest only. NOTE: lands in the same commit as T002 so the suite is green at every commit (root is currently 298 lines).
 
 ## Phase 3: User Story 1 — Accurate, lean root CLAUDE.md (P1) 🎯 MVP
 
 **Goal**: root file ≤200 lines, every sentence code-true, guide anatomy B3.
 **Independent test**: guard test passes; every claim traceable to audit evidence; six smoke tasks routable from root alone.
 
-- [ ] T002 [US1] Rewrite `CLAUDE.md` (root): SPECKIT block (markers kept; 014 active ≤10 lines; 001–013 one line each) · overview · tech stack fixed list (add json-repair; flag readchar phantom dep) · 19-module layout table with corrected dependency edges (audit R4–R9) · commands · conventions (3–7 per area, schema_version owner O3, engine-import owner O1) · traps (corrected citations R3/R10/R11; torchaudio O2; keyboard-consolidation reality R2; scipy divergence D8; one-line pointers for O6/O13) · never-do list (incl. anti-rot line pointing at constitution O16) · maintenance ≤5 lines · pointers (specs range R12). Commit together with T001; run `uv run pytest tests/integration/test_context_file_budget.py -q` + full suite.
+- [X] T002 [US1] Rewrite `CLAUDE.md` (root): SPECKIT block (markers kept; 014 active ≤10 lines; 001–013 one line each) · overview · tech stack fixed list (add json-repair; flag readchar phantom dep) · 19-module layout table with corrected dependency edges (audit R4–R9) · commands · conventions (3–7 per area, schema_version owner O3, engine-import owner O1) · traps (corrected citations R3/R10/R11; torchaudio O2; keyboard-consolidation reality R2; scipy divergence D8; one-line pointers for O6/O13) · never-do list (incl. anti-rot line pointing at constitution O16) · maintenance ≤5 lines · pointers (specs range R12). Commit together with T001; run `uv run pytest tests/integration/test_context_file_budget.py -q` + full suite.
 
 ## Phase 4: User Story 2 — Nested per-module CLAUDE.md files (P2)
 
