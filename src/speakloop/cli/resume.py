@@ -70,7 +70,10 @@ def run(*, cloud: bool = False, engine: str | None = None, timings: bool = False
     for path in sorted(sessions_dir.glob("*.md")):
         try:
             session = frontmatter.parse(path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as e:  # noqa: BLE001 — corrupt report must not kill the scan
+            console.print(
+                f"[yellow]{path.name}: unreadable report frontmatter ({e}); skipping.[/yellow]"
+            )
             continue
         if session.analysis_pending:
             pending.append(path)

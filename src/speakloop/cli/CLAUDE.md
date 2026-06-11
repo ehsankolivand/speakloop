@@ -49,6 +49,8 @@ The `speakloop` console script (entry point) — no internal module imports `cli
 - `today.py` — `today` command wiring.
 - `rebuild.py` — `rebuild` command wiring.
 - `resume.py` — `resume` command; reuses `resolve_engine_choice` from `practice.py:86`.
+  The pending scan warns (yellow, with the parse error) and skips unreadable reports —
+  never silently, so a corrupt pending report can't masquerade as "nothing to resume".
 
 ## Common modification patterns
 
