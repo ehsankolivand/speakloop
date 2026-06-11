@@ -214,7 +214,7 @@ metrics and a fluency narrative (see [Known limitations](#known-limitations)).
 
 ## Where things live
 
-- **Reports** Reports are saved under data/sessions/ as YYYY-MM-DD-qXX.md. Open that folder
+- **Reports** Reports are saved under data/sessions/ as YYYY-MM-DD-<question-id>.md. Open that folder
   as an [Obsidian](https://obsidian.md) vault to browse, link, and tag past sessions —
   the files are plain Markdown, so any editor works too.
 - **Questions** ship in the repo at [`content/questions.yaml`](content/questions.yaml).
@@ -300,12 +300,13 @@ this is a **known v1 limitation** — see [Known limitations](#known-limitations
 
 ### Voice activity detection errors after upgrading dependencies
 
-**Cause:** the `silero-vad` dependency is version-pinned; a newer, incompatible version
-got installed and changed the VAD API.
+**Cause:** a newer, incompatible `silero-vad` (or `torchaudio`) version got installed
+and changed the VAD API. `pyproject.toml` sets lower bounds (and caps `torchaudio<2.9`);
+the exact working versions live in the committed `uv.lock`.
 
-**Fix:** restore the pinned versions with `uv sync` (it resolves from the committed
-`uv.lock`). The dependency is pinned deliberately because VAD/Whisper APIs have drifted
-between releases; only bump it on a scheduled update window.
+**Fix:** restore the locked versions with `uv sync` (it resolves from the committed
+`uv.lock`). VAD/Whisper APIs have drifted between releases; only bump them on a
+scheduled update window and re-run `uv run pytest -m live_asr`.
 
 ### macOS won't let speakloop use the microphone
 
@@ -335,10 +336,10 @@ falls back to the in-repo default `content/questions.yaml` automatically.
 
 ## License
 
+MIT. See [LICENSE](LICENSE).
+
 ## Found this useful?
 
-If speakloop helps your interview prep, a star on GitHub is appreciated. If you have ideas, bugs, or want to add Persian-L1 grammar patterns, issues and PRs are welcome.
-
----
-
-MIT. See [LICENSE](LICENSE).
+If speakloop helps your interview prep, a star on GitHub is appreciated. If you have
+ideas, bugs, or better prompts for the free-form grammar feedback, issues and PRs are
+welcome.

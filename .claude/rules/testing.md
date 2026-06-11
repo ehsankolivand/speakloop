@@ -1,0 +1,27 @@
+---
+paths: ["tests/**"]
+---
+
+# Test rules (owner of rule O9 — specs/014-agent-context-overhaul/research.md)
+
+- Never touch the real `claude` binary, microphone, keyboard, or live models from a
+  test. Live model calls are forbidden by the constitution ("Engine tests use cached
+  fixtures"); engine tests use small cached WAV/text fixtures committed to the repo.
+- Inject fakes instead:
+  - keyboard → `sessions.keyboard.FakeKeyReader` (list-queue or time-gated
+    `schedule=`/`clock=` modes) or `NullKeyReader`;
+  - Claude Code engine → pass a fake `runner` callable to `ClaudeCodeEngine`
+    (`llm/claude_code_engine.py` `__init__`, `runner: Runner = default_runner`) —
+    no test spawns a subprocess;
+  - recording → inject a fake `record_fn` into the coordinator; never open an
+    input stream.
+- The byte-identical gate `tests/integration/test_analysis_equivalence.py` must keep
+  passing for any change near `sessions/analysis.py` or the coordinator's analysis
+  stage; strip the non-deterministic `timings` frontmatter before byte comparisons.
+- Two repro gates skip unless local fixtures exist (`tests/integration/
+  repro_gate_test.py`, `repro_fresh_5of5_test.py`) — do not "fix" their skips.
+- `-m live_asr` tests are deselected by default; run them only when touching
+  torchaudio/silero (see root CLAUDE.md Traps).
+- `tests/integration/test_help_without_models.py` and
+  `tests/unit/asr/test_engine_import_isolation.py` guard engine-import isolation;
+  `tests/integration/test_context_file_budget.py` guards CLAUDE.md line budgets.

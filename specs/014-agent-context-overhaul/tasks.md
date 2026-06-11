@@ -53,9 +53,9 @@ research artifacts from /speckit-plan)*
 
 ## Phase 5: User Story 3 — Scoped rules and hygiene (P3)
 
-- [ ] T022 [US3] Create `.claude/rules/testing.md` with frontmatter `paths: ["tests/**"]` — owner of O9: never touch real claude binary/mic/keyboard/live models; injected fakes only (FakeKeyReader, fake Runner, fake record_fn); cached fixtures; repro-gate skips; ≤60 lines.
-- [ ] T023 [US3] Create `.claude/rules/llm-calls.md` with frontmatter `paths` covering `src/speakloop/{feedback,coverage,interviewer,triage,warmup}/**` — owner of O7 (ideal_answer boundary, with the three legitimate exceptions) and O8 (degradation contract); ≤60 lines.
-- [ ] T024 [US3] Fix the 4 factual stale claims in `README.md` (audit D1–D4) — report filename pattern, Persian-L1 catalog invite, "version-pinned" wording, License heading structure. No marketing rewrite.
+- [X] T022 [US3] Create `.claude/rules/testing.md` with frontmatter `paths: ["tests/**"]` — owner of O9: never touch real claude binary/mic/keyboard/live models; injected fakes only (FakeKeyReader, fake Runner, fake record_fn); cached fixtures; repro-gate skips; ≤60 lines.
+- [X] T023 [US3] Create `.claude/rules/llm-calls.md` with frontmatter `paths` covering `src/speakloop/{feedback,coverage,interviewer,triage,warmup}/**` — owner of O7 (ideal_answer boundary, with the three legitimate exceptions) and O8 (degradation contract); ≤60 lines.
+- [X] T024 [US3] Fix the 4 factual stale claims in `README.md` (audit D1–D4) — report filename pattern, Persian-L1 catalog invite, "version-pinned" wording, License heading structure. No marketing rewrite.
 
 ## Phase 6: User Story 4 — Anti-rot convention (P4)
 
