@@ -59,7 +59,7 @@ research artifacts from /speckit-plan)*
 
 ## Phase 6: User Story 4 — Anti-rot convention (P4)
 
-- [ ] T025 [US4] Amend `.specify/memory/constitution.md`: add anti-rot Development Guideline ("any commit that changes behavior MUST update the owning context file in the same commit"), bump version 1.0.0 → 1.1.0, update Sync Impact Report header per Governance.
+- [X] T025 [US4] Amend `.specify/memory/constitution.md`: add anti-rot Development Guideline ("any commit that changes behavior MUST update the owning context file in the same commit"), bump version 1.0.0 → 1.1.0, update Sync Impact Report header per Governance.
 
 ## Phase 7: Polish & verification
 

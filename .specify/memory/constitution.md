@@ -1,6 +1,18 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 1.0.0 → 1.1.0
+Bump rationale: MINOR — Development Guidelines materially expanded with one new
+binding rule (anti-rot context maintenance), added by feature 014-agent-context-
+overhaul. No principle removed or redefined.
+
+Modified sections (1.1.0): Development Guidelines — added "Context files rot unless
+the same commit updates them" rule. Dependent artifacts updated in the same change:
+root CLAUDE.md (Never do + Maintenance sections);
+tests/integration/test_context_file_budget.py enforces the companion 200-line budget.
+
+Previous report (1.0.0 initial ratification) follows.
+==================
 Version change: (template / unfilled) → 1.0.0
 Bump rationale: Initial ratification. The prior file was an unfilled template with no
 governing principles; this commit establishes the first canonical constitution for
@@ -251,6 +263,11 @@ They are derived from the principles above and have the same authority.
 - **Explicit over clever; standard library over dependencies; boring over
   novel.** When two approaches solve the same problem, prefer the one a stranger
   can read in five minutes.
+- **Context files rot unless the same commit updates them.** Any commit that
+  changes behavior MUST update the owning context file (root `CLAUDE.md`, the
+  module's `CLAUDE.md`, or the relevant `.claude/rules/*.md`) in the same commit.
+  A stale claim in a context file is worse than a missing one: it poisons every
+  future agent session. (Principles IV, XI; added by feature 014.)
 
 ## User Context
 
@@ -302,4 +319,4 @@ violation discovered post-merge is tracked as a bug, not absolved by precedent.
 lives in the top-level `CLAUDE.md` (when present) and in each module's
 `CLAUDE.md`. Those files MUST defer to this constitution on any conflict.
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-18 | **Last Amended**: 2026-05-18
+**Version**: 1.1.0 | **Ratified**: 2026-05-18 | **Last Amended**: 2026-06-11
