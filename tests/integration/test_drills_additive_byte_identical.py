@@ -100,3 +100,38 @@ def test_frontmatter_round_trips_drills():
     assert back.pronunciation_drills == _DRILLS
     # absent ⇒ None (back-compat)
     assert frontmatter.parse(frontmatter.dump(_session())).pronunciation_drills is None
+
+
+# 017: the retry-outcome + "tricky sounds" data is itself additive — a report carrying it still
+# inserts ONLY the pronunciation section, and a no-drills report stays byte-identical.
+_DRILLS_017 = {
+    "engine_note": "n",
+    "items": [
+        {
+            "drill_id": "vw-sentence",
+            "text": "Verify the value.",
+            "status": "scored",
+            "flags": [{"expected": "v", "word": "verify", "competitor": "w",
+                       "confident_diagnosis": True, "tip": "press teeth to lip"}],
+            "is_follow_on": False,
+            "contrast_id": "v_w",
+            "retry": {"attempts": 2, "outcome": "improved", "final_flags": []},
+        }
+    ],
+    "summary": {"drills": 1, "with_flags": 1, "contrasts_practiced": ["v_w"],
+                "retried": 1, "improved_on_retry": 1, "tricky_sounds": ["v vs w"]},
+}
+
+
+def test_retry_and_tricky_sounds_are_additive_only():
+    r_none = report_builder.build(_session())
+    r_with = report_builder.build(_session(pronunciation_drills=_DRILLS_017))
+    section = report_builder._pronunciation_drills_section(_session(pronunciation_drills=_DRILLS_017))
+    # The new lines render…
+    assert "On retry: better" in r_with and "Tricky sounds this session: v vs w." in r_with
+    # …yet removing the whole inserted section recovers the byte-identical no-drills body.
+    body_none = r_none.split("---\n", 2)[2]
+    body_with = r_with.split("---\n", 2)[2]
+    assert body_with.replace(section + "\n\n", "", 1) == body_none
+    # round-trips through the frontmatter unchanged.
+    assert frontmatter.parse(frontmatter.dump(_session(pronunciation_drills=_DRILLS_017))).pronunciation_drills == _DRILLS_017

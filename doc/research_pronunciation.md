@@ -157,3 +157,31 @@ Key deltas from the recommendation above (all verified vs HF/PyPI on 2026-06-12)
   all rejected on dependency/licensing grounds.
 - **Safety gate**: `psutil` (BSD-3) for live available RAM (stdlib can't report *available* RAM
   on darwin); `engine == "local"` is always unsafe.
+
+## Implementation decisions (feature 017 — shipped)
+
+Feature 017 turns the 016 drill block into a **hear → say → see → retry** trainer and makes it a
+standalone activity. Decisions (full detail: `specs/017-pronunciation-trainer/research.md`):
+
+- **Hear-first** reuses the existing **Kokoro TTS** + blocking playback already injected into the
+  coordinator (question/warm-up/follow-ups path) — no new engine, offline preserved, clip-cached.
+  Replay-on-demand polls the existing `KeyReader` for `r`. Degrades to 016 when TTS/interactivity
+  is absent (so the default test suite + the 016 byte-identical/concurrency tests stay green).
+- **Bounded automatic retry** (not a yes/no prompt): on a flagged target, re-play → re-record →
+  re-score up to `pronunciation_retries` (default 1, clamp 0–3), stopping when the target clears;
+  "improved" is a detection-level comparison (the previously-flagged target no longer flags),
+  consistent with the 016 calibration. Interactive-only, so non-interactive runs behave like 016.
+- **Sentence canonical = flat per-word concatenation, no word-separator token** — CTC blanks
+  already separate canonical tokens, so word boundaries need no symbol and the bank doesn't depend
+  on whether `vocab.json` has a space token. Targets sit sentence-initial for robust alignment.
+- **Build-time correctness harness** `tests/live_pron_test.py` (`-m live_pron`, self-skipping,
+  excluded from the default suite): TTS-renders every bundled drill through the real scorer and
+  asserts it scores clean — the authoritative validation of the hand-authored canonical sequences.
+- **Standalone gate** `assess_standalone_safety`: RAM-only (no resident feedback engine), a
+  distinct function so the 016 interview rule (`engine=="local"` always unsafe) is unchanged.
+- **Loop logic** is a pure, UI-agnostic `pronunciation/drill_runner.py` (injects speak/record/
+  scorer) shared by the interview block and `cli/pronounce.py` — no `pronunciation → sessions/tts/
+  audio` cycle; unit-tested with fakes.
+- **Weak-sound memory**: a rebuildable `pronunciation_contrasts` section in the derived store
+  biases `select_drills`; standalone-only history is live (dropped on a manual `rebuild`, like the
+  SRS `next_due` placeholder). `STORE_VERSION` + report `schema_version` both stay 1.

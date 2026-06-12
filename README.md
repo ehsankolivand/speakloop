@@ -197,16 +197,28 @@ uv run speakloop practice --cloud
 - **Bad/missing token?** The error tells you how to update the token or just drop `--cloud`
   to use the local model.
 
-## Pronunciation drills (optional)
+## Pronunciation trainer (optional)
 
-While your spoken-answer feedback is being generated, speakloop can fill that otherwise-idle
-wait with **read-aloud pronunciation drills**: it shows a short word, you read it aloud, and it
-scores your pronunciation **against the known target** and tells you which sounds were off, with
-a one-line articulatory tip. A **Pronunciation drills** section is added to the session report.
-The combined report appears only after **both** the drills and the feedback finish.
+speakloop includes a **read-aloud pronunciation trainer** built around a tight
+**hear → say → see → retry** loop: it **plays the target aloud** (local TTS) so you hear the
+correct pronunciation first (press **`r`** to replay it), you read it aloud, it **shows** which
+sound was off, and when a sound is flagged it gives you an **immediate retry on the same item** so
+you fix it while it's fresh. Practice is **sentence-led** (natural sentences, with minimal-pair
+words as targeted follow-ons), and it **focuses on the sounds you keep missing**.
 
-It is **opt-in**, **offline after a one-time download**, and **gated by engine + free memory** so
-it never risks freezing your Mac:
+You can run it two ways:
+
+- **During an interview session** — it fills the otherwise-idle wait while your spoken-answer
+  feedback is generated. A **Pronunciation drills** section is added to the report, which appears
+  only after **both** the drills and the feedback finish.
+- **Standalone** — `uv run speakloop pronounce` runs the same loop on its own, for as long as you
+  like (press **q** to stop). Because no feedback engine is loaded, it's gated by **free memory
+  only**, so it's available in the common case even with the default local engine. It needs no
+  speech-recognition model and writes no session report — just a short summary of your trickiest
+  sounds. Use `--limit N` to cap the sentences per round.
+
+It is **opt-in**, **offline after a one-time download**, and (in a session) **gated by engine +
+free memory** so it never risks freezing your Mac:
 
 - The pronunciation model is heavy (~1.3 GB on disk, ~2–3 GB in memory). With a **cloud feedback
   engine** (`--engine openrouter` / `--engine claude`) the large local feedback model isn't
@@ -221,19 +233,23 @@ Control it in `~/.speakloop/loop.yaml` (all keys optional, silent defaults):
 
 ```yaml
 pronunciation_drills: auto      # auto (offer when safe — default) | on | off
-pronunciation_min_free_mb: 4500 # free RAM needed before drills are offered on a cloud engine
+pronunciation_min_free_mb: 4500 # free RAM needed before drills are offered (in-session + standalone)
+pronunciation_tts_playback: true # play the target before each drill (hear-first); false to skip
+pronunciation_retries: 1        # bounded retries per flagged sound (0 = one shot; max 3)
 ```
 
 Per-run override: `uv run speakloop practice --drills` (offer this run) / `--no-drills` (skip
-this run) — the safety gate still applies. The first time you opt in, the model is downloaded
-through the same resilient (parallel, resumable) downloader as every other model, after
-disclosing its size; a user who never opts in never downloads it. `uv run speakloop doctor`
-shows whether the model is present, your setting, and whether drills would be offered.
+this run) — the safety gate still applies. The first time you opt in (in a session or via
+`pronounce`), the model is downloaded through the same resilient (parallel, resumable) downloader
+as every other model, after disclosing its size; a user who never opts in never downloads it.
+`uv run speakloop doctor` shows whether the model is present, your settings, and whether drills
+would be offered both in-session and standalone.
 
 **Honest calibration**: detection ("a sound was off") is reliable; any specific guess
-("heard as …") is shown as a *suggestion*, not a verdict. Scoring is **read-aloud only** —
-your spontaneous answers are not scored. `speakloop resume` and `--listen-only` do not run
-drills. (Future: stress/intonation scoring; scoring your actual answers.)
+("heard as …") is shown as a *suggestion*, not a verdict; a retry that fixes a sound is reported
+encouragingly, never as a grade. Scoring is **read-aloud only** — your spontaneous answers are not
+scored. `speakloop resume` and `--listen-only` do not run drills. (Future: stress/intonation
+scoring; scoring your actual answers.)
 
 ## What you get: an example report
 

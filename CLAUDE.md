@@ -1,16 +1,17 @@
 <!-- SPECKIT START -->
-Active feature: 016-pronunciation-drills — optional read-aloud pronunciation stage. After the
-  attempts, when a resource/engine SAFETY GATE permits, run a user-paced read-aloud drill block
-  on the main thread while feedback runs in a BACKGROUND thread (reuses 012's analysis); the
-  combined report waits for both. New `pronunciation/` module wraps a wav2vec2 CTC phoneme model
-  (facebook/wav2vec2-lv-60-espeak-cv-ft, Apache-2.0, CPU) + pure-numpy CTC GOP; canonical phones
-  are BUNDLED (no runtime g2p/NLTK/network). Gate = active engine (015) + live RAM (psutil): local
-  Qwen → skip+explain, cloud → offer; unsafe override behind a freeze warning. Model is opt-in,
-  fetched via the 007 aria2 downloader (extended: Model.weight_files + preprocessor_config.json).
-  Additive only: new `pronunciation_drills` frontmatter key + report section; schema_version stays
-  1; offline-by-default + grammar/coaching unchanged. Plan: specs/016-pronunciation-drills/plan.md
+Active feature: 017-pronunciation-trainer — turn 016's drills into a hear → say → see → retry
+  trainer. The pure `pronunciation/drill_runner.py` (run_drill_item/run_drill_block/select_drills)
+  plays the target first via the injected Kokoro TTS (replay with `r`), records, scores, then does
+  a bounded automatic retry on a flagged sound; the bank is SENTENCE-led (flat per-word canonical,
+  no separator token; words → follow-ons). New `speakloop pronounce` standalone command with a
+  RAM-only gate variant (`assess_standalone_safety`; no engine penalty), provisioning TTS + the
+  pronunciation model only (no ASR), no report. Weak-sound focus: rebuildable store section
+  `pronunciation_contrasts` biases `select_drills`. Live harness `tests/live_pron_test.py`
+  (`-m live_pron`) validates every bundled canonical. Additive: schema_version + STORE_VERSION
+  stay 1; offline + byte-identical-when-absent hold. Plan: specs/017-pronunciation-trainer/plan.md
 
 Prior features (one line each; details live in specs/NNN-*/):
+  016-pronunciation-drills — opt-in read-aloud pronunciation drill block, engine/RAM-gated, concurrent with feedback · specs/016-pronunciation-drills/
   015-engine-aware-onboarding — `setup` persists engine + engine-aware download/doctor; `questions` group · specs/015-engine-aware-onboarding/
   014-agent-context-overhaul — code-true rewrite of root + 19 module CLAUDE.md + `.claude/rules/`; anti-rot constitution amendment (v1.1.0) · specs/014-agent-context-overhaul/
   013-grammar-json-discipline — hardened packaged grammar-prompt JSON discipline (commit b611f8d; no spec dir)
@@ -87,9 +88,9 @@ CLAUDE.md (constitution Principle IV). Edges below are from an import scan
 | `warmup/` | Warm-up drill generation + deterministic judge | config, feedback, llm |
 | `srs/` | Grade + interval ladder + due queue (pure logic) | store |
 | `store/` | Derived JSON store, rebuildable cache | feedback |
-| `pronunciation/` | Read-aloud scorer (owns `torch`+`transformers`), pure-numpy CTC GOP, engine/RAM safety gate, bundled drill bank (015) | installer |
-| `sessions/` | 4/3/2 coordinator, keyboard, session UI, analysis executor, timer, abort, drill block (016) | asr, audio, config, content, coverage, feedback, metrics, pronunciation, srs, store, trends, triage, warmup |
-| `cli/` | `practice`, `setup`, `questions`, `doctor`, `trends`, `today`, `rebuild`, `resume` | all 17 others except debrief at module level (debrief + pronunciation imported function-local) |
+| `pronunciation/` | Read-aloud scorer (owns `torch`+`transformers`), pure-numpy CTC GOP, engine/RAM gate + standalone RAM-only variant, sentence drill bank, pure hear→say→see→retry loop (`drill_runner`) (016/017) | installer |
+| `sessions/` | 4/3/2 coordinator, keyboard, session UI, analysis executor, timer, abort, drill block (016/017 hear-first+retry) | asr, audio, config, content, coverage, feedback, metrics, pronunciation, srs, store, trends, triage, warmup |
+| `cli/` | `practice`, `pronounce` (017), `setup`, `questions`, `doctor`, `trends`, `today`, `rebuild`, `resume` | all 17 others except debrief at module level (debrief + pronunciation imported function-local) |
 
 ## Commands
 
@@ -97,7 +98,8 @@ CLAUDE.md (constitution Principle IV). Edges below are from an import scan
 uv run speakloop --help     # must work with NO models downloaded
 uv run speakloop setup [--engine local|openrouter|claude] [--no-download]  # persist engine + download only what it needs (015)
 uv run speakloop doctor     # environment + model health, engine-aware (exit 0 when healthy)
-uv run speakloop practice [--listen-only] [--cloud] [--engine local|openrouter|claude] [--timings] [--drills/--no-drills]  # --drills: read-aloud pronunciation drills during the feedback wait, engine/RAM-gated (016)
+uv run speakloop practice [--listen-only] [--cloud] [--engine local|openrouter|claude] [--timings] [--drills/--no-drills]  # --drills: hear→say→see→retry pronunciation drills during the feedback wait, engine/RAM-gated (016/017)
+uv run speakloop pronounce [--limit N]  # standalone hear→say→see→retry pronunciation trainer; RAM-only gate; no interview, no report (017)
 uv run speakloop questions validate [PATH] | template | where  # author/validate your own Q&A (015)
 uv run speakloop today | resume | rebuild | trends
 uv run pytest               # full suite — re-measure pass count after each feature
