@@ -1,14 +1,17 @@
 <!-- SPECKIT START -->
-Active feature: 015-engine-aware-onboarding — onboarding/usability sprint. New `setup`
-  command persists the feedback engine to `loop.yaml engine:` and provisions ONLY what that
-  engine needs (TTS+ASR always; the local Qwen LLM only when engine=local). Engine-aware
-  `practice` download (a cloud engine never fetches Qwen; declining the local LLM degrades to
-  a recorded, resumable session). Engine-aware `doctor` readiness (no false-FAIL on a model
-  the active engine doesn't need). New `questions` group: validate / template / where. Docs +
-  onboarding only — NO analysis/prompt/report-schema change; offline-by-default preserved.
-  Plan: specs/015-engine-aware-onboarding/plan.md · Spec: specs/015-engine-aware-onboarding/spec.md
+Active feature: 016-pronunciation-drills — optional read-aloud pronunciation stage. After the
+  attempts, when a resource/engine SAFETY GATE permits, run a user-paced read-aloud drill block
+  on the main thread while feedback runs in a BACKGROUND thread (reuses 012's analysis); the
+  combined report waits for both. New `pronunciation/` module wraps a wav2vec2 CTC phoneme model
+  (facebook/wav2vec2-lv-60-espeak-cv-ft, Apache-2.0, CPU) + pure-numpy CTC GOP; canonical phones
+  are BUNDLED (no runtime g2p/NLTK/network). Gate = active engine (015) + live RAM (psutil): local
+  Qwen → skip+explain, cloud → offer; unsafe override behind a freeze warning. Model is opt-in,
+  fetched via the 007 aria2 downloader (extended: Model.weight_files + preprocessor_config.json).
+  Additive only: new `pronunciation_drills` frontmatter key + report section; schema_version stays
+  1; offline-by-default + grammar/coaching unchanged. Plan: specs/016-pronunciation-drills/plan.md
 
 Prior features (one line each; details live in specs/NNN-*/):
+  015-engine-aware-onboarding — `setup` persists engine + engine-aware download/doctor; `questions` group · specs/015-engine-aware-onboarding/
   014-agent-context-overhaul — code-true rewrite of root + 19 module CLAUDE.md + `.claude/rules/`; anti-rot constitution amendment (v1.1.0) · specs/014-agent-context-overhaul/
   013-grammar-json-discipline — hardened packaged grammar-prompt JSON discipline (commit b611f8d; no spec dir)
   012-responsive-session-flow — session UX (keyboard/countdown/REC) + speed (concurrent analysis, background ASR, interruptible playback, timings) · specs/012-responsive-session-flow/
