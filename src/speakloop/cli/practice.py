@@ -375,7 +375,17 @@ def _provision_and_build_drills(console: Console, decision, *, input_fn=input):
     Returns a ``coordinator.PronunciationDrills`` bundle, or None on decline/failure (the
     session continues without drills)."""
     from speakloop import installer, pronunciation
+    from speakloop.installer import manifest, validator
 
+    # Bridge the offer/override → download-consent narrative: the first time only, the model
+    # is fetched once through the standard consent (size disclosure, FR-018). On a non-terminal
+    # stdin that consent can't be answered, so the standard flow declines-by-default and we skip
+    # cleanly — never a silent download. (When the model is already present, no prompt appears.)
+    if not validator.validate(manifest.WAV2VEC2_PRONUNCIATION).ok:
+        console.print(
+            "[dim]Setting up pronunciation drills — the model is downloaded once "
+            "(size shown next).[/dim]"
+        )
     try:
         installer.ensure_pronunciation_model(console=console, input_fn=input_fn)
     except installer.InstallDeclinedError:
