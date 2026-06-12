@@ -71,7 +71,12 @@ def run(*, engine: str | None = None, no_download: bool = False, input_fn=input,
     console = console or Console()
     chosen = _resolve_engine(engine, console, input_fn)
 
-    path = loop_config.save_engine(chosen)
+    try:
+        path = loop_config.save_engine(chosen)
+    except ValueError as e:
+        # A pre-existing loop.yaml that doesn't parse as a mapping — don't clobber it.
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from None
     console.print(
         f"[green]Default feedback engine set to[/green] [bold]{chosen}[/bold] "
         f"[dim]({path})[/dim]. Override per run with --engine/--cloud."

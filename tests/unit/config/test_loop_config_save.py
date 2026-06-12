@@ -46,10 +46,32 @@ def test_save_engine_rejects_unknown_value():
     assert loop_config.load().engine == "local"
 
 
-def test_save_engine_tolerates_malformed_existing_file():
+def test_save_engine_refuses_to_clobber_malformed_file():
+    """A YAML typo in an existing loop.yaml must not wipe the user's other settings."""
     path = paths.loop_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(": not valid yaml : [", encoding="utf-8")
+    original = ": not valid yaml : ["
+    path.write_text(original, encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        loop_config.save_engine("openrouter")
+    # The original (broken but recoverable) file is left untouched, not overwritten.
+    assert path.read_text(encoding="utf-8") == original
+
+
+def test_save_engine_refuses_non_mapping_top_level():
+    path = paths.loop_config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("- just\n- a\n- list\n", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        loop_config.save_engine("claude")
+
+
+def test_save_engine_accepts_comments_only_file():
+    path = paths.loop_config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# only a comment\n", encoding="utf-8")
 
     loop_config.save_engine("openrouter")
     assert loop_config.load().engine == "openrouter"

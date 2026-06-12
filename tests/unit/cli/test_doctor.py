@@ -148,3 +148,25 @@ def test_local_engine_missing_llm_still_fails(monkeypatch, tmp_path, tmp_session
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code != 0  # local engine genuinely not ready
     assert "FAIL" in result.stdout
+
+
+def test_doctor_probes_claude_once_when_engine_claude(monkeypatch, tmp_path, tmp_sessions_dir):
+    """The credit-free claude probe must run once per `doctor`, not once per section."""
+    monkeypatch.setenv("SPEAKLOOP_HOME", str(tmp_path / "home"))
+    from speakloop.config import loop_config
+
+    loop_config.save_engine("claude")
+    _fake_validator(monkeypatch, all_ok=True)
+    _fake_devices(monkeypatch)
+    calls = {"n": 0}
+
+    def _probe():
+        calls["n"] += 1
+        return {"installed": True, "binary": "/x/claude", "version": "2.1",
+                "logged_in": True, "auth_method": "subscription", "subscription_type": "max",
+                "api_key_in_env": False}
+
+    monkeypatch.setattr("speakloop.llm.claude_code_engine.doctor_probe", _probe)
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code == 0
+    assert calls["n"] == 1

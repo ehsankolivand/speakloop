@@ -77,13 +77,14 @@ def _models() -> list[CheckRow]:
     return rows
 
 
-def _feedback_engine() -> list[CheckRow]:
+def _feedback_engine(claude_probe: dict | None = None) -> list[CheckRow]:
     """015: the active feedback engine + its readiness, with the exact next step.
 
     Cloud/claude requirement rows are non-failing (opt-in, matching the Cloud and Claude
-    Code sections); a local engine missing its model fails (consistent with `_models`)."""
+    Code sections); a local engine missing its model fails (consistent with `_models`).
+    ``claude_probe`` is the shared, once-per-run Claude Code probe (see `_collect`)."""
     active = engine_status.active_engine()
-    readiness = engine_status.engine_readiness(active)
+    readiness = engine_status.engine_readiness(active, claude_probe=claude_probe)
     rows = [
         CheckRow(
             section="Feedback engine",
@@ -270,15 +271,19 @@ def _interview_loop() -> list[CheckRow]:
     return rows
 
 
-def _claude_code() -> list[CheckRow]:
+def _claude_code(probe: dict | None = None) -> list[CheckRow]:
     """011: report the Claude Code engine (opt-in; never FAILs the exit code).
 
     Probes are credit-free (`claude --version` + `claude auth status --json`); the
-    whole probe is monkeypatched in tests so no automated test runs the real binary."""
+    whole probe is monkeypatched in tests so no automated test runs the real binary.
+    ``probe`` is the shared, once-per-run result (see `_collect`)."""
     from speakloop.config import loop_config
-    from speakloop.llm import claude_code_engine
 
-    info = claude_code_engine.doctor_probe()
+    info = probe
+    if info is None:
+        from speakloop.llm import claude_code_engine
+
+        info = claude_code_engine.doctor_probe()
     cfg_engine = loop_config.load().engine
     rows: list[CheckRow] = []
 
@@ -349,16 +354,21 @@ def _claude_code() -> list[CheckRow]:
 
 
 def _collect() -> list[CheckRow]:
+    # Probe the Claude Code CLI once and share it across the sections that report it,
+    # so a single `doctor` run never spawns the (credit-free) `claude` subprocess twice.
+    from speakloop.llm import claude_code_engine
+
+    claude_probe = claude_code_engine.doctor_probe()
     return [
         _python_runtime(),
-        *_feedback_engine(),
+        *_feedback_engine(claude_probe),
         *_models(),
         *_audio_devices(),
         _sessions_dir(),
         _aria2(),
         *_cloud(),
         *_interview_loop(),
-        *_claude_code(),
+        *_claude_code(claude_probe),
     ]
 
 

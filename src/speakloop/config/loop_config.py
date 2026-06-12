@@ -103,7 +103,12 @@ def save_engine(engine: str) -> Path:
     setup``); no normal run auto-creates or edits the file, preserving the "nothing is
     created in your home directory unless you put it there" guarantee. Validates against
     ``VALID_ENGINES``, then read-modify-writes so any other keys the user set are kept.
-    pyyaml does not preserve comments, so a hand-commented file loses comments on rewrite.
+
+    Refuses to overwrite a file it can't safely round-trip: if an existing, non-empty
+    ``loop.yaml`` does not parse as a YAML mapping (a hand-edit typo, or a top-level
+    list/scalar) this raises ``ValueError`` rather than clobbering the user's other settings
+    with a fresh one-key file. An empty or comments-only file is treated as no keys. pyyaml
+    does not preserve comments, so a hand-commented file loses comments on a valid rewrite.
     """
     if engine not in VALID_ENGINES:
         raise ValueError(f"engine must be one of {', '.join(VALID_ENGINES)} (got {engine!r}).")
@@ -112,10 +117,20 @@ def save_engine(engine: str) -> Path:
     if path.exists():
         try:
             loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except yaml.YAMLError:
-            loaded = None
-        if isinstance(loaded, dict):
+        except yaml.YAMLError as e:
+            raise ValueError(
+                f"Refusing to overwrite {path}: it is not valid YAML ({e.__class__.__name__}). "
+                "Fix the file by hand (or delete it), then re-run."
+            ) from e
+        if loaded is None:
+            data = {}  # empty or comments-only — safe to start fresh
+        elif isinstance(loaded, dict):
             data = loaded
+        else:
+            raise ValueError(
+                f"Refusing to overwrite {path}: its top level is a {type(loaded).__name__}, "
+                "not a key/value mapping. Fix the file by hand (or delete it), then re-run."
+            )
     data["engine"] = engine
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")

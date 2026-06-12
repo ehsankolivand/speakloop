@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import pytest
 
+from typer.testing import CliRunner
+
 from speakloop import installer
 from speakloop.cli import setup
+from speakloop.cli.main import app
 from speakloop.cli.practice import resolve_engine_choice
 from speakloop.config import loop_config
 
@@ -51,3 +54,27 @@ def test_explicit_flag_overrides_persisted_default(record_ensure):
     assert resolve_engine_choice("local", False) == "local"
     # ...without changing what is persisted.
     assert loop_config.load().engine == "openrouter"
+
+
+def test_no_home_files_created_except_loop_yaml(monkeypatch, tmp_path):
+    """SC-007 / FR-005 / FR-019: template/validate/where write nothing to home; setup
+    --no-download writes only loop.yaml."""
+    home = tmp_path / "home"
+    monkeypatch.setenv("SPEAKLOOP_HOME", str(home))
+    # Let loop.yaml resolve UNDER home (override the autouse loop-config isolation) so we can
+    # assert it is the only thing written there.
+    monkeypatch.setattr("speakloop.config.paths.loop_config_path", lambda: home / "loop.yaml")
+    runner = CliRunner()
+
+    # template + validate + where must not create anything in home.
+    tmpl = runner.invoke(app, ["questions", "template"])
+    assert tmpl.exit_code == 0
+    qa = tmp_path / "mine.yaml"
+    qa.write_text(tmpl.stdout, encoding="utf-8")
+    assert runner.invoke(app, ["questions", "validate", str(qa)]).exit_code == 0
+    assert runner.invoke(app, ["questions", "where"]).exit_code == 0
+    assert not home.exists()  # nothing has touched home yet
+
+    # setup --no-download persists ONLY loop.yaml into home.
+    assert runner.invoke(app, ["setup", "--engine", "openrouter", "--no-download"]).exit_code == 0
+    assert sorted(p.name for p in home.iterdir()) == ["loop.yaml"]

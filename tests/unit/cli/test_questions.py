@@ -61,3 +61,43 @@ def test_questions_help_lists_subcommands():
     assert result.exit_code == 0
     for sub in ("validate", "template", "where"):
         assert sub in result.stdout
+
+
+def test_validate_no_path_uses_resolved_active_file(monkeypatch, qa_fixture):
+    # FR-017: no PATH → validate the precedence-resolved active file.
+    monkeypatch.setenv("SPEAKLOOP_QA_FILE", str(qa_fixture("valid.yaml")))
+    result = runner.invoke(app, ["questions", "validate"])
+    assert result.exit_code == 0
+    assert "2 question" in result.stdout
+
+
+def test_validate_no_path_no_file_found(monkeypatch):
+    monkeypatch.setattr("speakloop.config.paths.resolve_qa_file", lambda: None)
+    result = runner.invoke(app, ["questions", "validate"])
+    assert result.exit_code == 1
+    assert "No question file found" in result.stdout
+
+
+def test_where_no_active_file(monkeypatch):
+    # FR-018 / Acceptance Scenario 4: when nothing resolves, say so + how to add one.
+    monkeypatch.setattr("speakloop.config.paths.resolve_qa_file", lambda: None)
+    result = runner.invoke(app, ["questions", "where"])
+    assert result.exit_code == 0
+    assert "none found" in result.stdout.lower()
+
+
+def test_validate_reports_non_fatal_warnings(tmp_path):
+    # FR-017: a file that loads but has a warning (unknown type) → exit 0 + warning shown.
+    f = tmp_path / "warn.yaml"
+    f.write_text(
+        "schema_version: 1\n"
+        "questions:\n"
+        "  - id: q1\n"
+        "    question: What is a stack?\n"
+        "    ideal_answer: A LIFO collection.\n"
+        "    type: bogus\n",
+        encoding="utf-8",
+    )
+    result = runner.invoke(app, ["questions", "validate", str(f)])
+    assert result.exit_code == 0
+    assert "warning" in result.stdout.lower()

@@ -36,19 +36,23 @@ def active_engine() -> str:
     return loop_config.load().engine
 
 
-def engine_readiness(engine: str) -> EngineReadiness:
+def engine_readiness(engine: str, *, claude_probe: dict | None = None) -> EngineReadiness:
     """Resolve the requirement list + overall readiness for `engine`.
 
     - local: the large local feedback model must be present (a hard requirement).
     - openrouter: an API token should be configured (optional — opt-in, never fails).
     - claude: the Claude Code CLI installed + logged in (optional — opt-in).
+
+    ``claude_probe`` lets a caller (e.g. ``doctor``) inject an already-fetched
+    ``claude_code_engine.doctor_probe()`` result so the credit-free ``claude`` subprocess
+    runs once per command instead of once per section.
     """
     if engine == "local":
         requirements = [_local_llm_requirement()]
     elif engine == "openrouter":
         requirements = [_openrouter_requirement()]
     elif engine == "claude":
-        requirements = _claude_requirements()
+        requirements = _claude_requirements(claude_probe)
     else:  # unknown value — resolution falls back to local elsewhere; report nothing extra.
         requirements = []
     ready = all(r.ok for r in requirements if not r.optional)
@@ -90,10 +94,12 @@ def _openrouter_requirement() -> Requirement:
     )
 
 
-def _claude_requirements() -> list[Requirement]:
-    from speakloop.llm import claude_code_engine
+def _claude_requirements(probe: dict | None = None) -> list[Requirement]:
+    info = probe
+    if info is None:
+        from speakloop.llm import claude_code_engine
 
-    info = claude_code_engine.doctor_probe()
+        info = claude_code_engine.doctor_probe()
     if not info.get("installed"):
         return [
             Requirement(

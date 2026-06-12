@@ -82,5 +82,31 @@ def test_setup_interactive_prompt_selects_engine(record_ensure, monkeypatch):
     assert loop_config.load().engine == "openrouter"
 
 
+def test_setup_phase_b_decline_aborts(monkeypatch):
+    """Declining the always-required TTS+ASR download exits 1 (can't record without them)."""
+    def _decline(phase, *, console=None, **kwargs):
+        raise installer.InstallDeclinedError("declined")
+
+    monkeypatch.setattr(installer, "ensure_models", _decline)
+    with pytest.raises(typer.Exit) as exc:
+        setup.run(engine="local")
+    assert exc.value.exit_code == 1
+
+
+def test_setup_local_phase_c_decline_degrades_not_aborts(monkeypatch):
+    """Declining the optional local LLM (phase C) must NOT abort — sessions still record."""
+    calls: list[str] = []
+
+    def _ensure(phase, *, console=None, **kwargs):
+        calls.append(phase)
+        if phase == "C":
+            raise installer.InstallDeclinedError("declined")
+
+    monkeypatch.setattr(installer, "ensure_models", _ensure)
+    setup.run(engine="local")  # must not raise
+    assert calls == ["B", "C"]
+    assert loop_config.load().engine == "local"
+
+
 def _boom(prompt):
     raise AssertionError("input_fn must not be called in the non-interactive path")

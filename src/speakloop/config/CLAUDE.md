@@ -35,8 +35,10 @@ Two files with different stdlib footprints — see File map.
 - `LoopConfig` frozen dataclass — all fields optional with silent defaults.
 - `load() -> LoopConfig` — returns defaults on absent or malformed file (loop_config.py:58-65).
 - `save_engine(engine) -> Path` (015) — the ONLY writer of `loop.yaml`. Validates against
-  `VALID_ENGINES`, read-modify-writes (preserves other keys; pyyaml drops comments). Called
-  only by `speakloop setup` — no normal run auto-creates the file.
+  `VALID_ENGINES`, read-modify-writes (preserves other keys; pyyaml drops comments).
+  **Refuses to overwrite** (raises `ValueError`) when an existing file isn't a YAML mapping —
+  a typo or top-level list won't clobber the user's other keys. Called only by `speakloop
+  setup` — no normal run auto-creates the file.
 
 **loop.yaml key table** (all keys optional; parsed in `load()` at the cited lines):
 
