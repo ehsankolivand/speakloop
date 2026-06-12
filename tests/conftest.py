@@ -120,6 +120,29 @@ def _isolate_loop_config(tmp_path_factory, monkeypatch):
     monkeypatch.setattr("speakloop.config.paths.loop_config_path", lambda: cfg)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_keyboard(monkeypatch):
+    """Keep the real controlling terminal out of the test suite (012).
+
+    ``make_key_reader()`` returns a raw-capable ``RawKeyReader`` whenever a tty is
+    reachable, and it probes ``/dev/tty`` directly (``keyboard.py:222``) — bypassing
+    pytest's stdin capture. So when the suite is launched from an interactive shell the
+    listen loop takes the real ``play_interruptible`` audio path instead of the injected
+    ``play_fn`` / mocked ``playback.play``, and several integration tests fail with
+    ``PlaybackError`` (e.g. ``asr_fallback``, ``phase_a_listen``, ``daily_loop``,
+    ``followups_stage``). That made the suite pass in CI / piped runs but fail when run by
+    hand in Terminal. Forcing a ``NullKeyReader`` makes the keyboard deterministic
+    regardless of where pytest is launched (testing rule: never touch the real keyboard).
+    Tests that exercise raw/interactive behavior construct a ``FakeKeyReader`` and inject
+    it explicitly, which overrides this.
+    """
+    from speakloop.sessions.keyboard import NullKeyReader
+
+    monkeypatch.setattr(
+        "speakloop.sessions.keyboard.make_key_reader", lambda: NullKeyReader()
+    )
+
+
 @pytest.fixture
 def wav_fixture():
     """Return a callable `(name) -> Path` that locates a fixture WAV.

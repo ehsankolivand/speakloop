@@ -7,6 +7,13 @@ paths: ["tests/**"]
 - Never touch the real `claude` binary, microphone, keyboard, or live models from a
   test. Live model calls are forbidden by the constitution ("Engine tests use cached
   fixtures"); engine tests use small cached WAV/text fixtures committed to the repo.
+- `tests/conftest.py` auto-neutralizes the keyboard suite-wide: an autouse
+  `_isolate_keyboard` fixture forces `sessions.keyboard.make_key_reader()` to return a
+  `NullKeyReader`. Without it, `make_key_reader` probes `/dev/tty` directly
+  (`keyboard.py:222`), so running `pytest` from an interactive shell makes the listen
+  loop take the real `play_interruptible` audio path and several integration tests fail
+  with `PlaybackError` (green in CI/piped, red by hand). Don't undo it; tests needing raw
+  behavior inject a `FakeKeyReader` (which overrides the fixture).
 - Inject fakes instead:
   - keyboard → `sessions.keyboard.FakeKeyReader` (list-queue or time-gated
     `schedule=`/`clock=` modes) or `NullKeyReader`;
