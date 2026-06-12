@@ -18,6 +18,9 @@ and download orchestration. Keeps the Mac awake via `caffeinate`. No engine pack
 - `manifest.Phase` — `Literal["A", "B", "C"]`.
 - `manifest.PHASE_A_MODELS`, `PHASE_B_MODELS`, `PHASE_C_MODELS` — typed `list[Model]`.
 - `manifest.models_for_phase(phase) -> list[Model]`.
+- `engine_needs_local_llm(engine, *, listen_only) -> bool` (015) — single source of truth for
+  engine-aware provisioning: `engine == "local" and not listen_only`. The CLI ensures the base
+  phase (A/B) always, then Phase C (Qwen) only when this is True; cloud engines never fetch it.
 - `consent.prompt_for_consent(models) -> bool` — decline-by-default, size disclosure.
 - `downloader.download_model(model)` — curl metadata → shard discovery → aria2c shards
   → outer retry; fallback to `huggingface_hub.snapshot_download(resume_download=True)`

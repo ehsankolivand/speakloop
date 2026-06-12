@@ -34,6 +34,9 @@ Two files with different stdlib footprints — see File map.
 
 - `LoopConfig` frozen dataclass — all fields optional with silent defaults.
 - `load() -> LoopConfig` — returns defaults on absent or malformed file (loop_config.py:58-65).
+- `save_engine(engine) -> Path` (015) — the ONLY writer of `loop.yaml`. Validates against
+  `VALID_ENGINES`, read-modify-writes (preserves other keys; pyyaml drops comments). Called
+  only by `speakloop setup` — no normal run auto-creates the file.
 
 **loop.yaml key table** (all keys optional; parsed in `load()` at the cited lines):
 
@@ -66,8 +69,10 @@ Two files with different stdlib footprints — see File map.
 - **Q&A precedence (O10)**: `--qa-file` / `SPEAKLOOP_QA_FILE` → `~/.speakloop/qa.yaml`
   (if exists) → `content/questions.yaml` (if exists) → `None`. The home file is an
   opt-in override — never auto-created (paths.py:103-124, specs/004-public-release-readiness).
-- `paths.py` does no I/O except `ensure_dir()`; `loop_config.py` reads YAML at call time.
-  Never add a network call or engine import to either file.
+- `paths.py` does no I/O except `ensure_dir()`; `loop_config.py` reads YAML at call time
+  and writes ONLY via `save_engine()` (explicit `speakloop setup` action — never on a normal
+  run, preserving the "nothing auto-created in your home dir" guarantee). Never add a network
+  call or engine import to either file.
 
 ## Common modification patterns
 

@@ -83,9 +83,9 @@ def practice_cmd(
         None,
         "--engine",
         help=(
-            "Analysis engine: 'local' (default, offline Qwen), 'openrouter' (cloud), or "
-            "'claude' (your local Claude Code, subscription-billed). Overrides the loop-config "
-            "`engine:` default. --cloud is an alias for --engine openrouter."
+            "Analysis engine: 'local' (offline Qwen), 'openrouter' (cloud), or 'claude' (your "
+            "local Claude Code, subscription-billed). Overrides the persisted default for this "
+            "run only; set the default once with `speakloop setup`. --cloud == --engine openrouter."
         ),
     ),
     speed: float = typer.Option(
@@ -115,6 +115,28 @@ def practice_cmd(
         speed=speed,
         timings=timings,
     )
+
+
+@app.command("setup")
+def setup_cmd(
+    engine: str = typer.Option(
+        None,
+        "--engine",
+        help=(
+            "Feedback engine to set as the default: 'local' (offline Qwen), 'openrouter' "
+            "(cloud), or 'claude' (local Claude Code). Omit to choose interactively."
+        ),
+    ),
+    no_download: bool = typer.Option(
+        False,
+        "--no-download",
+        help="Persist the engine choice without downloading any models in this run.",
+    ),
+) -> None:
+    """Choose and persist your feedback engine, and download only what that engine needs."""
+    from speakloop.cli import setup as _setup
+
+    _setup.run(engine=engine, no_download=no_download)
 
 
 @app.command("doctor")

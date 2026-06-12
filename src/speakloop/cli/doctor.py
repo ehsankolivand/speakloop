@@ -15,6 +15,7 @@ from rich.console import Console
 from rich.table import Table
 
 from speakloop.audio import devices
+from speakloop.cli import engine_status
 from speakloop.config import paths
 from speakloop.installer import manifest, validator
 
@@ -41,18 +42,70 @@ def _python_runtime() -> CheckRow:
 
 
 def _models() -> list[CheckRow]:
+    """Model presence rows, engine-aware (015).
+
+    The local feedback model (Phase C / Qwen) is a FAIL-on-absence only when the active
+    engine is ``local``; for a cloud active engine it renders informationally and never
+    fails the exit code (a cloud user never needs it). TTS/ASR models stay FAIL-on-absence
+    regardless. Every model row is always rendered (keeps `test_doctor_failure_modes`).
+    """
+    active = engine_status.active_engine()
     rows: list[CheckRow] = []
     for m in manifest.PHASE_C_MODELS:
         r = validator.validate(m)
+        is_local_llm = m.required_for_phase == "C"
+        path_detail = f"path: {m.local_path} (expected {r.expected_bytes:,} B)"
+        if r.ok:
+            status, detail, remediation = "OK", path_detail, ""
+        elif is_local_llm and active != "local":
+            status = "OK"
+            detail = f"not required for the active engine ({active})"
+            remediation = ""
+        elif is_local_llm:
+            status = "FAIL"
+            detail = path_detail
+            remediation = (
+                "Run `speakloop setup --engine local` or `speakloop practice` to download this model."
+            )
+        else:
+            status = "FAIL"
+            detail = path_detail
+            remediation = "Run `speakloop practice` to consent and download this model."
+        rows.append(
+            CheckRow(section="Models", label=m.name, status=status, detail=detail, remediation=remediation)
+        )
+    return rows
+
+
+def _feedback_engine() -> list[CheckRow]:
+    """015: the active feedback engine + its readiness, with the exact next step.
+
+    Cloud/claude requirement rows are non-failing (opt-in, matching the Cloud and Claude
+    Code sections); a local engine missing its model fails (consistent with `_models`)."""
+    active = engine_status.active_engine()
+    readiness = engine_status.engine_readiness(active)
+    rows = [
+        CheckRow(
+            section="Feedback engine",
+            label="active engine",
+            status="OK",
+            detail=f"{active} (loop.yaml `engine:`; set with `speakloop setup`, override per run with --engine/--cloud)",
+        )
+    ]
+    for req in readiness.requirements:
+        if req.ok:
+            status = "OK"
+        elif req.optional:
+            status = "WARN"
+        else:
+            status = "FAIL"
         rows.append(
             CheckRow(
-                section="Models",
-                label=m.name,
-                status="OK" if r.ok else "FAIL",
-                detail=f"path: {m.local_path} (expected {r.expected_bytes:,} B)",
-                remediation=(
-                    "" if r.ok else "Run `speakloop practice` to consent and download this model."
-                ),
+                section="Feedback engine",
+                label=req.label,
+                status=status,
+                detail=req.detail,
+                remediation=req.next_step,
             )
         )
     return rows
@@ -298,6 +351,7 @@ def _claude_code() -> list[CheckRow]:
 def _collect() -> list[CheckRow]:
     return [
         _python_runtime(),
+        *_feedback_engine(),
         *_models(),
         *_audio_devices(),
         _sessions_dir(),

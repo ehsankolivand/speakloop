@@ -78,3 +78,73 @@ def test_json_emits_parseable_json(monkeypatch, tmp_sessions_dir):
     parsed = json.loads(result.stdout)
     assert isinstance(parsed, list)
     assert all("status" in row for row in parsed)
+
+
+# --- 015: engine-aware readiness ------------------------------------------
+
+
+def _no_claude_binary(monkeypatch):
+    """Never touch the real claude binary from the doctor probe."""
+    monkeypatch.setattr(
+        "speakloop.llm.claude_code_engine.doctor_probe",
+        lambda: {"installed": False, "binary": None, "version": None, "logged_in": None,
+                 "api_key_in_env": False},
+    )
+
+
+def _validate_no_local_llm(monkeypatch):
+    """TTS/ASR present, the local feedback LLM (phase C) absent."""
+    from speakloop.cli import doctor as _doctor
+    from speakloop.installer.validator import ValidationResult
+
+    def _validate(model):
+        ok = model.required_for_phase != "C"
+        return ValidationResult(
+            ok=ok,
+            reason="ok" if ok else "missing",
+            measured_bytes=model.expected_size_bytes if ok else 0,
+            expected_bytes=model.expected_size_bytes,
+        )
+
+    monkeypatch.setattr(_doctor.validator, "validate", _validate)
+
+
+def test_doctor_reports_active_engine(monkeypatch, tmp_sessions_dir):
+    _fake_validator(monkeypatch, all_ok=True)
+    _fake_devices(monkeypatch)
+    _no_claude_binary(monkeypatch)
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code == 0
+    assert "active engine" in result.stdout
+    assert "local" in result.stdout
+
+
+def test_cloud_engine_missing_local_llm_does_not_fail(monkeypatch, tmp_path, tmp_sessions_dir):
+    monkeypatch.setenv("SPEAKLOOP_HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    from speakloop.config import loop_config
+
+    loop_config.save_engine("openrouter")
+    _validate_no_local_llm(monkeypatch)
+    _fake_devices(monkeypatch)
+    _no_claude_binary(monkeypatch)
+
+    result = runner.invoke(app, ["doctor"])
+    # A cloud user missing only the local LLM is healthy.
+    assert result.exit_code == 0
+    assert "openrouter" in result.stdout
+    assert "not required for the active engine" in result.stdout
+
+
+def test_local_engine_missing_llm_still_fails(monkeypatch, tmp_path, tmp_sessions_dir):
+    monkeypatch.setenv("SPEAKLOOP_HOME", str(tmp_path / "home"))
+    from speakloop.config import loop_config
+
+    loop_config.save_engine("local")
+    _validate_no_local_llm(monkeypatch)
+    _fake_devices(monkeypatch)
+    _no_claude_binary(monkeypatch)
+
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code != 0  # local engine genuinely not ready
+    assert "FAIL" in result.stdout

@@ -38,6 +38,17 @@ from speakloop.installer import consent as _consent  # noqa: E402
 from speakloop.installer import downloader, manifest, validator  # noqa: E402
 
 
+def engine_needs_local_llm(engine: str, *, listen_only: bool) -> bool:
+    """Whether a run needs the large local feedback LLM (Phase C / Qwen) downloaded (015).
+
+    Only the ``local`` engine on a full (non-listen-only) session needs it; the cloud
+    engines (``openrouter``, ``claude``) never do, and listen-only needs neither ASR nor
+    the LLM. The single source of truth for engine-aware provisioning — used by
+    ``cli.practice``, ``cli.setup``, and (indirectly) ``cli.doctor``.
+    """
+    return engine == "local" and not listen_only
+
+
 def _missing_or_invalid(models: list[manifest.Model]) -> list[manifest.Model]:
     return [m for m in models if not validator.validate(m).ok]
 
@@ -96,6 +107,7 @@ __all__ = [
     "InstallDeclinedError",
     "InstallFailedError",
     "ShardDiscoveryError",
+    "engine_needs_local_llm",
     "ensure_models",
     "manifest",
 ]

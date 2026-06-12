@@ -82,13 +82,14 @@ CLAUDE.md (constitution Principle IV). Edges below are from an import scan
 | `srs/` | Grade + interval ladder + due queue (pure logic) | store |
 | `store/` | Derived JSON store, rebuildable cache | feedback |
 | `sessions/` | 4/3/2 coordinator, keyboard, session UI, analysis executor, timer, abort | asr, audio, config, content, coverage, feedback, metrics, srs, store, trends, triage, warmup |
-| `cli/` | `practice`, `doctor`, `trends`, `today`, `rebuild`, `resume` | all 16 others except debrief at module level (debrief imported function-local) |
+| `cli/` | `practice`, `setup`, `doctor`, `trends`, `today`, `rebuild`, `resume` | all 16 others except debrief at module level (debrief imported function-local) |
 
 ## Commands
 
 ```bash
 uv run speakloop --help     # must work with NO models downloaded
-uv run speakloop doctor     # environment + model health (exit 0 when healthy)
+uv run speakloop setup [--engine local|openrouter|claude] [--no-download]  # persist engine + download only what it needs (015)
+uv run speakloop doctor     # environment + model health, engine-aware (exit 0 when healthy)
 uv run speakloop practice [--listen-only] [--cloud] [--engine local|openrouter|claude] [--timings]
 uv run speakloop today | resume | rebuild | trends
 uv run pytest               # full suite — re-measure pass count after each feature

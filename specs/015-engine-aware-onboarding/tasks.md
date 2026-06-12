@@ -24,7 +24,7 @@ SAME commit as that story's behavior change (constitution v1.1.0). Every CLAUDE.
 
 ## Phase 1: Setup
 
-- [ ] T001 Record the baseline full-suite result: run `uv run pytest -q` and note the pass/skip
+- [X] T001 Record the baseline full-suite result: run `uv run pytest -q` and note the pass/skip
   count for the before/after delta (SC-009). No source change.
 
 ---
@@ -53,13 +53,13 @@ does not false-fail on an unneeded model.
 
 ### Primitives (lowest layer — land first)
 
-- [ ] T002 [P] [US1] Add `save_engine(engine) -> Path` to `src/speakloop/config/loop_config.py`:
+- [X] T002 [P] [US1] Add `save_engine(engine) -> Path` to `src/speakloop/config/loop_config.py`:
   validate `engine ∈ VALID_ENGINES` (else `ValueError`); read existing `loop.yaml` (absent/
   malformed → `{}`); set `engine`; `yaml.safe_dump(sort_keys=False)`; `mkdir` parent; return path.
-- [ ] T003 [P] [US1] Add `engine_needs_local_llm(engine, *, listen_only) -> bool`
+- [X] T003 [P] [US1] Add `engine_needs_local_llm(engine, *, listen_only) -> bool`
   (`engine == "local" and not listen_only`) to `src/speakloop/installer/__init__.py` and export it
   in `__all__`.
-- [ ] T004 [US1] Add `src/speakloop/cli/engine_status.py`: `active_engine()` (reads
+- [X] T004 [US1] Add `src/speakloop/cli/engine_status.py`: `active_engine()` (reads
   `loop_config.load().engine`), `Requirement` + `EngineReadiness` dataclasses, and
   `engine_readiness(engine) -> EngineReadiness` with function-local imports of
   `installer.{manifest,validator}`, `llm.openrouter_credentials`,
@@ -67,21 +67,21 @@ does not false-fail on an unneeded model.
 
 ### Command layer
 
-- [ ] T005 [US1] Add `src/speakloop/cli/setup.py` `run(*, engine=None, no_download=False,
+- [X] T005 [US1] Add `src/speakloop/cli/setup.py` `run(*, engine=None, no_download=False,
   input_fn=input, console=None)`: resolve engine (explicit → interactive numbered prompt
   defaulting to current → non-interactive keep-current); persist via `loop_config.save_engine`;
   unless `no_download`, `installer.ensure_models("B")` then `ensure_models("C")` only when
   `engine == "local"`; report cloud-credential readiness (no network); print the
   `engine_status` readiness summary. Invalid engine → `typer.Exit(2)`.
-- [ ] T006 [US1] Register `setup` in `src/speakloop/cli/main.py` (`--engine`, `--no-download`),
+- [X] T006 [US1] Register `setup` in `src/speakloop/cli/main.py` (`--engine`, `--no-download`),
   delegating to `cli/setup.py`; clarify `--cloud`/`--engine` help text on `practice`/`resume` so
   the alias relationship is explicit (FR-004). Keep the local import pattern (no engine touch).
-- [ ] T007 [US1] Engine-aware provisioning in `src/speakloop/cli/practice.py`: keep the required
+- [X] T007 [US1] Engine-aware provisioning in `src/speakloop/cli/practice.py`: keep the required
   base `ensure_models("A" if listen_only else "B")` (decline → exit, unchanged); then, when
   `installer.engine_needs_local_llm(engine_choice, listen_only=listen_only)` and the local model
   is absent, call `ensure_models("C")` wrapped so `InstallDeclinedError`/`InstallFailedError`
   prints one English notice and continues (degrade, no exit). Place before the grammar-analyzer build.
-- [ ] T008 [US1] Engine-aware `src/speakloop/cli/doctor.py`: in `_models()` make the
+- [X] T008 [US1] Engine-aware `src/speakloop/cli/doctor.py`: in `_models()` make the
   `required_for_phase == "C"` row FAIL-on-absence only when `engine_status.active_engine() ==
   "local"`, else a non-failing "not required for the active engine (<engine>)" row (keep all rows
   rendered; keep a `speakloop practice` remediation substring on a FAIL row). Add a
@@ -90,30 +90,30 @@ does not false-fail on an unneeded model.
 
 ### Tests (US1)
 
-- [ ] T009 [P] [US1] `tests/unit/config/test_loop_config_save.py`: round-trip (`save_engine` then
+- [X] T009 [P] [US1] `tests/unit/config/test_loop_config_save.py`: round-trip (`save_engine` then
   `load().engine`), preserves a pre-existing unrelated key, rejects an invalid value.
-- [ ] T010 [P] [US1] `tests/unit/installer/test_engine_provisioning.py`: truth table for
+- [X] T010 [P] [US1] `tests/unit/installer/test_engine_provisioning.py`: truth table for
   `engine_needs_local_llm` across {local,openrouter,claude} × {listen_only True/False}.
-- [ ] T011 [P] [US1] `tests/unit/cli/test_engine_status.py`: `engine_readiness` per engine with
+- [X] T011 [P] [US1] `tests/unit/cli/test_engine_status.py`: `engine_readiness` per engine with
   monkeypatched validator/credentials/`doctor_probe`; cloud requirements are `optional=True`.
-- [ ] T012 [P] [US1] `tests/unit/cli/test_setup.py`: monkeypatch `installer.ensure_models` to
+- [X] T012 [P] [US1] `tests/unit/cli/test_setup.py`: monkeypatch `installer.ensure_models` to
   record phases; assert openrouter→{"B"}, claude→{"B"}, local→{"B","C"}; `--no-download`→no
   ensure calls; persistence written to the isolated `loop_config_path()`; non-interactive keeps
   current; invalid engine → exit 2. Set `SPEAKLOOP_HOME` to tmp; inject `input_fn`.
-- [ ] T013 [US1] Extend `tests/unit/cli/test_doctor.py`: with a cloud `engine:` written to the
+- [X] T013 [US1] Extend `tests/unit/cli/test_doctor.py`: with a cloud `engine:` written to the
   isolated loop config, a missing local LLM does NOT FAIL and the active engine is named; keep
   the existing local-default FAIL cases green.
-- [ ] T014 [P] [US1] `tests/integration/test_setup_flow.py`: fresh-clone sim — `setup openrouter`
+- [X] T014 [P] [US1] `tests/integration/test_setup_flow.py`: fresh-clone sim — `setup openrouter`
   triggers no `ensure_models("C")`; `setup local` does; after setup, `resolve_engine_choice(None,
   False)` returns the persisted engine.
-- [ ] T015 [P] [US1] `tests/integration/test_practice_engine_aware_download.py`: `practice` with a
+- [X] T015 [P] [US1] `tests/integration/test_practice_engine_aware_download.py`: `practice` with a
   cloud engine never calls `ensure_models("C")`; with local + missing LLM + declined download, the
   run degrades (no `Exit`) and proceeds. Use injected `tts_engine`/`play_fn` + monkeypatched
   `ensure_models` per existing practice-test patterns.
 
 ### Context (anti-rot — same commit as T002–T008)
 
-- [ ] T016 [US1] Update owning context files: `src/speakloop/config/CLAUDE.md` (`save_engine` +
+- [X] T016 [US1] Update owning context files: `src/speakloop/config/CLAUDE.md` (`save_engine` +
   explicit-only-write note), `src/speakloop/installer/CLAUDE.md` (`engine_needs_local_llm`),
   `src/speakloop/cli/CLAUDE.md` (setup command, engine_status, engine-aware doctor section,
   practice provisioning), and root `CLAUDE.md` (Commands list + module-table notes). All ≤200 lines.

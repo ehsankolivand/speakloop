@@ -353,19 +353,39 @@ def run(
             console.print("Bye.")
             return
 
-    # Pick the model phase from the user's intent. --listen-only only needs
-    # Phase A (TTS); without it we need Phase B (TTS + ASR) to record attempts.
-    # Phase C (LLM) is opted into separately when the model is present.
-    target_phase = "A" if listen_only else "B"
+    # Required base models from the user's intent. --listen-only only needs Phase A
+    # (TTS); without it we need Phase B (TTS + ASR) to record attempts. These are
+    # required — declining aborts (you can't record without them).
+    base_phase = "A" if listen_only else "B"
 
     try:
-        installer.ensure_models(target_phase, console=console)
+        installer.ensure_models(base_phase, console=console)
     except installer.InstallDeclinedError:
         console.print("[yellow]Model download declined; nothing to do.[/yellow]")
         raise typer.Exit(1)
     except installer.InstallFailedError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from e
+
+    # 015: the large local feedback model (Phase C / Qwen) is provisioned ONLY when the
+    # local engine is the active feedback engine on a full session — a cloud engine never
+    # triggers it (FR-007). Declining or a failure degrades to a recorded, resumable
+    # session (no grammar feedback) rather than aborting (FR-009); `_build_grammar_analyzer`
+    # then sees the model absent and returns None.
+    if installer.engine_needs_local_llm(engine_choice, listen_only=listen_only):
+        try:
+            installer.ensure_models("C", console=console)
+        except installer.InstallDeclinedError:
+            console.print(
+                "[yellow]Local feedback model declined — this session will record but produce "
+                "no grammar feedback (finish later with `speakloop resume`, or use "
+                "--engine openrouter / --engine claude).[/yellow]"
+            )
+        except installer.InstallFailedError as e:
+            console.print(
+                f"[yellow]Local feedback model unavailable ({e}); recording without grammar "
+                "feedback (resumable with `speakloop resume`).[/yellow]"
+            )
 
     if tts_engine is None:
         from speakloop.tts.kokoro_engine import KokoroEngine

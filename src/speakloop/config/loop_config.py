@@ -10,6 +10,7 @@ model: no file is written for the user).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import yaml
 
@@ -93,3 +94,29 @@ def load() -> LoopConfig:
         autoplay_ideal_answer=autoplay,
         analysis_concurrency=concurrency,
     )
+
+
+def save_engine(engine: str) -> Path:
+    """Persist the default feedback engine to ``loop.yaml`` (015). Returns the path written.
+
+    The ONLY writer of ``loop.yaml`` — an explicit, user-initiated action (``speakloop
+    setup``); no normal run auto-creates or edits the file, preserving the "nothing is
+    created in your home directory unless you put it there" guarantee. Validates against
+    ``VALID_ENGINES``, then read-modify-writes so any other keys the user set are kept.
+    pyyaml does not preserve comments, so a hand-commented file loses comments on rewrite.
+    """
+    if engine not in VALID_ENGINES:
+        raise ValueError(f"engine must be one of {', '.join(VALID_ENGINES)} (got {engine!r}).")
+    path = paths.loop_config_path()
+    data: dict = {}
+    if path.exists():
+        try:
+            loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except yaml.YAMLError:
+            loaded = None
+        if isinstance(loaded, dict):
+            data = loaded
+    data["engine"] = engine
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    return path

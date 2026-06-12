@@ -9,7 +9,8 @@ modules together for a run; the console-script entry point.
 
 Commands (all registered in `main.py`):
 - `practice` (`main.py:63`) — listen → session → debrief loop. Key flags: `--listen-only`, `--no-audio`, `--asr-engine {whisper,parakeet}`, `--cloud` (alias for `--engine openrouter`), `--engine {local,openrouter,claude}`, `--speed` (TTS multiplier, default 0.85, clamped 0.5–2.0), `--timings`.
-- `doctor` (`main.py:120`) — environment + model health check; `--json` for scripting.
+- `setup` (015, `main.py`) — pick + persist the feedback engine to `loop.yaml engine:` and download only what it needs. Flags: `--engine {local,openrouter,claude}`, `--no-download`. Thin module `setup.py`.
+- `doctor` (`main.py`) — environment + model health check, engine-aware (see below); `--json` for scripting.
 - `trends` (`main.py:130`) — cross-session dashboard.
 - `today` (`main.py:148`) — show due queue; `--limit`.
 - `rebuild` (`main.py:160`) — rebuild derived store from session files; `--sessions-dir`.
@@ -23,9 +24,13 @@ Commands (all registered in `main.py`):
 
 `_build_runners(engine, *, fast_engine=None)` (`practice.py:530`) — builds the coordinator `Runners` bundle; for local/OpenRouter `fast_engine` is `None` (single instance, byte-identical); only the Claude Code builder passes a distinct fast engine.
 
+**Engine-aware provisioning (015)**: `practice` ensures the required base phase (`"A"` listen-only / `"B"` full; decline → exit). Then, when `installer.engine_needs_local_llm(engine_choice, listen_only=...)`, it offers `ensure_models("C")` (the local Qwen) — declining/failing degrades to a recorded, resumable session (one notice, no exit); cloud engines never reach this. `setup.py` reuses the same predicate (base `"B"` always; `"C"` only for local). Default engine is set once via `speakloop setup` (`config.loop_config.save_engine`).
+
+**`engine_status.py` (015)**: shared `active_engine()` + `engine_readiness(engine) -> EngineReadiness` (a `Requirement` list; cloud reqs `optional=True`). Used by `doctor` and `setup`; imports manifest/validator/credentials/`doctor_probe` function-locally (no engine package).
+
 ## doctor sections
 
-`doctor.py` runs four section groups: Install (models, aria2c), Cloud (OpenRouter: model id, API token, system prompt, coach prompt — `doctor.py:117-164`), Interview Loop (store, loop config, five analysis prompts — `doctor.py:182-217`), Claude Code (binary, version, auth status via `doctor_probe()` — `doctor.py:220+`). Never FAILs exit code for Cloud or Claude Code rows (opt-in).
+`doctor.py` section groups: Feedback engine (015 — `_feedback_engine()`: active engine + `engine_status` readiness + next step; cloud/claude rows never FAIL), Models (`_models()` — **engine-aware (015)**: the Phase-C local LLM row FAILs on absence only when `active_engine()=="local"`, else "not required for the active engine"; TTS/ASR always FAIL on absence; all rows always rendered), aria2c, Cloud (OpenRouter), Interview Loop, Claude Code (`doctor_probe()`). Never FAILs exit code for Cloud or Claude Code rows (opt-in). Keep a `speakloop practice` substring on a FAIL model remediation (`test_missing_model_fails`).
 
 ## Output device warm-up
 
@@ -42,9 +47,11 @@ The `speakloop` console script (entry point) — no internal module imports `cli
 
 ## File map
 
-- `main.py` — `typer` app + all six command registrations.
-- `practice.py` — full practice/debrief loop; `resolve_engine_choice`, `EngineSelectionError`, `CLAUDE_TIER_MAP`, `_build_runners`; `_cbreak_read` at line 118 (listen-loop raw reader — divergence note: `sessions/keyboard.py` is the session-path key reader, but the listen loop keeps its own `_cbreak_read`; code fix pending). `_listen_loop` prints the question text + a dim "Preparing audio…" line BEFORE synthesizing (a TTS cache miss pays the lazy Kokoro load there — don't reorder it back behind the synth calls).
-- `doctor.py` — four health-check section groups (Cloud, Interview Loop, Claude Code).
+- `main.py` — `typer` app + command registrations (incl. `setup`, 015).
+- `practice.py` — full practice/debrief loop; `resolve_engine_choice`, `EngineSelectionError`, `CLAUDE_TIER_MAP`, `_build_runners`; engine-aware provisioning (015, see above); `_cbreak_read` at line 118 (listen-loop raw reader — divergence note: `sessions/keyboard.py` is the session-path key reader, but the listen loop keeps its own `_cbreak_read`; code fix pending). `_listen_loop` prints the question text + a dim "Preparing audio…" line BEFORE synthesizing (a TTS cache miss pays the lazy Kokoro load there — don't reorder it back behind the synth calls).
+- `setup.py` (015) — `run()`: resolve+persist engine, engine-aware download, readiness summary.
+- `engine_status.py` (015) — shared active-engine readiness (see above).
+- `doctor.py` — health-check section groups (Feedback engine, Models [engine-aware], Cloud, Interview Loop, Claude Code).
 - `trends.py` — `trends` command wiring.
 - `today.py` — `today` command wiring.
 - `rebuild.py` — `rebuild` command wiring.
