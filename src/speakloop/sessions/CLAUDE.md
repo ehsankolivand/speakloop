@@ -15,13 +15,22 @@ single-key controls, background ASR worker, concurrent analysis executor, and cl
   Coach runs only after a successful grammar pass; degrades gracefully to `coach_error`.
   Follow-up generation fires BEFORE heavy analysis the instant the final transcript lands
   (`coordinator.py:1048-1069`).
-- `coordinator.PronunciationDrills` (016) — injected bundle (`scorer`, `bank`, `engine_note`),
-  built by `cli/practice.py` ONLY after the safety gate permitted + the user opted in. When
-  passed, `run_session` runs `_analyze` in a BACKGROUND daemon thread (`quiet=True`, to a
-  discard console — two live `rich` displays must never collide) while `_run_pronunciation_drills`
-  runs the user-paced read-aloud drill block on the main thread, then JOINs → one report waits
-  for both (FR-002/003/004). No-op (None) when absent → byte-identical; drill WAVs are scratch,
-  discarded after scoring. `_analyze(..., quiet=…)` swaps the spinner for a no-op context.
+- `coordinator.PronunciationDrills` (016, +017) — injected bundle (`scorer`, `bank`, `engine_note`,
+  `tts_playback`, `retries`), built by `cli/practice.py` ONLY after the safety gate permitted + the
+  user opted in. When passed, `run_session` runs `_analyze` in a BACKGROUND daemon thread
+  (`quiet=True`, to a discard console — two live `rich` displays must never collide) while
+  `_run_pronunciation_drills` runs the user-paced read-aloud drill block on the main thread, then
+  JOINs → one report waits for both (FR-002/003/004). No-op (None) when absent → byte-identical;
+  drill WAVs are scratch, discarded after scoring. `_analyze(..., quiet=…)` swaps the spinner for a
+  no-op context.
+  - **017 (hear → say → see → retry)**: the per-drill loop is the pure `pronunciation.run_drill_item`
+    (hear-first via the injected TTS, replay-on-demand with `r`, bounded automatic retry on a flagged
+    item). `_run_pronunciation_drills` only builds the `speak` closure (`tts_engine.synthesize` +
+    `play_fn`, no-op when either is None → 016 behaviour) and the `record` closure (`_record_stage`),
+    applies `pronunciation.select_drills` weak-sound ordering (`_weak_contrasts_from_store(store)`),
+    keeps the 016 bounded follow-on routing, and assembles via `pronunciation.build_block_result`.
+    `DrillQuit` (learner pressed `q`) + `abort_event` both stop asking for more. Retry/tricky-sounds
+    data is additive (data-model §2/§3) → a no-drills / non-interactive run stays byte-identical.
 - `coordinator.Runners` — dataclass of optional LLM callables injected by `cli/practice.py`
   (`coordinator.py:40-62`): `mishearing`, `followups`, `consistency`, `drill`, `keypoints`,
   `coverage`. Each is `Callable | None`; absent capability → feature skipped, session runs.

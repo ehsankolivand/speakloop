@@ -349,7 +349,7 @@ def _resolve_pronunciation_drills(engine_choice: str, console: Console, *, drill
             if ans in {"n", "no"}:
                 return None
         # setting == "on" → run when safe without prompting.
-        return _provision_and_build_drills(console, decision, input_fn=input_fn)
+        return _provision_and_build_drills(console, decision, cfg, input_fn=input_fn)
 
     # Unsafe: warn + skip by default; offer the explicit freeze-warned override interactively.
     console.print(f"[yellow]Pronunciation drills skipped:[/yellow] {decision.reason}")
@@ -365,15 +365,15 @@ def _resolve_pronunciation_drills(engine_choice: str, console: Console, *, drill
                 "[red]Override accepted — loading the pronunciation model despite the memory "
                 "risk.[/red]"
             )
-            return _provision_and_build_drills(console, decision, input_fn=input_fn)
+            return _provision_and_build_drills(console, decision, cfg, input_fn=input_fn)
     return None
 
 
-def _provision_and_build_drills(console: Console, decision, *, input_fn=input):
+def _provision_and_build_drills(console: Console, decision, cfg, *, input_fn=input):
     """Download the model (opt-in, resilient downloader) and build the scorer + drill bank.
 
-    Returns a ``coordinator.PronunciationDrills`` bundle, or None on decline/failure (the
-    session continues without drills)."""
+    Returns a ``coordinator.PronunciationDrills`` bundle (carrying the 017 hear-first/retry
+    config from ``cfg``), or None on decline/failure (the session continues without drills)."""
     from speakloop import installer, pronunciation
     from speakloop.installer import manifest, validator
 
@@ -404,7 +404,14 @@ def _provision_and_build_drills(console: Console, decision, *, input_fn=input):
 
     from speakloop.sessions.coordinator import PronunciationDrills
 
-    return PronunciationDrills(scorer=scorer, bank=bank, engine_note=decision.reason)
+    return PronunciationDrills(
+        scorer=scorer,
+        bank=bank,
+        engine_note=decision.reason,
+        # 017: hear-first playback toggle + bounded per-item retries from loop.yaml.
+        tts_playback=cfg.pronunciation_tts_playback,
+        retries=cfg.pronunciation_retries,
+    )
 
 
 def run(

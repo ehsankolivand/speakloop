@@ -76,6 +76,10 @@ class PronunciationDrills:
     scorer: object
     bank: object
     engine_note: str = ""
+    # 017: hear-first TTS playback toggle + bounded per-item retry budget (from loop.yaml,
+    # resolved once in cli/practice.py alongside the gate decision).
+    tts_playback: bool = True
+    retries: int = 1
 
 
 class AbortedError(Exception):
@@ -665,17 +669,24 @@ MAX_BASE_DRILLS = 4
 MAX_FOLLOWON_DRILLS = 2
 
 
-def _flag_to_dict(flag) -> dict:
-    """Serialise a ``PhoneFlag`` for the report frontmatter (plain dict)."""
-    return {
-        "expected": flag.expected,
-        "word": flag.word,
-        "gop": flag.gop,
-        "competitor": flag.competitor,
-        "competitor_margin": flag.competitor_margin,
-        "confident_diagnosis": flag.confident_diagnosis,
-        "tip": flag.tip,
-    }
+def _weak_contrasts_from_store(store) -> list[str]:
+    """Contrast ids ordered most-weak-first from the cross-session tally (US4, FR-015/016).
+
+    Returns ``[]`` when there is no history → ``select_drills`` falls back to the curated order.
+    Defensive: tolerates a store without the ``pronunciation_contrasts`` section (an old store, or
+    before the section lands), so the call site is safe at every stage."""
+    if store is None:
+        return []
+    series = getattr(store, "pronunciation_contrasts", None) or {}
+    totals: dict[str, int] = {}
+    for cid, points in series.items():
+        try:
+            totals[cid] = sum(
+                int(p[1]) for p in points if isinstance(p, (list, tuple)) and len(p) >= 2
+            )
+        except (TypeError, ValueError):
+            continue
+    return [cid for cid in sorted(totals, key=lambda c: (-totals[c], c)) if totals.get(cid, 0) > 0]
 
 
 def _run_pronunciation_drills(
@@ -687,29 +698,58 @@ def _run_pronunciation_drills(
     console: Console,
     key_reader=None,
     ui_sleep=time.sleep,
+    tts_engine=None,
+    play_fn=None,
+    weak_contrasts: list[str] | None = None,
 ) -> dict | None:
-    """016: present a bounded block of user-paced read-aloud drills; score each against its
-    KNOWN canonical phonemes and give calibrated, detection-led feedback (FR-001/005/006/007).
+    """017: present a bounded block of user-paced read-aloud drills as a hear → say → see →
+    retry loop; score each against its KNOWN canonical phonemes (FR-001..006).
 
-    No-op (None) unless a scorer + drill bank are injected — every existing caller passes
-    nothing, so the session is byte-identical. The scorer NEVER raises into the session; a
-    silent read → ``not_captured``, a scoring failure → ``error`` (FR-007). Recording uses the
-    same ``_record_stage`` UI as the attempts; drill WAVs are discarded after scoring (privacy).
-    Checks ``abort.abort_event`` between drills so a Ctrl-C stops asking for more but keeps the
-    finished attempts/feedback (the report is still written by run_session)."""
+    No-op (None) unless a scorer + drill bank are injected — every existing caller that passes
+    nothing leaves the session byte-identical. The per-drill loop lives in the pure
+    ``pronunciation.run_drill_item`` (hear-first via the injected TTS, replay-on-demand, bounded
+    retry); here we only build the ``speak``/``record`` closures (TTS + the ``_record_stage`` UI),
+    apply weak-sound ordering, and route a flagged base drill into bounded follow-on minimal pairs
+    (016). Recording reuses ``_record_stage``; drill WAVs are discarded after scoring (privacy).
+    ``DrillQuit`` (the learner pressed ``q``) and ``abort.abort_event`` both stop asking for more
+    while keeping the finished attempts/feedback (the report is still written by run_session)."""
     if drills is None or getattr(drills, "scorer", None) is None or getattr(drills, "bank", None) is None:
         return None
+    from speakloop import pronunciation  # light: imports no engine package
+
     scorer = drills.scorer
     bank = drills.bank
-    base = bank.base_drills()[:MAX_BASE_DRILLS]
+    base = pronunciation.select_drills(
+        bank, weak_contrasts=weak_contrasts or [], max_base=MAX_BASE_DRILLS
+    )
     if not base:
         return None
 
-    from speakloop.pronunciation.feedback import live_flag_summary  # light, no engine import
+    tts_on = bool(getattr(drills, "tts_playback", True)) and tts_engine is not None and play_fn is not None
+    retries = int(getattr(drills, "retries", 1))
+
+    def speak(text: str) -> None:
+        # Hear-first: synthesize + play the target with the existing local TTS (best-effort —
+        # run_drill_item swallows any failure so a TTS hiccup never blocks the drill).
+        wav = tts_engine.synthesize(text)
+        play_fn(wav)
+
+    def record(wav_path: Path, label: str) -> None:
+        early_exit_event.clear()
+        _record_stage(
+            record_fn=record_fn,
+            wav_path=wav_path,
+            budget=DRILL_BUDGET_SECONDS,
+            label=label,
+            key_reader=key_reader,
+            ui_sleep=ui_sleep,
+            console=console,
+            early_exit_event=early_exit_event,
+        )
 
     console.print(
-        "\n[bold]Pronunciation drills[/bold] — read each word aloud while your feedback is "
-        "prepared. (Detection is reliable; any specific guess is a suggestion.)"
+        "\n[bold]Pronunciation drills[/bold] — listen, then read each one aloud while your "
+        "feedback is prepared. (Detection is reliable; any specific guess is a suggestion.)"
     )
     items: list[dict] = []
     seen_ids: set[str] = set()
@@ -720,65 +760,24 @@ def _run_pronunciation_drills(
             return
         seen_ids.add(drill.id)
         contrast = bank.contrast(drill.contrast_id)
-        tag = " [dim](follow-up)[/dim]" if is_follow_on else ""
-        console.print(f"\n[bold]Read aloud{tag}:[/bold] [cyan]{drill.prompt}[/cyan]")
-        wav_path = scratch_dir / f"drill-{drill.id}.wav"
-        early_exit_event.clear()
-        status, flags = "scored", []
-        try:
-            _record_stage(
-                record_fn=record_fn,
-                wav_path=wav_path,
-                budget=DRILL_BUDGET_SECONDS,
-                label=f"drill: {drill.prompt}",
-                key_reader=key_reader,
-                ui_sleep=ui_sleep,
-                console=console,
-                early_exit_event=early_exit_event,
-            )
-            result = scorer.score(
-                wav_path,
-                canonical=drill.canonical,
-                targets=drill.targets,
-                tip=contrast.tip if contrast else "",
-                competitors=contrast.competitors if contrast else [],
-                drill_id=drill.id,
-                text=drill.prompt,
-                contrast_id=drill.contrast_id,
-            )
-            status = result.status
-            flags = [_flag_to_dict(f) for f in result.flags]
-        except Exception:  # noqa: BLE001 — a drill must never crash the session
-            status = "error"
-        finally:
-            with contextlib.suppress(OSError):
-                wav_path.unlink()
-
-        items.append(
-            {
-                "drill_id": drill.id,
-                "text": drill.prompt,
-                "prompt": drill.prompt,
-                "status": status,
-                "flags": flags,
-                "is_follow_on": is_follow_on,
-                "contrast_id": drill.contrast_id,
-            }
+        item = pronunciation.run_drill_item(
+            drill,
+            contrast=contrast,
+            scorer=scorer,
+            speak=speak,
+            record=record,
+            key_reader=key_reader,
+            console=console,
+            scratch_dir=scratch_dir,
+            retries=retries,
+            tts_on=tts_on,
+            is_follow_on=is_follow_on,
+            ui_sleep=ui_sleep,
         )
-        if status == "not_captured":
-            console.print("  [dim]not captured — read right after the prompt[/dim]")
-        elif status == "error":
-            console.print("  [dim]could not score this one[/dim]")
-        elif flags:
-            console.print(f"  → {live_flag_summary(flags)}")
-            for fl in flags:
-                if fl.get("tip"):
-                    console.print(f"    [dim]Tip:[/dim] {fl['tip']}")
-        else:
-            console.print("  [green]clear ✓[/green]")
-
-        # Route a flagged, well-recorded base drill into bounded follow-on minimal pairs.
-        if not is_follow_on and status == "scored" and flags and state["followons_left"] > 0:
+        items.append(item)
+        # Route a flagged base drill into bounded follow-on minimal pairs (016 routing; the
+        # decision uses the FIRST attempt's flags).
+        if not is_follow_on and item["status"] == "scored" and item.get("flags") and state["followons_left"] > 0:
             for nxt in bank.next_drills(
                 drill.contrast_id, exclude_ids=seen_ids, max=state["followons_left"]
             ):
@@ -787,23 +786,15 @@ def _run_pronunciation_drills(
                 state["followons_left"] -= 1
                 _run(nxt, is_follow_on=True)
 
-    for drill in base:
-        if abort.abort_event.is_set():
-            break
-        _run(drill, is_follow_on=False)
+    try:
+        for drill in base:
+            if abort.abort_event.is_set():
+                break
+            _run(drill, is_follow_on=False)
+    except pronunciation.DrillQuit:
+        pass  # the learner ended the drill block early — keep what we have.
 
-    if not items:
-        return None
-    with_flags = sum(1 for it in items if it.get("flags"))
-    return {
-        "engine_note": drills.engine_note,
-        "items": items,
-        "summary": {
-            "drills": len(items),
-            "with_flags": with_flags,
-            "contrasts_practiced": sorted({it["contrast_id"] for it in items}),
-        },
-    }
+    return pronunciation.build_block_result(items, bank=bank, engine_note=drills.engine_note)
 
 
 class _AnalysisOutputs(NamedTuple):
@@ -1296,6 +1287,12 @@ def run_session(
             console=console,
             key_reader=key_reader,
             ui_sleep=ui_sleep,
+            # 017: hear-first plays the target with the SAME injected TTS used for the
+            # question/warm-up/follow-ups (no-op in tests that pass neither). weak_contrasts
+            # biases drill order toward the learner's historically weak sounds (US4).
+            tts_engine=tts_engine,
+            play_fn=play_fn,
+            weak_contrasts=_weak_contrasts_from_store(store),
         )
         # Wait for the feedback to finish — it may already be done; if not, show one live
         # spinner now that the drills (and their live display) are finished.
