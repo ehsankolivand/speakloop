@@ -103,7 +103,7 @@ def _provision(engine: str, console: Console) -> None:
             "[yellow]Speech/transcription download declined — practice can't record without "
             "them. Re-run `speakloop setup` when ready.[/yellow]"
         )
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except installer.InstallFailedError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from e

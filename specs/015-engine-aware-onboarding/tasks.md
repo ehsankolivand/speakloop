@@ -177,16 +177,16 @@ that contradicts behavior.
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T025 Run the full suite `uv run pytest`; confirm pass count ≥ baseline (T001) and the gates
+- [X] T025 Run the full suite `uv run pytest`; confirm pass count ≥ baseline (T001) and the gates
   green: `test_help_without_models`, `test_path_portability_audit`, `test_context_file_budget`,
   `test_analysis_equivalence`.
-- [ ] T026 [P] Re-run isolation gates explicitly: `uv run pytest
+- [X] T026 [P] Re-run isolation gates explicitly: `uv run pytest
   tests/integration/test_help_without_models.py tests/unit/asr/test_engine_import_isolation.py`
   to prove the new commands load no engine package.
-- [ ] T027 [P] `ruff check` the changed files (advisory; pre-existing findings are not a gate) and
+- [X] T027 [P] `ruff check` the changed files (advisory; pre-existing findings are not a gate) and
   do a manual `quickstart.md` smoke: `--help`, `setup --help`, `questions --help`,
   `questions template | uv run speakloop questions validate -` (or via a temp file).
-- [ ] T028 Confirm no personal absolute path in any new file and every CLAUDE.md ≤200 lines; final
+- [X] T028 Confirm no personal absolute path in any new file and every CLAUDE.md ≤200 lines; final
   read-through of the four touched module CLAUDE.md files + root for accuracy.
 
 ---
