@@ -8,7 +8,11 @@ Stable `TTSEngine` Protocol lets the engine be swapped by touching one file.
 ## Public interface
 
 - `interface.TTSEngine` (Protocol): `synthesize(text, voice=None) -> Path`,
-  `available_voices() -> list[str]`. Speed is fixed per engine instance, not per call.
+  `available_voices() -> list[str]`. The instance `speed` is the default; `KokoroEngine.synthesize`
+  ALSO accepts an OPTIONAL per-call `speed=` override (017 P2 — backward-compatible superset of the
+  Protocol; `None` ⇒ instance default). Kokoro's `save` takes per-call speed natively and the cache
+  keys on the effective speed, so one engine renders several speeds (drill cadence + the slower
+  teaching beat) with NO second model load and no cross-speed cache collision.
 - `interface.TTSEngineError` — single error class for all TTS failures.
 - `cache.cache_key(voice, text, speed=1.0) -> str` — sha256(voice|[speed|]text);
   speed folded into key only when ≠ 1.0 (cache.py:17-26).
@@ -51,8 +55,9 @@ Stable `TTSEngine` Protocol lets the engine be swapped by touching one file.
 - **Swap TTS engine**: implement `TTSEngine` in a new `*_engine.py`; keep the engine
   import function-local. Touch no other module.
 - **Change cache keying or location**: edit `cache.py` only.
-- **Change playback speed**: `KokoroEngine(speed=...)`. Speed is encoded in the cache key
-  when ≠ 1.0; existing default-speed entries stay hot.
+- **Change playback speed**: `KokoroEngine(speed=...)` for the instance default, or pass
+  `synthesize(text, speed=...)` for a one-off (e.g. the trainer's slower teaching beat). Speed is
+  encoded in the cache key when ≠ 1.0; existing default-speed entries stay hot.
 
 ## Pointers
 

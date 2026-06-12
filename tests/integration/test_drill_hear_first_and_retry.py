@@ -25,8 +25,9 @@ class _FakeTTS:
         self.events = events
         self._tmp = tmp
 
-    def synthesize(self, text, voice=None):
-        self.events.append(("synth", text))
+    def synthesize(self, text, voice=None, speed=None):
+        # Records the per-call speed so the teaching beat's slower rate can be asserted.
+        self.events.append(("synth", text, speed))
         p = self._tmp / "tts.wav"
         p.write_bytes(b"\x00")
         return p
@@ -67,6 +68,7 @@ def test_interview_block_speaks_before_recording_and_retries(tmp_path):
         engine_note="note",
         tts_playback=True,
         retries=1,
+        teach_speed=0.66,  # distinct value so we can prove the teaching beat uses it
     )
     # Interactive reader: plenty of "space" so every hear-first proceeds (the record poller may
     # consume a few during recording; extras are harmless).
@@ -89,6 +91,12 @@ def test_interview_block_speaks_before_recording_and_retries(tmp_path):
     kinds = [e[0] for e in events]
     assert "play" in kinds and "record" in kinds
     assert kinds.index("play") < kinds.index("record"), "the target must be heard before recording"
+
+    # (P2 teaching beat) the flagged word is modelled at the SLOWER teach_speed (not the drill
+    # rate). hear-first synths pass no per-call speed; the teaching beat passes speed=0.66.
+    synth_speeds = [e[2] for e in events if e[0] == "synth"]
+    assert 0.66 in synth_speeds, "the teaching beat must synthesize at the bundle's teach_speed"
+    assert None in synth_speeds, "hear-first must use the engine's default speed (no override)"
 
     # (retry) a flagged item retried and improved.
     assert result is not None

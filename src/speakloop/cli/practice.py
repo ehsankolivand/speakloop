@@ -402,6 +402,7 @@ def _provision_and_build_drills(console: Console, decision, cfg, *, input_fn=inp
         console.print(f"[yellow]Could not set up pronunciation drills ({e}); skipping.[/yellow]")
         return None
 
+    from speakloop.config import loop_config
     from speakloop.sessions.coordinator import PronunciationDrills
 
     return PronunciationDrills(
@@ -411,6 +412,8 @@ def _provision_and_build_drills(console: Console, decision, cfg, *, input_fn=inp
         # 017: hear-first playback toggle + bounded per-item retries from loop.yaml.
         tts_playback=cfg.pronunciation_tts_playback,
         retries=cfg.pronunciation_retries,
+        # 017 P2: slower rate for the focused per-sound teaching beat (word in isolation).
+        teach_speed=loop_config.teach_speed(cfg.pronunciation_tts_speed),
     )
 
 

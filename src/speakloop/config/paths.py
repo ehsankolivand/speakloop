@@ -179,6 +179,13 @@ def store_path() -> Path:
     return _speakloop_home() / "store.json"
 
 
+def logs_dir() -> Path:
+    """Directory for OPT-IN debug logs (``~/.speakloop/logs/``; 017). Only the explicit
+    ``speakloop pronounce --debug`` flag writes here — a normal run creates nothing, preserving
+    the "nothing in your home dir unless you put it there" guarantee. Caller mkdir-s on demand."""
+    return _speakloop_home() / "logs"
+
+
 def loop_config_path() -> Path:
     """The user-editable loop config YAML (``~/.speakloop/loop.yaml``; 010).
 

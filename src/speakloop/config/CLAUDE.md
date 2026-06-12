@@ -23,6 +23,8 @@ Two files with different stdlib footprints — see File map.
   / `openrouter_coach_prompt_path()` — paths only; YAML read happens in `llm/`.
 - `paths.store_path()` — `~/.speakloop/store.json` (010 cross-session store).
 - `paths.loop_config_path()` — `~/.speakloop/loop.yaml` (010).
+- `paths.logs_dir()` — `~/.speakloop/logs/` (017; opt-in debug logs only — written ONLY by
+  `pronounce --debug`, never on a normal run; caller mkdir-s on demand).
 - Five editable-prompt path functions (010): `openrouter_followups_prompt_path()`,
   `openrouter_keypoints_prompt_path()`, `openrouter_coverage_prompt_path()`,
   `openrouter_triage_prompt_path()`, `openrouter_drill_prompt_path()`.
@@ -57,6 +59,10 @@ Two files with different stdlib footprints — see File map.
 | `pronunciation_min_free_mb` (016) | 4500 | max(0, int) | load() |
 | `pronunciation_tts_playback` (017) | `True` | must be `bool` | load() |
 | `pronunciation_retries` (017) | 1 | int clamped to [0, 3] | load() |
+| `pronunciation_tts_speed` (017 P2) | 0.85 | float clamped to [0.5, 1.5] | load() |
+
+`loop_config.teach_speed(drill_speed) -> float` derives the slower per-sound teaching-beat speed
+(a step below the drill speed, clamped to the floor) — used by both `cli` and `sessions`.
 
 ## Dependencies & consumers
 

@@ -45,6 +45,13 @@ DEFAULT_PRONUNCIATION_TTS_PLAYBACK = True
 # Bounded per-item retries when a sound is flagged (0 = 016 one-shot behaviour). Clamped 0..3.
 DEFAULT_PRONUNCIATION_RETRIES = 1
 MAX_PRONUNCIATION_RETRIES = 3
+# Kokoro playback-speed multiplier for the trainer (< 1.0 = slower → easier to imitate). The
+# learner reported the default 1.0 read too fast to shadow; 0.85 is a clearer coaching cadence.
+# Clamped to a sane band so a hand-edit can't make playback unusable. The focused per-sound
+# teaching beat plays even slower (a fixed factor below this).
+DEFAULT_PRONUNCIATION_TTS_SPEED = 0.85
+MIN_PRONUNCIATION_TTS_SPEED = 0.5
+MAX_PRONUNCIATION_TTS_SPEED = 1.5
 
 
 @dataclass(frozen=True)
@@ -63,14 +70,23 @@ class LoopConfig:
     # 016 (additive optional): read-aloud pronunciation-drill default + free-RAM threshold.
     pronunciation_drills: str = DEFAULT_PRONUNCIATION_DRILLS
     pronunciation_min_free_mb: int = DEFAULT_PRONUNCIATION_MIN_FREE_MB
-    # 017 (additive optional): hear-first TTS playback toggle + bounded per-item retries.
+    # 017 (additive optional): hear-first TTS playback toggle + bounded per-item retries
+    # + trainer playback speed.
     pronunciation_tts_playback: bool = DEFAULT_PRONUNCIATION_TTS_PLAYBACK
     pronunciation_retries: int = DEFAULT_PRONUNCIATION_RETRIES
+    pronunciation_tts_speed: float = DEFAULT_PRONUNCIATION_TTS_SPEED
 
 
 def _model(data: dict, key: str, default: str) -> str:
     val = data.get(key, default)
     return val if isinstance(val, str) and val.strip() else default
+
+
+def teach_speed(drill_speed: float) -> float:
+    """The slower playback speed for the focused per-sound TEACHING beat (017 P2), derived
+    from the drill playback speed so it is always a step slower (clamped to the sane floor).
+    Kept here (a leaf module both ``cli`` and ``sessions`` import) so both callers agree."""
+    return round(max(MIN_PRONUNCIATION_TTS_SPEED, float(drill_speed) * 0.8), 2)
 
 
 def load() -> LoopConfig:
@@ -117,6 +133,11 @@ def load() -> LoopConfig:
         retries = max(0, min(MAX_PRONUNCIATION_RETRIES, int(data.get("pronunciation_retries", DEFAULT_PRONUNCIATION_RETRIES))))
     except (TypeError, ValueError):
         retries = DEFAULT_PRONUNCIATION_RETRIES
+    try:
+        tts_speed = float(data.get("pronunciation_tts_speed", DEFAULT_PRONUNCIATION_TTS_SPEED))
+        tts_speed = max(MIN_PRONUNCIATION_TTS_SPEED, min(MAX_PRONUNCIATION_TTS_SPEED, tts_speed))
+    except (TypeError, ValueError):
+        tts_speed = DEFAULT_PRONUNCIATION_TTS_SPEED
     return LoopConfig(
         daily_capacity=cap,
         warmup_enabled=bool(data.get("warmup_enabled", True)),
@@ -131,6 +152,7 @@ def load() -> LoopConfig:
         pronunciation_min_free_mb=min_free_mb,
         pronunciation_tts_playback=tts_playback,
         pronunciation_retries=retries,
+        pronunciation_tts_speed=tts_speed,
     )
 
 

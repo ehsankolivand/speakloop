@@ -9,7 +9,7 @@ modules together for a run; the console-script entry point.
 
 Commands (all registered in `main.py`):
 - `practice` (`main.py:63`) — listen → session → debrief loop. Key flags: `--listen-only`, `--no-audio`, `--asr-engine {whisper,parakeet}`, `--cloud` (alias for `--engine openrouter`), `--engine {local,openrouter,claude}`, `--speed` (TTS multiplier, default 0.85, clamped 0.5–2.0), `--timings`, `--drills/--no-drills` (016 — per-run override of the `pronunciation_drills` setting; the safety gate still applies).
-- `pronounce` (017, `main.py` → thin `pronounce.py`) — standalone hear → say → see → retry pronunciation trainer, OUTSIDE an interview session. Flag: `--limit N` (base sentences/round; user-paced, `q` to stop, "practise another round?" prompt). RAM-only gate (`assess_standalone_safety` — a configured `local` engine does NOT block it); provisions TTS (Phase A) + the pronunciation model only (NO ASR) via the existing consent flow; writes NO session report (closing summary + store weak-sound tally). All heavy imports function-local; `main.py` imports `pronounce.py` only inside the command body so `--help` stays model-free.
+- `pronounce` (017, `main.py` → thin `pronounce.py`) — standalone hear → say → see → retry pronunciation trainer, OUTSIDE an interview session. Flags: `--limit N` (base sentences/round; user-paced, `q` to stop, "practise another round?" prompt); `--debug` (P0 — surfaces + logs the REAL reason a drill "could not score": mic vs scoring-model failure, via `SPEAKLOOP_DEBUG` + a `~/.speakloop/logs/pronounce-debug.log` handler, `_configure_debug_logging`). RAM-only gate (`assess_standalone_safety` — a configured `local` engine does NOT block it); provisions TTS (Phase A) + the pronunciation model only (NO ASR) via the existing consent flow; writes NO session report (closing summary + store weak-sound tally). Builds the drill TTS at the slower `cfg.pronunciation_tts_speed` (P2) + a `teach_speak` closure (even slower, per-call `synthesize(speed=)`) for the focused per-sound teaching beat. All heavy imports function-local; `main.py` imports `pronounce.py` only inside the command body so `--help` stays model-free.
 - `setup` (015, `main.py`) — pick + persist the feedback engine to `loop.yaml engine:` and download only what it needs. Flags: `--engine {local,openrouter,claude}`, `--no-download`. Thin module `setup.py`.
 - `questions` (015) — typer sub-app: `validate [PATH]` / `template` / `where` (thin module `questions.py`).
 - `doctor` (`main.py:142`) — environment + model health check, engine-aware (see below); `--json` for scripting.
@@ -53,10 +53,12 @@ The `speakloop` console script (entry point) — no internal module imports `cli
 
 - `main.py` — `typer` app + command registrations (incl. `setup`, 015).
 - `practice.py` — full practice/debrief loop; `resolve_engine_choice`, `EngineSelectionError`, `CLAUDE_TIER_MAP`, `_build_runners`; engine-aware provisioning (015, see above); `_cbreak_read` at line 126 (listen-loop raw reader — divergence note: `sessions/keyboard.py` is the session-path key reader, but the listen loop keeps its own `_cbreak_read`; code fix pending). `_listen_loop` prints the question text + a dim "Preparing audio…" line BEFORE synthesizing (a TTS cache miss pays the lazy Kokoro load there — don't reorder it back behind the synth calls).
-- `pronounce.py` (017) — `run()`: RAM-only gate → provision (TTS + pronunciation model, no ASR) →
-  build scorer/bank/tts/play/record/key_reader → user-paced rounds via `pronunciation.run_drill_block`
-  (`select_drills` weak-sound bias) → summary + store `pronunciation_contrasts`. Reuses
-  `coordinator._record_stage` for the recording UI; `_is_interactive()` is the test seam. No report.
+- `pronounce.py` (017) — `run(*, limit, debug, …)`: RAM-only gate → provision (TTS + pronunciation
+  model, no ASR) → build scorer/bank/tts(slower `pronunciation_tts_speed`)/play/record/key_reader +
+  `teach_speak` (slower per-call synth) → user-paced rounds via `pronunciation.run_drill_block`
+  (`select_drills` weak-sound bias) → summary + store `pronunciation_contrasts`. `--debug` →
+  `_configure_debug_logging` (visible/logged failure detail). Reuses `coordinator._record_stage` for
+  the recording UI; `_is_interactive()` is the test seam. No report.
 - `setup.py` (015) — `run()`: resolve+persist engine, engine-aware download, readiness summary.
 - `questions.py` (015) — `validate` / `template` / `where` over `content.load` + `content.template`; `template` prints to stdout via plain `print` (no rich markup parsing of the YAML), never writes a file.
 - `engine_status.py` (015) — shared active-engine readiness (see above).

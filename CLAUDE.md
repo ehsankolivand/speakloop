@@ -7,8 +7,12 @@ Active feature: 017-pronunciation-trainer — turn 016's drills into a hear → 
   RAM-only gate variant (`assess_standalone_safety`; no engine penalty), provisioning TTS + the
   pronunciation model only (no ASR), no report. Weak-sound focus: rebuildable store section
   `pronunciation_contrasts` biases `select_drills`. Live harness `tests/live_pron_test.py`
-  (`-m live_pron`) validates every bundled canonical. Additive: schema_version + STORE_VERSION
-  stay 1; offline + byte-identical-when-absent hold. Plan: specs/017-pronunciation-trainer/plan.md
+  (`-m live_pron`) validates every bundled canonical (it is the CALIBRATION oracle). Post-ship fixes:
+  scorer loads ESPEAK-FREE (`Wav2Vec2FeatureExtractor`+`vocab.json`, never `Wav2Vec2Processor` — the
+  root cause of "could not score"); flag thresholds calibrated (COMP_MARGIN 0.5→1.5); false-flagging
+  drills replaced; P2 slower TTS (`pronunciation_tts_speed`) + per-sound teaching beat + `say_like`
+  respellings; `pronounce --debug` surfaces the swallowed failure reason. Additive: schema_version +
+  STORE_VERSION stay 1; offline + byte-identical-when-absent hold. Plan: specs/017-pronunciation-trainer/plan.md
 
 Prior features (one line each; details live in specs/NNN-*/):
   016-pronunciation-drills — opt-in read-aloud pronunciation drill block, engine/RAM-gated, concurrent with feedback · specs/016-pronunciation-drills/
@@ -99,7 +103,7 @@ uv run speakloop --help     # must work with NO models downloaded
 uv run speakloop setup [--engine local|openrouter|claude] [--no-download]  # persist engine + download only what it needs (015)
 uv run speakloop doctor     # environment + model health, engine-aware (exit 0 when healthy)
 uv run speakloop practice [--listen-only] [--cloud] [--engine local|openrouter|claude] [--timings] [--drills/--no-drills]  # --drills: hear→say→see→retry pronunciation drills during the feedback wait, engine/RAM-gated (016/017)
-uv run speakloop pronounce [--limit N]  # standalone hear→say→see→retry pronunciation trainer; RAM-only gate; no interview, no report (017)
+uv run speakloop pronounce [--limit N] [--debug]  # standalone hear→say→see→retry trainer; RAM-only gate; no report; --debug surfaces the real "could not score" reason (017)
 uv run speakloop questions validate [PATH] | template | where  # author/validate your own Q&A (015)
 uv run speakloop today | resume | rebuild | trends
 uv run pytest               # full suite — re-measure pass count after each feature
@@ -153,6 +157,9 @@ pre-existing findings — not a passing gate.
    `tests/integration/test_path_portability_audit.py` fails otherwise.
 8. **Q&A file precedence** is owned by `src/speakloop/config/CLAUDE.md`
    (`resolve_qa_file`, `config/paths.py:103`) — no auto-copy to `~/.speakloop/`.
+9. **The pronunciation scorer load must stay espeak-free** — load `Wav2Vec2FeatureExtractor`
+   + read `vocab.json` directly; NEVER build `Wav2Vec2Processor`/the phoneme tokenizer (it inits
+   the espeak phonemizer → every drill "could not score"). Owned by `pronunciation/CLAUDE.md`.
 
 ## Never do
 

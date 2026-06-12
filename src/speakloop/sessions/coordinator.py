@@ -80,6 +80,10 @@ class PronunciationDrills:
     # resolved once in cli/practice.py alongside the gate decision).
     tts_playback: bool = True
     retries: int = 1
+    # 017 P2: slower playback rate for the focused per-sound teaching beat (the word modelled
+    # in isolation). Derived from loop.yaml pronunciation_tts_speed in cli/practice.py; the
+    # session TTS already plays at that drill cadence, so this is the *slower* coaching rate.
+    teach_speed: float = 0.68
 
 
 class AbortedError(Exception):
@@ -718,10 +722,21 @@ def _run_pronunciation_drills(
     tts_on = bool(getattr(drills, "tts_playback", True)) and tts_engine is not None and play_fn is not None
     retries = int(getattr(drills, "retries", 1))
 
+    teach_speed = float(getattr(drills, "teach_speed", 0.68))
+
     def speak(text: str) -> None:
         # Hear-first: synthesize + play the target with the existing local TTS (best-effort —
         # run_drill_item swallows any failure so a TTS hiccup never blocks the drill).
         wav = tts_engine.synthesize(text)
+        play_fn(wav)
+
+    def teach_speak(text: str) -> None:
+        # 017 P2 teaching beat: model the flagged word ALONE, even slower than the drill
+        # cadence. Falls back to normal synth if the engine has no per-call speed override.
+        try:
+            wav = tts_engine.synthesize(text, speed=teach_speed)
+        except TypeError:
+            wav = tts_engine.synthesize(text)
         play_fn(wav)
 
     def record(wav_path: Path, label: str) -> None:
@@ -757,6 +772,7 @@ def _run_pronunciation_drills(
         max_followons=MAX_FOLLOWON_DRILLS,
         ui_sleep=ui_sleep,
         should_abort=abort.abort_event.is_set,
+        teach_speak=teach_speak,
     )
     return pronunciation.build_block_result(items, bank=bank, engine_note=drills.engine_note)
 

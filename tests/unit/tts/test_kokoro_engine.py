@@ -72,6 +72,23 @@ def test_different_speeds_do_not_share_cache(monkeypatch, tmp_cache_dir, wav_fix
     assert len(stub_slow.save_calls) == 1  # slow clip was actually synthesized
 
 
+def test_synthesize_per_call_speed_override(monkeypatch, tmp_cache_dir, wav_fixture):
+    # 017 P2: one engine instance can render at the instance default AND a slower per-call
+    # override (the teaching beat) without a second model load — cache-keyed by effective speed.
+    stub = _StubTTS(wav_fixture("test-clip.wav"))
+    engine = KokoroEngine(speed=0.85)
+    monkeypatch.setattr(engine, "_load", lambda: stub)
+
+    p_default = engine.synthesize("hello", voice="bm_george")           # instance speed 0.85
+    p_slow = engine.synthesize("hello", voice="bm_george", speed=0.68)  # per-call override
+    assert p_default != p_slow, "a per-call speed override must not collide with the default"
+    assert stub.save_calls[0][3] == 0.85
+    assert stub.save_calls[1][3] == 0.68
+    # The default-speed clip is still cached (no second synth for the same speed).
+    engine.synthesize("hello", voice="bm_george")
+    assert len(stub.save_calls) == 2
+
+
 def test_synthesize_empty_text_raises():
     engine = KokoroEngine()
     with pytest.raises(TTSEngineError):

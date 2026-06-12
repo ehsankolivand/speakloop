@@ -31,6 +31,10 @@ class Drill:
     canonical: list[str]
     targets: list[dict]  # [{"index": int, "word": str}, ...]
     is_base: bool = False
+    # 017 P2: a short, readable ENGLISH respelling of the target word(s) — curated bundled
+    # data (NOT derived at runtime), e.g. "WEE — round your lips for /w/". Shown with the
+    # drill and, when the sound is flagged, alongside the focused per-sound teaching beat.
+    say_like: str = ""
 
 
 @dataclass(frozen=True)
@@ -117,6 +121,7 @@ def load_drill_bank(path: Path | None = None) -> DrillBank:
                 canonical=canonical,
                 targets=targets,
                 is_base=bool(d.get("is_base", False)),
+                say_like=str(d.get("say_like", "")),
             )
         )
     if not any(d.is_base for d in drills):

@@ -16,8 +16,10 @@ single-key controls, background ASR worker, concurrent analysis executor, and cl
   Follow-up generation fires BEFORE heavy analysis the instant the final transcript lands
   (`coordinator.py:1048-1069`).
 - `coordinator.PronunciationDrills` (016, +017) — injected bundle (`scorer`, `bank`, `engine_note`,
-  `tts_playback`, `retries`), built by `cli/practice.py` ONLY after the safety gate permitted + the
-  user opted in. When passed, `run_session` runs `_analyze` in a BACKGROUND daemon thread
+  `tts_playback`, `retries`, `teach_speed`), built by `cli/practice.py` ONLY after the safety gate
+  permitted + the user opted in. `teach_speed` (P2) is the slower per-call rate for the focused
+  teaching beat; `_run_pronunciation_drills` builds a `teach_speak` closure (`synthesize(speed=…)`,
+  falling back when the engine has no per-call speed) and passes it to `run_drill_block`. When passed, `run_session` runs `_analyze` in a BACKGROUND daemon thread
   (`quiet=True`, to a discard console — two live `rich` displays must never collide) while
   `_run_pronunciation_drills` runs the user-paced read-aloud drill block on the main thread, then
   JOINs → one report waits for both (FR-002/003/004). No-op (None) when absent → byte-identical;
