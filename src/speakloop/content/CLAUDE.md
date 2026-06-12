@@ -20,6 +20,9 @@ auto-creates one. A leaf module.
   `QALoadError` with `file:line` on YAML error, `file: entry id=... missing field...`
   on schema error (FR-029/FR-030).
 - `loader.QALoadError` — wraps both error kinds.
+- `template.template_text() -> str` (015) — the canonical commented, schema-valid starter
+  question set. Single source of truth for `speakloop questions template`; must round-trip
+  through `load()` unedited (guarded by `tests/unit/content/test_question_template.py`).
 
 ## Key schema constants (schema.py)
 
@@ -43,6 +46,8 @@ auto-creates one. A leaf module.
 
 - `schema.py` — `Question`, `QAFile`, `QASchemaError`, `parse()`, constants.
 - `loader.py` — `load()`, `QALoadError`.
+- `template.py` (015) — `template_text()`; the commented starter set, kept next to `schema.py`
+  so the two stay in sync. Printed to stdout by `cli/questions.py` (never written to home).
 
 ## Invariants & traps
 

@@ -217,5 +217,44 @@ def resume_cmd(
     _resume.run(cloud=cloud, engine=engine, timings=timings)
 
 
+questions_app = typer.Typer(
+    name="questions",
+    help="Author, validate, and locate your question file.",
+    no_args_is_help=True,
+    add_completion=False,
+)
+
+
+@questions_app.command("validate")
+def questions_validate_cmd(
+    path: Path = typer.Argument(
+        None, help="Question file to validate (default: the resolved active file)."
+    ),
+) -> None:
+    """Validate a question file and report precise, per-entry errors."""
+    from speakloop.cli import questions as _questions
+
+    _questions.validate(path)
+
+
+@questions_app.command("template")
+def questions_template_cmd() -> None:
+    """Print a commented starter question file to stdout (redirect it to save)."""
+    from speakloop.cli import questions as _questions
+
+    _questions.template()
+
+
+@questions_app.command("where")
+def questions_where_cmd() -> None:
+    """Show the question-file precedence and the currently-active file."""
+    from speakloop.cli import questions as _questions
+
+    _questions.where()
+
+
+app.add_typer(questions_app)
+
+
 if __name__ == "__main__":
     app()

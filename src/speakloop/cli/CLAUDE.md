@@ -10,6 +10,7 @@ modules together for a run; the console-script entry point.
 Commands (all registered in `main.py`):
 - `practice` (`main.py:63`) — listen → session → debrief loop. Key flags: `--listen-only`, `--no-audio`, `--asr-engine {whisper,parakeet}`, `--cloud` (alias for `--engine openrouter`), `--engine {local,openrouter,claude}`, `--speed` (TTS multiplier, default 0.85, clamped 0.5–2.0), `--timings`.
 - `setup` (015, `main.py`) — pick + persist the feedback engine to `loop.yaml engine:` and download only what it needs. Flags: `--engine {local,openrouter,claude}`, `--no-download`. Thin module `setup.py`.
+- `questions` (015) — typer sub-app: `validate [PATH]` / `template` / `where` (thin module `questions.py`).
 - `doctor` (`main.py`) — environment + model health check, engine-aware (see below); `--json` for scripting.
 - `trends` (`main.py:130`) — cross-session dashboard.
 - `today` (`main.py:148`) — show due queue; `--limit`.
@@ -50,6 +51,7 @@ The `speakloop` console script (entry point) — no internal module imports `cli
 - `main.py` — `typer` app + command registrations (incl. `setup`, 015).
 - `practice.py` — full practice/debrief loop; `resolve_engine_choice`, `EngineSelectionError`, `CLAUDE_TIER_MAP`, `_build_runners`; engine-aware provisioning (015, see above); `_cbreak_read` at line 118 (listen-loop raw reader — divergence note: `sessions/keyboard.py` is the session-path key reader, but the listen loop keeps its own `_cbreak_read`; code fix pending). `_listen_loop` prints the question text + a dim "Preparing audio…" line BEFORE synthesizing (a TTS cache miss pays the lazy Kokoro load there — don't reorder it back behind the synth calls).
 - `setup.py` (015) — `run()`: resolve+persist engine, engine-aware download, readiness summary.
+- `questions.py` (015) — `validate` / `template` / `where` over `content.load` + `content.template`; `template` prints to stdout via plain `print` (no rich markup parsing of the YAML), never writes a file.
 - `engine_status.py` (015) — shared active-engine readiness (see above).
 - `doctor.py` — health-check section groups (Feedback engine, Models [engine-aware], Cloud, Interview Loop, Claude Code).
 - `trends.py` — `trends` command wiring.

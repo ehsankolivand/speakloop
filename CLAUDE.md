@@ -64,8 +64,8 @@ CLAUDE.md (constitution Principle IV). Edges below are from an import scan
 
 | Module | Responsibility | Depends on (internal) |
 |--------|----------------|-----------------------|
-| `config/` | Paths, Q&A precedence, `loop.yaml` parsing | — (leaf) |
-| `content/` | Q&A YAML loader + schema (`content/questions.yaml`) | — (leaf) |
+| `config/` | Paths, Q&A precedence, `loop.yaml` parse + `engine:` writer (015) | — (leaf) |
+| `content/` | Q&A YAML loader + schema + starter template (`content/questions.yaml`) | — (leaf) |
 | `trends/` | Cross-session dashboard + per-pattern series | — (leaf) |
 | `installer/` | Model manifest, consent, resumable download, validation | config |
 | `asr/` | ASR wrapper (owns `mlx_whisper`, `silero_vad`, `parakeet_mlx`) | installer |
@@ -82,7 +82,7 @@ CLAUDE.md (constitution Principle IV). Edges below are from an import scan
 | `srs/` | Grade + interval ladder + due queue (pure logic) | store |
 | `store/` | Derived JSON store, rebuildable cache | feedback |
 | `sessions/` | 4/3/2 coordinator, keyboard, session UI, analysis executor, timer, abort | asr, audio, config, content, coverage, feedback, metrics, srs, store, trends, triage, warmup |
-| `cli/` | `practice`, `setup`, `doctor`, `trends`, `today`, `rebuild`, `resume` | all 16 others except debrief at module level (debrief imported function-local) |
+| `cli/` | `practice`, `setup`, `questions`, `doctor`, `trends`, `today`, `rebuild`, `resume` | all 16 others except debrief at module level (debrief imported function-local) |
 
 ## Commands
 
@@ -91,6 +91,7 @@ uv run speakloop --help     # must work with NO models downloaded
 uv run speakloop setup [--engine local|openrouter|claude] [--no-download]  # persist engine + download only what it needs (015)
 uv run speakloop doctor     # environment + model health, engine-aware (exit 0 when healthy)
 uv run speakloop practice [--listen-only] [--cloud] [--engine local|openrouter|claude] [--timings]
+uv run speakloop questions validate [PATH] | template | where  # author/validate your own Q&A (015)
 uv run speakloop today | resume | rebuild | trends
 uv run pytest               # full suite — re-measure pass count after each feature
 uv run pytest -m live_asr   # real silero+torchaudio smoke — run when touching torchaudio

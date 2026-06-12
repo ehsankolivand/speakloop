@@ -130,27 +130,27 @@ existing loader/schema; nothing auto-created in home.
 **Independent Test**: `questions template` emits a file that `questions validate` accepts; a broken
 file is rejected naming the entry+field; `questions where` shows the precedence and active file.
 
-- [ ] T017 [P] [US2] Add `src/speakloop/content/template.py` `template_text() -> str`: a
+- [X] T017 [P] [US2] Add `src/speakloop/content/template.py` `template_text() -> str`: a
   `schema_version: 1` commented starter with 2–3 entries across `definition`/`behavioral`/
   `hypothetical` showing `tags`/`difficulty`/`voice_override`. Must pass `content.load()` unedited.
-- [ ] T018 [US2] Add `src/speakloop/cli/questions.py`: `validate(path=None)` (explicit arg else
+- [X] T018 [US2] Add `src/speakloop/cli/questions.py`: `validate(path=None)` (explicit arg else
   `paths.resolve_qa_file()`; `content.load()` → success summary + warnings exit 0, else precise
   error exit 1; no file → precedence hint exit 1); `template()` (print `template_text()` to stdout,
   no writes); `where()` (print precedence + active file + count).
-- [ ] T019 [US2] Register a `questions` typer sub-app (`validate`/`template`/`where`) in
+- [X] T019 [US2] Register a `questions` typer sub-app (`validate`/`template`/`where`) in
   `src/speakloop/cli/main.py` via `app.add_typer(...)`, delegating to `cli/questions.py`.
 
 ### Tests (US2)
 
-- [ ] T020 [P] [US2] `tests/unit/content/test_question_template.py`: `content.load(<temp file of
+- [X] T020 [P] [US2] `tests/unit/content/test_question_template.py`: `content.load(<temp file of
   template_text()>)` returns a `QAFile` with ≥2 questions, zero schema errors, and the expected types.
-- [ ] T021 [P] [US2] `tests/unit/cli/test_questions.py` (CliRunner): valid fixture → exit 0 + count;
+- [X] T021 [P] [US2] `tests/unit/cli/test_questions.py` (CliRunner): valid fixture → exit 0 + count;
   invalid fixture → exit 1 + entry id + field in output; `template` stdout round-trips through
   `content.load()`; `where` prints the three precedence locations and the active file.
 
 ### Context (anti-rot — same commit as T017–T019)
 
-- [ ] T022 [US2] Update `src/speakloop/content/CLAUDE.md` (template source of truth) and
+- [X] T022 [US2] Update `src/speakloop/content/CLAUDE.md` (template source of truth) and
   `src/speakloop/cli/CLAUDE.md` (questions group) + root `CLAUDE.md` Commands. All ≤200 lines.
 
 **Checkpoint**: US1 and US2 both work independently.
