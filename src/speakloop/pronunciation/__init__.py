@@ -14,8 +14,20 @@ from speakloop.pronunciation.drill_bank import (
     DrillBankError,
     load_drill_bank,
 )
+from speakloop.pronunciation.drill_runner import (
+    DrillQuit,
+    build_block_result,
+    contrast_label,
+    flagged_contrast_counts,
+    run_drill_item,
+    select_drills,
+)
 from speakloop.pronunciation.feedback import live_flag_summary, render_drills_section
-from speakloop.pronunciation.gate import SafetyDecision, assess_safety
+from speakloop.pronunciation.gate import (
+    SafetyDecision,
+    assess_safety,
+    assess_standalone_safety,
+)
 from speakloop.pronunciation.interface import (
     DrillResult,
     PhoneFlag,
@@ -37,14 +49,21 @@ __all__ = [
     "Drill",
     "DrillBank",
     "DrillBankError",
+    "DrillQuit",
     "DrillResult",
     "PhoneFlag",
     "PronunciationError",
     "PronunciationScorer",
     "SafetyDecision",
     "assess_safety",
+    "assess_standalone_safety",
+    "build_block_result",
     "build_scorer",
+    "contrast_label",
+    "flagged_contrast_counts",
     "live_flag_summary",
     "load_drill_bank",
     "render_drills_section",
+    "run_drill_item",
+    "select_drills",
 ]

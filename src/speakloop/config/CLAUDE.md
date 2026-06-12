@@ -55,6 +55,8 @@ Two files with different stdlib footprints — see File map.
 | `claude_strong_model` | `"sonnet"` | non-empty str | :91 |
 | `pronunciation_drills` (016) | `"auto"` | must be in (auto, on, off) | load() |
 | `pronunciation_min_free_mb` (016) | 4500 | max(0, int) | load() |
+| `pronunciation_tts_playback` (017) | `True` | must be `bool` | load() |
+| `pronunciation_retries` (017) | 1 | int clamped to [0, 3] | load() |
 
 ## Dependencies & consumers
 

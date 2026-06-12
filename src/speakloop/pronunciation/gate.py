@@ -96,3 +96,46 @@ def assess_safety(
         available_mb=avail,
         engine=eng,
     )
+
+
+def assess_standalone_safety(
+    *,
+    min_free_mb: int,
+    available_mb: int | None = None,
+) -> SafetyDecision:
+    """RAM-only safety decision for the standalone ``speakloop pronounce`` mode (017, FR-011).
+
+    Unlike the interview gate (``assess_safety``), there is **no feedback engine resident** in
+    standalone mode, so the 016 rule "local engine ⇒ unsafe" does NOT apply — only live available
+    memory matters. The interview gate is left unchanged; this is a distinct variant (research D5,
+    contracts/standalone-gate.md). ``available_mb`` is injectable for tests; when None it is
+    measured via psutil (function-local). The CLI loads the model only on SAFE or an explicit
+    freeze-warned override."""
+    avail = available_mb if available_mb is not None else _measure_available_mb()
+
+    if avail is None:
+        # Can't read free memory; no feedback model is resident, so proceed cautiously.
+        return SafetyDecision(
+            safe=True,
+            reason="Drills are available (couldn't read free memory; proceeding).",
+            available_mb=None,
+            engine="standalone",
+        )
+
+    if avail >= min_free_mb:
+        return SafetyDecision(
+            safe=True,
+            reason="Drills are available — there's room for the pronunciation model.",
+            available_mb=avail,
+            engine="standalone",
+        )
+
+    return SafetyDecision(
+        safe=False,
+        reason=(
+            f"Only {avail} MB free; the pronunciation model needs ~3 GB. Close some apps and "
+            "retry, then run `speakloop pronounce` again."
+        ),
+        available_mb=avail,
+        engine="standalone",
+    )

@@ -27,8 +27,25 @@ def _flag_line(flag: dict) -> str:
     return line
 
 
+def _retry_line(retry: dict) -> str | None:
+    """One additive, encouraging line summarising a bounded retry (017, FR-006). None when
+    no retry ran. Detection-level — never a graded verdict."""
+    outcome = str(retry.get("outcome", "")).strip()
+    if outcome == "improved":
+        return "  - On retry: better — that sound is clear now ✓"
+    if outcome == "still_off":
+        return "  - On retry: still a little off — worth more practice."
+    if outcome == "not_captured":
+        return "  - On retry: not captured."
+    return None
+
+
 def render_drills_section(drills: dict | None) -> str | None:
-    """Markdown for the report (data-model §5). None when there are no items."""
+    """Markdown for the report (data-model §4). None when there are no items.
+
+    Additive over 016: a per-item retry line (when a retry ran) and a closing "tricky sounds"
+    line (when the summary has them). Both omitted when absent → a no-retry/no-tricky report is
+    byte-identical to a 016 report."""
     if not drills or not drills.get("items"):
         return None
     lines = [_HEADER, "", _DISCLAIMER, ""]
@@ -39,6 +56,7 @@ def render_drills_section(drills: dict | None) -> str | None:
         prompt = str(it.get("text") or it.get("prompt") or "").strip()
         tag = " *(follow-up)*" if it.get("is_follow_on") else ""
         status = it.get("status")
+        retry = it.get("retry") if isinstance(it.get("retry"), dict) else None
         if status == "not_captured":
             lines.append(f"- **{prompt}**{tag} — _not captured (read right after the prompt)_")
             continue
@@ -55,6 +73,12 @@ def render_drills_section(drills: dict | None) -> str | None:
             tip = str(fl.get("tip", "")).strip()
             if tip:
                 lines.append(f"    - Tip: {tip}")
+        if retry and (rl := _retry_line(retry)):
+            lines.append(rl)
+    tricky = (drills.get("summary") or {}).get("tricky_sounds") or []
+    tricky = [str(t).strip() for t in tricky if str(t).strip()]
+    if tricky:
+        lines += ["", f"_Tricky sounds this session: {', '.join(tricky)}._"]
     return "\n".join(lines)
 
 

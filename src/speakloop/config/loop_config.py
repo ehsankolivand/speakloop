@@ -39,6 +39,13 @@ VALID_PRONUNCIATION_DRILLS = ("auto", "on", "off")
 # model peaks ~3 GB; 4500 MB leaves headroom (conservative — borderline machines skip).
 DEFAULT_PRONUNCIATION_MIN_FREE_MB = 4500
 
+# 017 (additive optional): hear → say → see → retry trainer knobs.
+# Play the target with the local TTS before each drill so the learner hears it first.
+DEFAULT_PRONUNCIATION_TTS_PLAYBACK = True
+# Bounded per-item retries when a sound is flagged (0 = 016 one-shot behaviour). Clamped 0..3.
+DEFAULT_PRONUNCIATION_RETRIES = 1
+MAX_PRONUNCIATION_RETRIES = 3
+
 
 @dataclass(frozen=True)
 class LoopConfig:
@@ -56,6 +63,9 @@ class LoopConfig:
     # 016 (additive optional): read-aloud pronunciation-drill default + free-RAM threshold.
     pronunciation_drills: str = DEFAULT_PRONUNCIATION_DRILLS
     pronunciation_min_free_mb: int = DEFAULT_PRONUNCIATION_MIN_FREE_MB
+    # 017 (additive optional): hear-first TTS playback toggle + bounded per-item retries.
+    pronunciation_tts_playback: bool = DEFAULT_PRONUNCIATION_TTS_PLAYBACK
+    pronunciation_retries: int = DEFAULT_PRONUNCIATION_RETRIES
 
 
 def _model(data: dict, key: str, default: str) -> str:
@@ -100,6 +110,13 @@ def load() -> LoopConfig:
         min_free_mb = max(0, int(data.get("pronunciation_min_free_mb", DEFAULT_PRONUNCIATION_MIN_FREE_MB)))
     except (TypeError, ValueError):
         min_free_mb = DEFAULT_PRONUNCIATION_MIN_FREE_MB
+    tts_playback = data.get("pronunciation_tts_playback", DEFAULT_PRONUNCIATION_TTS_PLAYBACK)
+    if not isinstance(tts_playback, bool):
+        tts_playback = DEFAULT_PRONUNCIATION_TTS_PLAYBACK
+    try:
+        retries = max(0, min(MAX_PRONUNCIATION_RETRIES, int(data.get("pronunciation_retries", DEFAULT_PRONUNCIATION_RETRIES))))
+    except (TypeError, ValueError):
+        retries = DEFAULT_PRONUNCIATION_RETRIES
     return LoopConfig(
         daily_capacity=cap,
         warmup_enabled=bool(data.get("warmup_enabled", True)),
@@ -112,6 +129,8 @@ def load() -> LoopConfig:
         analysis_concurrency=concurrency,
         pronunciation_drills=drills,
         pronunciation_min_free_mb=min_free_mb,
+        pronunciation_tts_playback=tts_playback,
+        pronunciation_retries=retries,
     )
 
 

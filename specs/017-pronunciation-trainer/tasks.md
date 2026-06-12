@@ -25,18 +25,18 @@ entire 016 `pronunciation/` module.
 
 ## Phase 1: Setup
 
-- [ ] T001 Register the `live_pron` pytest marker in `pyproject.toml` `[tool.pytest.ini_options].markers` (alongside `live_asr`/`live_llm`/`live_download`: "thin live smoke test rendering every bundled drill through the REAL Kokoro TTS + wav2vec2 scorer; skips when the model/TTS are absent; excluded from the default suite").
-- [ ] T002 Add config keys `pronunciation_tts_playback` (bool, default `True`) and `pronunciation_retries` (int, default `1`, clamp `[0,3]`) to `src/speakloop/config/loop_config.py` (constants + `LoopConfig` fields + `load()` parse branches) and update the key table in `src/speakloop/config/CLAUDE.md` — same commit.
+- [x] T001 Register the `live_pron` pytest marker in `pyproject.toml` `[tool.pytest.ini_options].markers` (alongside `live_asr`/`live_llm`/`live_download`: "thin live smoke test rendering every bundled drill through the REAL Kokoro TTS + wav2vec2 scorer; skips when the model/TTS are absent; excluded from the default suite").
+- [x] T002 Add config keys `pronunciation_tts_playback` (bool, default `True`) and `pronunciation_retries` (int, default `1`, clamp `[0,3]`) to `src/speakloop/config/loop_config.py` (constants + `LoopConfig` fields + `load()` parse branches) and update the key table in `src/speakloop/config/CLAUDE.md` — same commit.
 
 ---
 
 ## Phase 2: Foundational (blocking prerequisites — pure loop core shared by US1/US3/US4)
 
-- [ ] T003 Create `src/speakloop/pronunciation/drill_runner.py`: pure, UI-agnostic `run_drill_item(drill, *, contrast, scorer, speak, record, key_reader, console, scratch_dir, retries=1, tts_on=True, is_follow_on=False) -> dict` (hear-first + replay-on-demand + bounded automatic retry + improvement detection + calibrated live prints via `pronunciation.feedback`) and `select_drills(bank, *, weak_contrasts, max_base) -> list[Drill]` and `DrillQuit(PronunciationError)` — per `contracts/drill-runner.md`. Import NO engine package and NO `sessions`/`tts`/`audio`.
-- [ ] T004 Export `run_drill_item`, `select_drills`, `DrillQuit` from `src/speakloop/pronunciation/__init__.py` (`__all__`).
-- [ ] T005 Extend `src/speakloop/pronunciation/feedback.py` with additive retry-outcome wording (per-item "On retry: better — that sound is clear now ✓" / "still a little off") and a "tricky sounds" summary line; keep detection-led + hedged (FR-006). Render only when the data is present (byte-identical when absent).
-- [ ] T006 [P] Unit test `tests/unit/pronunciation/test_drill_runner.py`: TTS spoken before record (fake `speak` records call order); bounded retry capped by `retries` with an always-flagging fake scorer; improvement reported when the retry clears; graceful degrade when `tts_on=False`/`NullKeyReader`; `DrillQuit` on `q`. No model/mic/tty.
-- [ ] T007 [P] Unit test `tests/unit/pronunciation/test_feedback_retry_wording.py`: retry/tricky-sounds wording is detection-led + hedged and is omitted when absent.
+- [x] T003 Create `src/speakloop/pronunciation/drill_runner.py`: pure, UI-agnostic `run_drill_item(drill, *, contrast, scorer, speak, record, key_reader, console, scratch_dir, retries=1, tts_on=True, is_follow_on=False) -> dict` (hear-first + replay-on-demand + bounded automatic retry + improvement detection + calibrated live prints via `pronunciation.feedback`) and `select_drills(bank, *, weak_contrasts, max_base) -> list[Drill]` and `DrillQuit(PronunciationError)` — per `contracts/drill-runner.md`. Import NO engine package and NO `sessions`/`tts`/`audio`.
+- [x] T004 Export `run_drill_item`, `select_drills`, `DrillQuit` from `src/speakloop/pronunciation/__init__.py` (`__all__`).
+- [x] T005 Extend `src/speakloop/pronunciation/feedback.py` with additive retry-outcome wording (per-item "On retry: better — that sound is clear now ✓" / "still a little off") and a "tricky sounds" summary line; keep detection-led + hedged (FR-006). Render only when the data is present (byte-identical when absent).
+- [x] T006 [P] Unit test `tests/unit/pronunciation/test_drill_runner.py`: TTS spoken before record (fake `speak` records call order); bounded retry capped by `retries` with an always-flagging fake scorer; improvement reported when the retry clears; graceful degrade when `tts_on=False`/`NullKeyReader`; `DrillQuit` on `q`. No model/mic/tty.
+- [x] T007 [P] Unit test `tests/unit/pronunciation/test_feedback_retry_wording.py`: retry/tricky-sounds wording is detection-led + hedged and is omitted when absent.
 
 ---
 
