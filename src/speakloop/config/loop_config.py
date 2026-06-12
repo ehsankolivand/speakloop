@@ -32,6 +32,13 @@ DEFAULT_CLAUDE_TIMEOUT_SECONDS = 240
 DEFAULT_AUTOPLAY_IDEAL_ANSWER = True
 DEFAULT_ANALYSIS_CONCURRENCY = 3
 
+# 016 (additive optional): read-aloud pronunciation-drill default + safety threshold.
+DEFAULT_PRONUNCIATION_DRILLS = "auto"  # auto (offer when safe) | on | off
+VALID_PRONUNCIATION_DRILLS = ("auto", "on", "off")
+# Free RAM (MB) required before drills are offered on a cloud engine: the pronunciation
+# model peaks ~3 GB; 4500 MB leaves headroom (conservative — borderline machines skip).
+DEFAULT_PRONUNCIATION_MIN_FREE_MB = 4500
+
 
 @dataclass(frozen=True)
 class LoopConfig:
@@ -46,6 +53,9 @@ class LoopConfig:
     # 012 (additive optional): never-forced-to-relisten toggle + concurrent-analysis cap.
     autoplay_ideal_answer: bool = DEFAULT_AUTOPLAY_IDEAL_ANSWER
     analysis_concurrency: int = DEFAULT_ANALYSIS_CONCURRENCY
+    # 016 (additive optional): read-aloud pronunciation-drill default + free-RAM threshold.
+    pronunciation_drills: str = DEFAULT_PRONUNCIATION_DRILLS
+    pronunciation_min_free_mb: int = DEFAULT_PRONUNCIATION_MIN_FREE_MB
 
 
 def _model(data: dict, key: str, default: str) -> str:
@@ -83,6 +93,13 @@ def load() -> LoopConfig:
     autoplay = data.get("autoplay_ideal_answer", DEFAULT_AUTOPLAY_IDEAL_ANSWER)
     if not isinstance(autoplay, bool):
         autoplay = DEFAULT_AUTOPLAY_IDEAL_ANSWER
+    drills = data.get("pronunciation_drills", DEFAULT_PRONUNCIATION_DRILLS)
+    if not isinstance(drills, str) or drills not in VALID_PRONUNCIATION_DRILLS:
+        drills = DEFAULT_PRONUNCIATION_DRILLS
+    try:
+        min_free_mb = max(0, int(data.get("pronunciation_min_free_mb", DEFAULT_PRONUNCIATION_MIN_FREE_MB)))
+    except (TypeError, ValueError):
+        min_free_mb = DEFAULT_PRONUNCIATION_MIN_FREE_MB
     return LoopConfig(
         daily_capacity=cap,
         warmup_enabled=bool(data.get("warmup_enabled", True)),
@@ -93,6 +110,8 @@ def load() -> LoopConfig:
         claude_timeout_seconds=timeout,
         autoplay_ideal_answer=autoplay,
         analysis_concurrency=concurrency,
+        pronunciation_drills=drills,
+        pronunciation_min_free_mb=min_free_mb,
     )
 
 

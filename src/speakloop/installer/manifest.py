@@ -21,6 +21,11 @@ class Model:
     hf_repo_id: str
     expected_size_bytes: int
     required_for_phase: Phase
+    # 016: explicit weight filenames for repos that DON'T ship safetensors (so the
+    # downloader skips `discover_shards`, which would 404 on a missing model.safetensors).
+    # None ⇒ today's behavior (discover safetensors shards). Additive; existing models
+    # leave it None so their aria2 invocation is byte-identical.
+    weight_files: tuple[str, ...] | None = None
 
     @property
     def local_path(self) -> Path:
@@ -72,6 +77,22 @@ QWEN3_14B_4BIT = Model(
     hf_repo_id="mlx-community/Qwen3-14B-4bit",
     expected_size_bytes=8_000_000_000,  # ~8 GB; refine after first download.
     required_for_phase="C",
+)
+
+
+# 016-pronunciation-drills: the optional read-aloud pronunciation scorer's acoustic model
+# (wav2vec2 CTC phoneme recognizer, Apache-2.0). NOT in any PHASE_*_MODELS list — it is
+# fetched ONLY on first opt-in via `ensure_pronunciation_model`, never by a phase. The repo
+# ships a single `pytorch_model.bin` with NO safetensors index, so `weight_files` is set so
+# the downloader fetches that file directly (research D3/D6; verified against the HF tree).
+# `required_for_phase` is a valid literal purely to satisfy the dataclass; it is never used
+# for provisioning (the model is not in any phase list).
+WAV2VEC2_PRONUNCIATION = Model(
+    name="wav2vec2-phoneme-en",
+    hf_repo_id="facebook/wav2vec2-lv-60-espeak-cv-ft",
+    expected_size_bytes=1_262_000_000,  # ~1.26 GB single pytorch_model.bin (±25% tolerance)
+    required_for_phase="C",
+    weight_files=("pytorch_model.bin",),
 )
 
 

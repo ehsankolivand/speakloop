@@ -13,8 +13,13 @@ and download orchestration. Keeps the Mac awake via `caffeinate`. No engine pack
   Four `InstallFailedError` subclasses: `DownloadAuthError`, `DownloadNotFoundError`,
   `DownloadDiskError`, `ShardDiscoveryError`.
 - `manifest.Model` (dataclass: name, hf_repo_id, expected_size_bytes, required_for_phase,
-  local_path property). Named constants: `KOKORO_82M`, `WHISPER_LARGE_V3_TURBO`,
-  `PARAKEET_TDT_06B_V3`, `QWEN3_14B_4BIT`.
+  `weight_files: tuple[str,...] | None` (016), local_path property). Named constants:
+  `KOKORO_82M`, `WHISPER_LARGE_V3_TURBO`, `PARAKEET_TDT_06B_V3`, `QWEN3_14B_4BIT`, and
+  `WAV2VEC2_PRONUNCIATION` (016 — opt-in, NOT in any PHASE_* list; `weight_files=
+  ("pytorch_model.bin",)` because the repo ships no safetensors).
+- `ensure_pronunciation_model(*, console, consent_fn, download_fn, input_fn)` (016) — same
+  consent/caffeinate/download/validate lifecycle as `ensure_models`, for the single
+  pronunciation model; fetched ONLY on first opt-in (FR-018/019). Shared body: `_ensure(...)`.
 - `manifest.Phase` — `Literal["A", "B", "C"]`.
 - `manifest.PHASE_A_MODELS`, `PHASE_B_MODELS`, `PHASE_C_MODELS` — typed `list[Model]`.
 - `manifest.models_for_phase(phase) -> list[Model]`.
@@ -73,7 +78,9 @@ and download orchestration. Keeps the Mac awake via `caffeinate`. No engine pack
 
 ## Common modification patterns
 
-- **Add/swap a model**: edit the `manifest.py` entry (id, repo, expected size) only.
+- **Add/swap a model**: edit the `manifest.py` entry (id, repo, expected size) only. A repo
+  with no safetensors index needs `weight_files=(...)` (016) so the downloader skips
+  `discover_shards`; an opt-in model also adds a metadata file → extend `META_FILES`.
 - **Change consent UX**: edit `consent.py`.
 - **Tune aria2 concurrency / retry / connect-timeout**: update the pinned constants
   in the contract file AND the matching test assertions in the same commit.

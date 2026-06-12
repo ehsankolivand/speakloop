@@ -36,6 +36,16 @@ dependencies = [
     # onnx=True, and silero-vad>=6 declares onnxruntime only under its onnx extras.
     "onnxruntime>=1.20",
     "torchaudio<2.9",
+    # 016-pronunciation-drills: the optional read-aloud pronunciation scorer wraps a
+    # wav2vec2 CTC phoneme model. `transformers` arrives transitively (mlx-whisper /
+    # parakeet-mlx) but the import (pronunciation/wav2vec2_engine.py) is OURS — declare
+    # it, like scipy/onnxruntime. Function-local so `--help` never loads it. torch is
+    # already pinned via torchaudio<2.9 (do NOT bump). Floor only; never force an upgrade.
+    "transformers>=4.34",
+    # 016: live available-RAM read for the engine/memory safety gate (pronunciation/gate.py).
+    # BSD-3-Clause, ships a macOS-arm64 wheel, zero transitive deps, no network. stdlib has no
+    # reliable *available* (vs total) RAM source on darwin (SC_AVPHYS_PAGES is unsupported).
+    "psutil>=5.9",
 ]
 
 [project.scripts]

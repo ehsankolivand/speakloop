@@ -53,21 +53,17 @@ def _missing_or_invalid(models: list[manifest.Model]) -> list[manifest.Model]:
     return [m for m in models if not validator.validate(m).ok]
 
 
-def ensure_models(
-    phase: manifest.Phase,
+def _ensure(
+    required: list[manifest.Model],
     *,
-    console: Console | None = None,
-    consent_fn=_consent.prompt_for_consent,
-    download_fn=downloader.download_model,
-    input_fn=input,
+    label: str,
+    console: Console,
+    consent_fn,
+    download_fn,
+    input_fn,
 ) -> None:
-    """Ensure every model required for `phase` is present and valid.
-
-    Raises InstallDeclinedError if the user declines; InstallFailedError if
-    validation still fails after a download attempt.
-    """
-    console = console or Console()
-    required = manifest.models_for_phase(phase)
+    """Shared lifecycle for a fixed model list: missing → caffeinate → consent →
+    download → re-validate. Raises InstallDeclinedError / InstallFailedError."""
     missing = _missing_or_invalid(required)
     if not missing:
         return
@@ -80,9 +76,7 @@ def ensure_models(
     atexit_handler = lambda: downloader.terminate_caffeinate(caffeinate_proc)  # noqa: E731
     atexit.register(atexit_handler)
     try:
-        console.print(
-            f"[bold]Phase {phase}[/bold]: {len(missing)} model(s) need to be downloaded."
-        )
+        console.print(f"[bold]{label}[/bold]: {len(missing)} model(s) need to be downloaded.")
 
         consented = consent_fn(missing, console=console, input_fn=input_fn)
         if not consented:
@@ -100,6 +94,55 @@ def ensure_models(
         atexit.unregister(atexit_handler)
 
 
+def ensure_models(
+    phase: manifest.Phase,
+    *,
+    console: Console | None = None,
+    consent_fn=_consent.prompt_for_consent,
+    download_fn=downloader.download_model,
+    input_fn=input,
+) -> None:
+    """Ensure every model required for `phase` is present and valid.
+
+    Raises InstallDeclinedError if the user declines; InstallFailedError if
+    validation still fails after a download attempt.
+    """
+    console = console or Console()
+    _ensure(
+        manifest.models_for_phase(phase),
+        label=f"Phase {phase}",
+        console=console,
+        consent_fn=consent_fn,
+        download_fn=download_fn,
+        input_fn=input_fn,
+    )
+
+
+def ensure_pronunciation_model(
+    *,
+    console: Console | None = None,
+    consent_fn=_consent.prompt_for_consent,
+    download_fn=downloader.download_model,
+    input_fn=input,
+) -> None:
+    """Ensure the optional pronunciation model (016) is present and valid.
+
+    Fetched ONLY on first opt-in (never by a phase) through the SAME resilient downloader
+    (aria2 + snapshot fallback) and the SAME consent + size disclosure as every other model
+    — no bespoke path (FR-018/FR-019). Raises InstallDeclinedError if the user declines;
+    InstallFailedError if validation still fails after a download attempt.
+    """
+    console = console or Console()
+    _ensure(
+        [manifest.WAV2VEC2_PRONUNCIATION],
+        label="Pronunciation drills",
+        console=console,
+        consent_fn=consent_fn,
+        download_fn=download_fn,
+        input_fn=input_fn,
+    )
+
+
 __all__ = [
     "DownloadAuthError",
     "DownloadDiskError",
@@ -109,5 +152,6 @@ __all__ = [
     "ShardDiscoveryError",
     "engine_needs_local_llm",
     "ensure_models",
+    "ensure_pronunciation_model",
     "manifest",
 ]

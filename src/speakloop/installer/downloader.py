@@ -63,6 +63,9 @@ META_FILES: tuple[str, ...] = (
     "generation_config.json",
     "chat_template.jinja",
     "model.safetensors.index.json",
+    # 016: the wav2vec2 pronunciation model's feature-extractor config. Best-effort like
+    # every META_FILE — repos without it skip it silently, so no existing model changes.
+    "preprocessor_config.json",
     "README.md",
 )
 
@@ -163,7 +166,11 @@ def _download_via_aria(
     base_url = f"{_HF_BASE}/{repo_id}/resolve/main"
 
     _fetch_metadata(local_dir=local_dir, base_url=base_url, token=token, console=console)
-    shards = discover_shards(local_dir)
+    # 016: a model may declare its weight files explicitly (repos with no safetensors
+    # index, where `discover_shards` would fall back to a non-existent model.safetensors).
+    # None ⇒ today's behavior (discover safetensors shards), byte-identical for every
+    # existing model.
+    shards = list(model.weight_files) if model.weight_files else discover_shards(local_dir)
     console.print("[bold]==> Shards to download:[/bold]")
     for shard in shards:
         console.print(f"    {shard}")

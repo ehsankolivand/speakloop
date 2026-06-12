@@ -28,7 +28,7 @@ def test_importing_cli_loads_no_engine_packages():
     # Fresh interpreter so the check is not polluted by other tests' imports.
     code = (
         "import sys; import speakloop.cli.main; "
-        "engine = {'mlx_whisper', 'silero_vad', 'parakeet_mlx', 'mlx_lm', 'kokoro_mlx'}; "
+        "engine = {'mlx_whisper', 'silero_vad', 'parakeet_mlx', 'mlx_lm', 'kokoro_mlx', 'torch', 'transformers'}; "
         "leaked = engine & set(sys.modules); "
         "print('LEAKED', sorted(leaked)); "
         "sys.exit(1 if leaked else 0)"
@@ -46,7 +46,7 @@ def test_help_does_not_load_engine_packages_during_invocation():
         "import sys; from typer.testing import CliRunner; from speakloop.cli.main import app; "
         "r = CliRunner().invoke(app, ['practice', '--help']); "
         "assert r.exit_code == 0, r.output; "
-        "engine = {'mlx_whisper', 'silero_vad', 'parakeet_mlx', 'mlx_lm', 'kokoro_mlx'}; "
+        "engine = {'mlx_whisper', 'silero_vad', 'parakeet_mlx', 'mlx_lm', 'kokoro_mlx', 'torch', 'transformers'}; "
         "leaked = engine & set(sys.modules); "
         "print('LEAKED', sorted(leaked)); "
         "sys.exit(1 if leaked else 0)"
@@ -76,7 +76,7 @@ def test_importing_openrouter_engine_loads_no_engine_packages():
     even with the cloud path present."""
     code = (
         "import sys; import speakloop.llm.openrouter_engine; "
-        "engine = {'mlx_whisper', 'silero_vad', 'parakeet_mlx', 'mlx_lm', 'kokoro_mlx'}; "
+        "engine = {'mlx_whisper', 'silero_vad', 'parakeet_mlx', 'mlx_lm', 'kokoro_mlx', 'torch', 'transformers'}; "
         "leaked = engine & set(sys.modules); "
         "print('LEAKED', sorted(leaked)); "
         "sys.exit(1 if leaked else 0)"
@@ -92,7 +92,7 @@ def test_importing_grammar_analyzer_loads_no_engine_packages():
     code = (
         "import sys; import speakloop.feedback.grammar_analyzer; "
         "import json_repair; "  # the new dep must import cleanly and offline
-        "engine = {'mlx_whisper', 'silero_vad', 'parakeet_mlx', 'mlx_lm', 'kokoro_mlx'}; "
+        "engine = {'mlx_whisper', 'silero_vad', 'parakeet_mlx', 'mlx_lm', 'kokoro_mlx', 'torch', 'transformers'}; "
         "leaked = engine & set(sys.modules); "
         "print('LEAKED', sorted(leaked)); "
         "sys.exit(1 if leaked else 0)"

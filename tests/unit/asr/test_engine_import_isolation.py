@@ -24,6 +24,10 @@ ENGINE_PACKAGES = {
     "onnxruntime": "asr/vad.py",
     "mlx_lm": "llm/qwen_engine.py",
     "kokoro_mlx": "tts/kokoro_engine.py",
+    # 016: the wav2vec2 pronunciation scorer — torch + transformers stay function-local
+    # in exactly one wrapper file so `speakloop --help` loads neither.
+    "torch": "pronunciation/wav2vec2_engine.py",
+    "transformers": "pronunciation/wav2vec2_engine.py",
 }
 
 

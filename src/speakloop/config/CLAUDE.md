@@ -53,6 +53,8 @@ Two files with different stdlib footprints — see File map.
 | `followups_enabled` | `True` | bool() cast | :88 |
 | `claude_fast_model` | `"haiku"` | non-empty str | :90 |
 | `claude_strong_model` | `"sonnet"` | non-empty str | :91 |
+| `pronunciation_drills` (016) | `"auto"` | must be in (auto, on, off) | load() |
+| `pronunciation_min_free_mb` (016) | 4500 | max(0, int) | load() |
 
 ## Dependencies & consumers
 
