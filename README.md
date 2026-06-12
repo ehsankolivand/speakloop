@@ -46,15 +46,36 @@ and deliberately so.
 
 ## Install
 
-You need [`uv`](https://docs.astral.sh/uv/) and a microphone.
+You need [`uv`](https://docs.astral.sh/uv/) — the Python toolchain that runs speakloop — and
+a microphone. If you don't have `uv` yet, install it first:
+
+```bash
+brew install uv           # or: curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Then clone the repo and let `uv` build the environment. `uv sync` creates the project's
+virtual environment and installs the pinned dependencies for you — there is no `pip install`
+and no separate "activate the venv" step; every command runs through `uv run`:
 
 ```bash
 brew install aria2        # Recommended for faster, more resilient downloads on slow links — without it, speakloop falls back to a single-connection download.
 git clone https://github.com/ehsankolivand/speakloop.git
 cd speakloop
-uv sync
+uv sync                   # build the environment from the committed lockfile
 uv run speakloop --help   # works immediately — no models required just to read help
 uv run speakloop setup    # pick your feedback engine + download only what it needs
+```
+
+### Update to the latest version
+
+Already cloned speakloop? Pull the newest code, then **re-run `uv sync`** so your installed
+commands match the updated source. That second step is what keeps you from running a stale
+build where old commands linger or a new one looks "missing":
+
+```bash
+git pull                  # fetch the latest code
+uv sync                   # reconcile the environment with the updated lockfile
+uv run speakloop --help   # confirm the commands you expect are listed
 ```
 
 `speakloop setup` is the one-step onboarding: it asks which **feedback engine** you want
