@@ -164,11 +164,11 @@ file is rejected naming the entry+field; `questions where` shows the precedence 
 **Independent Test**: a reader follows the README per engine and to add a question set with no step
 that contradicts behavior.
 
-- [ ] T023 [US3] Update `README.md`: add an engine-aware setup section (clone → `speakloop setup
+- [X] T023 [US3] Update `README.md`: add an engine-aware setup section (clone → `speakloop setup
   --engine <X>` → session; what each engine downloads/needs), document persistence + the
   `--cloud`/`--engine` relationship, and a question-management section (`questions template`/
   `validate`/`where`). Reconcile the existing Cloud-mode and "Use your own question set" sections.
-- [ ] T024 [US3] Cross-check every command/flag in `README.md` against `quickstart.md` and the
+- [X] T024 [US3] Cross-check every command/flag in `README.md` against `quickstart.md` and the
   implemented surface; fix any stale or contradicting line.
 
 **Checkpoint**: all three stories functional; docs accurate.

@@ -54,11 +54,15 @@ git clone https://github.com/ehsankolivand/speakloop.git
 cd speakloop
 uv sync
 uv run speakloop --help   # works immediately — no models required just to read help
+uv run speakloop setup    # pick your feedback engine + download only what it needs
 ```
 
-The first time you run a real session, speakloop asks for consent and downloads the
-models, disclosing each model's size and the total disk footprint before anything is
-fetched. Downloads are resumable — a dropped connection picks up where it left off.
+`speakloop setup` is the one-step onboarding: it asks which **feedback engine** you want
+(see [Choose your feedback engine](#choose-your-feedback-engine)), remembers your choice,
+and downloads **only** the models that engine needs — disclosing each model's size and the
+total disk footprint before anything is fetched, with consent. Downloads are resumable: a
+dropped connection picks up where it left off. (You can also skip `setup` and just run
+`speakloop practice` — it provisions what's needed on first use the same way.)
 
 ## Quickstart
 
@@ -96,12 +100,48 @@ Two more commands:
 The questions you practice with ship in the repo — see
 [Where things live](#where-things-live) — so a fresh clone is ready to use immediately.
 
+## Choose your feedback engine
+
+Speech (text-to-speech) and transcription (speech recognition) **always run locally** — they
+are always downloaded. Only the **grammar/coaching feedback** step has a choice of engine:
+
+| Engine | What runs feedback | Downloads the large local LLM? | Needs |
+|--------|--------------------|-------------------------------|-------|
+| `local` (default) | offline Qwen model on your Mac | **yes** (~8 GB) | enough free unified memory |
+| `openrouter` | a cloud model via OpenRouter | no | an OpenRouter API key |
+| `claude` | your local Claude Code CLI | no | Claude Code installed + logged in |
+
+Pick one **once** and speakloop remembers it — you don't pass a flag on every run:
+
+```bash
+uv run speakloop setup --engine openrouter   # persists your choice to ~/.speakloop/loop.yaml
+uv run speakloop setup --engine local        # also downloads the local feedback model
+uv run speakloop setup --engine claude
+uv run speakloop setup --engine openrouter --no-download   # set the default now, fetch later
+```
+
+If you choose a cloud engine, the large local feedback model is **never downloaded**. If you
+choose `local` and decline its download, sessions still record and save — you just get
+fluency-only feedback until you fetch the model (finish later with `speakloop resume`).
+
+- **Override for a single run** without changing your default: `uv run speakloop practice
+  --engine local` (or `--engine claude`, `--engine openrouter`).
+- **`--cloud` is an exact alias for `--engine openrouter`** — both select the OpenRouter
+  engine; using `--cloud` with a different `--engine` is rejected.
+- **Check readiness anytime**: `uv run speakloop doctor` names your active engine, says
+  whether its requirements (models, credentials, or the Claude Code login) are satisfied, and
+  prints the exact next step for anything missing — and it won't flag the local model as
+  missing if your active engine doesn't need it.
+
 ## Cloud mode (optional)
 
-If your Mac can't run the local Qwen feedback model (it needs ~10 GB of free unified
-memory), you can route **just the grammar feedback step** to an OpenRouter-hosted model
-instead. Speech and transcription stay local; the default offline experience is unchanged
-if you don't pass `--cloud`.
+This is the **openrouter** engine in detail (see [Choose your feedback
+engine](#choose-your-feedback-engine)). If your Mac can't run the local Qwen feedback model
+(it needs ~10 GB of free unified memory), you can route **just the grammar feedback step** to
+an OpenRouter-hosted model instead. Speech and transcription stay local; the default offline
+experience is unchanged if you don't select a cloud engine. Make it your default once with
+`speakloop setup --engine openrouter`, or opt in per run with `--cloud` (an alias for
+`--engine openrouter`).
 
 Cloud mode also adds a **coaching section** to the report: a clean rewrite of *your own*
 answer, the 2–3 highest-impact habits to fix (with a rule and a self-check cue), and 4–8
@@ -236,6 +276,19 @@ So to practice with a private set, either pass `uv run speakloop practice --qa-f
 ~/my-questions.yaml`, or drop your file at `~/.speakloop/qa.yaml` and it will be picked
 up on its own. Nothing is created in your home directory unless you put it there.
 
+You don't have to guess the format. The `questions` commands help you author and check a set:
+
+```bash
+uv run speakloop questions template > ~/.speakloop/qa.yaml   # start from a commented, valid template
+uv run speakloop questions validate ~/.speakloop/qa.yaml     # check it — precise per-entry errors
+uv run speakloop questions where                             # show the precedence + which file is active
+```
+
+`questions template` prints to your terminal (redirect it to save — it never writes a file
+for you), and `questions validate` tells you exactly which entry and field is wrong, so you
+catch mistakes before a session instead of mid-practice. With no path, `questions validate`
+checks whichever file is currently active by the precedence above.
+
 ## For contributors
 
 - The project is governed by its [constitution](.specify/memory/constitution.md)
@@ -283,10 +336,12 @@ fluency-only. The report's **`phase_c_error`** frontmatter field records the cau
 it is absent the model simply was not installed; if it contains a message, the analyzer
 raised that error during the session.
 
-**Fix:** confirm the LLM is installed (run `uv run speakloop doctor`); if it is missing,
-run a session again and accept the model download when prompted. If `phase_c_error`
-shows a runtime message, that session fell back on purpose so the failure is diagnosable
-from the saved file — re-running usually succeeds.
+**Fix:** confirm your active engine and its readiness with `uv run speakloop doctor`. If the
+local model is missing, run `uv run speakloop setup --engine local` (or start a session and
+accept the download when prompted). Prefer not to download it? Switch to a cloud engine with
+`uv run speakloop setup --engine openrouter` (or `--engine claude`). If `phase_c_error` shows
+a runtime message, that session fell back on purpose so the failure is diagnosable from the
+saved file — re-running usually succeeds.
 
 ### A technical term came out wrong in the transcript
 
