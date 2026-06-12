@@ -8,7 +8,7 @@ modules together for a run; the console-script entry point.
 ## Public interface
 
 Commands (all registered in `main.py`):
-- `practice` (`main.py:63`) — listen → session → debrief loop. Key flags: `--listen-only`, `--no-audio`, `--asr-engine {whisper,parakeet}`, `--cloud` (alias for `--engine openrouter`), `--engine {local,openrouter,claude}`, `--speed` (TTS multiplier, default 0.85, clamped 0.5–2.0), `--timings`.
+- `practice` (`main.py:63`) — listen → session → debrief loop. Key flags: `--listen-only`, `--no-audio`, `--asr-engine {whisper,parakeet}`, `--cloud` (alias for `--engine openrouter`), `--engine {local,openrouter,claude}`, `--speed` (TTS multiplier, default 0.85, clamped 0.5–2.0), `--timings`, `--drills/--no-drills` (016 — per-run override of the `pronunciation_drills` setting; the safety gate still applies).
 - `setup` (015, `main.py`) — pick + persist the feedback engine to `loop.yaml engine:` and download only what it needs. Flags: `--engine {local,openrouter,claude}`, `--no-download`. Thin module `setup.py`.
 - `questions` (015) — typer sub-app: `validate [PATH]` / `template` / `where` (thin module `questions.py`).
 - `doctor` (`main.py:142`) — environment + model health check, engine-aware (see below); `--json` for scripting.
@@ -24,6 +24,8 @@ Commands (all registered in `main.py`):
 `CLAUDE_TIER_MAP` (`practice.py:565-568`): `fast` → `("mishearing", "drill")`; `strong` → all remaining calls (grammar, coach, followups, keypoints, coverage, consistency). Fast tier defaults to `haiku`, strong to `sonnet` (`config/loop_config.py:23-24`).
 
 `_build_runners(engine, *, fast_engine=None)` (`practice.py:571`) — builds the coordinator `Runners` bundle; for local/OpenRouter `fast_engine` is `None` (single instance, byte-identical); only the Claude Code builder passes a distinct fast engine.
+
+**Pronunciation drills (016)**: `practice._resolve_pronunciation_drills(engine, console, *, drills_flag, input_fn)` runs ONCE before the session loop: reads `loop.yaml pronunciation_drills` (+ `--drills/--no-drills`), runs `pronunciation.assess_safety` (engine + live RAM), offers/declines (auto offers, on auto-runs when safe, off short-circuits before the gate), and on opt-in downloads the model via `installer.ensure_pronunciation_model` + builds a `coordinator.PronunciationDrills` bundle (else None). Unsafe → warn + skip unless an explicit interactive freeze-warned override (`_is_interactive()` is the test seam). `local` engine is always unsafe (never silently loaded). All pronunciation imports are function-local → `--help` stays model-free. `doctor._pronunciation()` reports model presence (opt-in, never FAIL), the setting, and a gate estimate.
 
 **Engine-aware provisioning (015)**: `practice` ensures the required base phase (`"A"` listen-only / `"B"` full; decline → exit). Then, when `installer.engine_needs_local_llm(engine_choice, listen_only=...)`, it offers `ensure_models("C")` (the local Qwen) — declining/failing degrades to a recorded, resumable session (one notice, no exit); cloud engines never reach this. `setup.py` reuses the same predicate (base `"B"` always; `"C"` only for local). Default engine is set once via `speakloop setup` (`config.loop_config.save_engine`).
 

@@ -350,6 +350,21 @@ def _interview_loop_sections(session: frontmatter.Session) -> list[str]:
     return out
 
 
+def _pronunciation_drills_section(session: frontmatter.Session) -> str | None:
+    """016: read-aloud pronunciation drills, calibrated (detection-led, diagnosis hedged).
+
+    Delegates wording to the pronunciation module so the calibration rule (FR-009) lives in
+    one place. Returns None when no drills ran → a no-drills report is byte-identical to
+    before. Imports the formatter function-local (no engine package loads — it is a pure
+    string formatter, but kept local to keep `report_builder` import-light)."""
+    drills = session.pronunciation_drills
+    if not drills:
+        return None
+    from speakloop.pronunciation.feedback import render_drills_section
+
+    return render_drills_section(drills)
+
+
 def _transcripts_section(attempts: list[frontmatter.Attempt]) -> str:
     parts = ["## Transcripts"]
     for a in attempts:
@@ -393,6 +408,12 @@ def build(session: frontmatter.Session, *, title: str | None = None) -> str:
     # 010: additive Interview Loop sections, AFTER grammar/coaching and BEFORE the
     # transcripts. Empty when no such data is present → byte-identical to before.
     parts += _interview_loop_sections(session)
+
+    # 016: additive read-aloud pronunciation section, after the interview-loop sections
+    # and before the transcripts. None when no drills ran → byte-identical to before.
+    pronunciation = _pronunciation_drills_section(session)
+    if pronunciation is not None:
+        parts += ["", pronunciation]
 
     parts += ["", _transcripts_section(session.attempts)]
     return "\n".join(parts)

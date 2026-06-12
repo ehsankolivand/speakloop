@@ -299,6 +299,104 @@ def resolve_engine_choice(engine: str | None, cloud: bool) -> str:
     return loop_config.load().engine
 
 
+# --- Pronunciation drills (016) --------------------------------------------
+
+
+def _is_interactive() -> bool:
+    """Whether we can prompt the user (a real terminal on stdin). Module-level so tests
+    can override it without touching the process's real stdin."""
+    return sys.stdin.isatty()
+
+
+def _resolve_pronunciation_drills(engine_choice: str, console: Console, *, drills_flag, input_fn=input):
+    """Resolve whether to offer read-aloud pronunciation drills and, if so, build the bundle.
+
+    Returns a ``coordinator.PronunciationDrills`` to inject, or ``None`` to skip. Reads the
+    persisted ``pronunciation_drills`` setting (auto/on/off), applies the ``--drills/--no-drills``
+    per-run override, runs the engine+RAM safety gate (P3), offers/declines per the rules, and on
+    opt-in downloads the model (via the existing resilient downloader) and builds the scorer.
+    Skips cleanly on off / unsafe / decline / error. Engine imports are function-local so
+    ``speakloop --help`` never loads the model (FR-012..FR-019)."""
+    from speakloop.config import loop_config
+
+    cfg = loop_config.load()
+    setting = cfg.pronunciation_drills  # auto | on | off
+    if drills_flag is True:
+        setting = "on"
+    elif drills_flag is False:
+        setting = "off"
+    if setting == "off":
+        return None
+
+    from speakloop.pronunciation import assess_safety
+
+    decision = assess_safety(engine_choice, min_free_mb=cfg.pronunciation_min_free_mb)
+    interactive = _is_interactive()
+
+    if decision.safe:
+        console.print(f"[cyan]Pronunciation drills[/cyan]: {decision.reason}")
+        if setting == "auto":
+            # Offer (default yes when safe). Non-interactive auto can't consent → skip (never force).
+            if not interactive:
+                console.print("[dim](non-interactive; skipping the drills offer)[/dim]")
+                return None
+            try:
+                ans = input_fn(
+                    "Do a few read-aloud drills while your feedback runs? [Y/n]: "
+                ).strip().lower()
+            except EOFError:
+                return None
+            if ans in {"n", "no"}:
+                return None
+        # setting == "on" → run when safe without prompting.
+        return _provision_and_build_drills(console, decision, input_fn=input_fn)
+
+    # Unsafe: warn + skip by default; offer the explicit freeze-warned override interactively.
+    console.print(f"[yellow]Pronunciation drills skipped:[/yellow] {decision.reason}")
+    if interactive and setting in ("auto", "on"):
+        try:
+            ans = input_fn(
+                "Load the pronunciation model anyway? This may freeze your machine. [y/N]: "
+            ).strip().lower()
+        except EOFError:
+            return None
+        if ans in {"y", "yes"}:
+            console.print(
+                "[red]Override accepted — loading the pronunciation model despite the memory "
+                "risk.[/red]"
+            )
+            return _provision_and_build_drills(console, decision, input_fn=input_fn)
+    return None
+
+
+def _provision_and_build_drills(console: Console, decision, *, input_fn=input):
+    """Download the model (opt-in, resilient downloader) and build the scorer + drill bank.
+
+    Returns a ``coordinator.PronunciationDrills`` bundle, or None on decline/failure (the
+    session continues without drills)."""
+    from speakloop import installer, pronunciation
+
+    try:
+        installer.ensure_pronunciation_model(console=console, input_fn=input_fn)
+    except installer.InstallDeclinedError:
+        console.print("[yellow]Pronunciation model download declined — skipping drills.[/yellow]")
+        return None
+    except installer.InstallFailedError as e:
+        console.print(f"[yellow]Pronunciation model unavailable ({e}); skipping drills.[/yellow]")
+        return None
+
+    try:
+        scorer = pronunciation.build_scorer()
+        bank = pronunciation.load_drill_bank()
+    except Exception as e:  # noqa: BLE001 — never let drill setup crash the session
+        console.print(f"[yellow]Could not set up pronunciation drills ({e}); skipping.[/yellow]")
+        return None
+
+    from speakloop.sessions.coordinator import PronunciationDrills
+
+    return PronunciationDrills(scorer=scorer, bank=bank, engine_note=decision.reason)
+
+
 def run(
     *,
     question: str | None = None,
@@ -309,9 +407,11 @@ def run(
     engine: str | None = None,
     speed: float = 1.0,
     timings: bool = False,
+    drills: bool | None = None,
     tts_engine=None,
     play_fn=None,
     audio_devices=devices,
+    input_fn=input,
 ) -> None:
     """Entry point for `speakloop practice`."""
     console = Console()
@@ -464,6 +564,15 @@ def run(
     _analysis_engine = getattr(grammar_analyzer, "engine", None)
     analysis_parallel_safe = bool(getattr(_analysis_engine, "parallel_safe", False))
 
+    # 016: resolve the optional read-aloud pronunciation-drill capability ONCE, before the
+    # timed loop (the model download/consent happens here, not mid-session). Returns a bundle
+    # to inject, or None to skip (setting off / unsafe gate / declined / error). Reused on
+    # REPLAY/NEW like the engines. Engine imports stay function-local (the bundle build is
+    # inside `_resolve_pronunciation_drills`), so `speakloop --help` stays model-free.
+    pronunciation_drills = _resolve_pronunciation_drills(
+        engine_choice, console, drills_flag=drills, input_fn=input_fn
+    )
+
     current = chosen
     need_listen = True
     while True:
@@ -499,6 +608,7 @@ def run(
                 key_reader=key_reader,
                 analysis_parallel_safe=analysis_parallel_safe,
                 analysis_concurrency=analysis_concurrency,
+                pronunciation_drills=pronunciation_drills,
             )
         except coordinator.AbortedError:
             # Raised only when no report exists yet (warm-up/recording/transcribe

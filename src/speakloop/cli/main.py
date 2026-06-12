@@ -101,6 +101,16 @@ def practice_cmd(
         "--timings",
         help="Print a per-stage timing breakdown at the end of the session.",
     ),
+    drills: bool = typer.Option(
+        None,
+        "--drills/--no-drills",
+        help=(
+            "Override the persisted pronunciation-drill setting for this run: --drills offers "
+            "read-aloud drills during the feedback wait, --no-drills skips them. The safety gate "
+            "(engine + free memory) still applies. Default: the loop.yaml `pronunciation_drills` "
+            "setting (auto)."
+        ),
+    ),
 ) -> None:
     """Run a practice session."""
     from speakloop.cli import practice as _practice  # local import; engine touch is deferred.
@@ -114,6 +124,7 @@ def practice_cmd(
         engine=engine,
         speed=speed,
         timings=timings,
+        drills=drills,
     )
 
 

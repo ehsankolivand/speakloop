@@ -7,6 +7,7 @@ A SIGINT at any state up to and including `reporting` aborts cleanly without wri
 from __future__ import annotations
 
 import contextlib
+import io
 import queue
 import shutil
 import threading
@@ -59,6 +60,22 @@ class Runners:
     keypoints: Callable | None = None
     # P3: coverage(key_points, transcripts, ideal_answer) -> {attempts, content_errors}
     coverage: Callable | None = None
+
+
+@dataclass
+class PronunciationDrills:
+    """Injected read-aloud pronunciation-drill capability (016).
+
+    Built once in ``cli/practice.py`` ONLY after the safety gate permitted it and the user
+    opted in (so constructing this implies the model is present + safe to load). ``scorer``
+    is a ``pronunciation.PronunciationScorer`` (duck-typed here so the coordinator imports no
+    engine package); ``bank`` is a ``pronunciation.DrillBank``. None ⇒ no drills (every
+    existing caller passes nothing → the drill stage is a no-op, byte-identical).
+    """
+
+    scorer: object
+    bank: object
+    engine_note: str = ""
 
 
 class AbortedError(Exception):
@@ -639,6 +656,156 @@ def _run_warmup(
     return {"target_pattern": top_error, "items": results}
 
 
+# 016: read-aloud pronunciation drills. Bounded (FR-024): a few base drills + a small total
+# of follow-on minimal-pair drills for flagged contrasts. Per-drill recording budget is short
+# (single words). The drill block is USER-PACED and runs while feedback runs in a background
+# thread (run_session).
+DRILL_BUDGET_SECONDS = 10
+MAX_BASE_DRILLS = 4
+MAX_FOLLOWON_DRILLS = 2
+
+
+def _flag_to_dict(flag) -> dict:
+    """Serialise a ``PhoneFlag`` for the report frontmatter (plain dict)."""
+    return {
+        "expected": flag.expected,
+        "word": flag.word,
+        "gop": flag.gop,
+        "competitor": flag.competitor,
+        "competitor_margin": flag.competitor_margin,
+        "confident_diagnosis": flag.confident_diagnosis,
+        "tip": flag.tip,
+    }
+
+
+def _run_pronunciation_drills(
+    *,
+    drills: PronunciationDrills | None,
+    record_fn,
+    scratch_dir: Path,
+    early_exit_event: threading.Event,
+    console: Console,
+    key_reader=None,
+    ui_sleep=time.sleep,
+) -> dict | None:
+    """016: present a bounded block of user-paced read-aloud drills; score each against its
+    KNOWN canonical phonemes and give calibrated, detection-led feedback (FR-001/005/006/007).
+
+    No-op (None) unless a scorer + drill bank are injected — every existing caller passes
+    nothing, so the session is byte-identical. The scorer NEVER raises into the session; a
+    silent read → ``not_captured``, a scoring failure → ``error`` (FR-007). Recording uses the
+    same ``_record_stage`` UI as the attempts; drill WAVs are discarded after scoring (privacy).
+    Checks ``abort.abort_event`` between drills so a Ctrl-C stops asking for more but keeps the
+    finished attempts/feedback (the report is still written by run_session)."""
+    if drills is None or getattr(drills, "scorer", None) is None or getattr(drills, "bank", None) is None:
+        return None
+    scorer = drills.scorer
+    bank = drills.bank
+    base = bank.base_drills()[:MAX_BASE_DRILLS]
+    if not base:
+        return None
+
+    from speakloop.pronunciation.feedback import live_flag_summary  # light, no engine import
+
+    console.print(
+        "\n[bold]Pronunciation drills[/bold] — read each word aloud while your feedback is "
+        "prepared. (Detection is reliable; any specific guess is a suggestion.)"
+    )
+    items: list[dict] = []
+    seen_ids: set[str] = set()
+    state = {"followons_left": MAX_FOLLOWON_DRILLS}
+
+    def _run(drill, *, is_follow_on: bool) -> None:
+        if abort.abort_event.is_set():
+            return
+        seen_ids.add(drill.id)
+        contrast = bank.contrast(drill.contrast_id)
+        tag = " [dim](follow-up)[/dim]" if is_follow_on else ""
+        console.print(f"\n[bold]Read aloud{tag}:[/bold] [cyan]{drill.prompt}[/cyan]")
+        wav_path = scratch_dir / f"drill-{drill.id}.wav"
+        early_exit_event.clear()
+        status, flags = "scored", []
+        try:
+            _record_stage(
+                record_fn=record_fn,
+                wav_path=wav_path,
+                budget=DRILL_BUDGET_SECONDS,
+                label=f"drill: {drill.prompt}",
+                key_reader=key_reader,
+                ui_sleep=ui_sleep,
+                console=console,
+                early_exit_event=early_exit_event,
+            )
+            result = scorer.score(
+                wav_path,
+                canonical=drill.canonical,
+                targets=drill.targets,
+                tip=contrast.tip if contrast else "",
+                competitors=contrast.competitors if contrast else [],
+                drill_id=drill.id,
+                text=drill.prompt,
+                contrast_id=drill.contrast_id,
+            )
+            status = result.status
+            flags = [_flag_to_dict(f) for f in result.flags]
+        except Exception:  # noqa: BLE001 — a drill must never crash the session
+            status = "error"
+        finally:
+            with contextlib.suppress(OSError):
+                wav_path.unlink()
+
+        items.append(
+            {
+                "drill_id": drill.id,
+                "text": drill.prompt,
+                "prompt": drill.prompt,
+                "status": status,
+                "flags": flags,
+                "is_follow_on": is_follow_on,
+                "contrast_id": drill.contrast_id,
+            }
+        )
+        if status == "not_captured":
+            console.print("  [dim]not captured — read right after the prompt[/dim]")
+        elif status == "error":
+            console.print("  [dim]could not score this one[/dim]")
+        elif flags:
+            console.print(f"  → {live_flag_summary(flags)}")
+            for fl in flags:
+                if fl.get("tip"):
+                    console.print(f"    [dim]Tip:[/dim] {fl['tip']}")
+        else:
+            console.print("  [green]clear ✓[/green]")
+
+        # Route a flagged, well-recorded base drill into bounded follow-on minimal pairs.
+        if not is_follow_on and status == "scored" and flags and state["followons_left"] > 0:
+            for nxt in bank.next_drills(
+                drill.contrast_id, exclude_ids=seen_ids, max=state["followons_left"]
+            ):
+                if state["followons_left"] <= 0 or abort.abort_event.is_set():
+                    break
+                state["followons_left"] -= 1
+                _run(nxt, is_follow_on=True)
+
+    for drill in base:
+        if abort.abort_event.is_set():
+            break
+        _run(drill, is_follow_on=False)
+
+    if not items:
+        return None
+    with_flags = sum(1 for it in items if it.get("flags"))
+    return {
+        "engine_note": drills.engine_note,
+        "items": items,
+        "summary": {
+            "drills": len(items),
+            "with_flags": with_flags,
+            "contrasts_practiced": sorted({it["contrast_id"] for it in items}),
+        },
+    }
+
+
 class _AnalysisOutputs(NamedTuple):
     grammar_patterns: list
     phase: str
@@ -669,6 +836,7 @@ def _analyze(
     parallel_safe: bool,
     concurrency: int,
     stage_timer: StageTimer,
+    quiet: bool = False,
 ) -> _AnalysisOutputs:
     """Run the post-attempt analysis and return its outputs (012, US3 — T028/T029).
 
@@ -688,6 +856,14 @@ def _analyze(
     overlapped = mode == "concurrent"
     wall = 0.0
     mishearing_runner = runners.mishearing if runners else None
+
+    # 016: when this analysis runs in a BACKGROUND thread (concurrent with the user-paced
+    # read-aloud drill block), suppress the live ANALYZING spinner — two live `rich`
+    # displays must never run at once. ``quiet`` swaps the spinner for a no-op context; the
+    # caller passes a discard console so any degradation prints don't corrupt the drill UI
+    # (the failure is still recorded in frontmatter). The non-quiet path is unchanged.
+    def _spinner(_console, _msg):
+        return contextlib.nullcontext() if quiet else _analyzing(_console, _msg)
 
     # --- Level A: grammar + mishearing (independent of each other) ---------------
     def _job_grammar():
@@ -724,7 +900,7 @@ def _analyze(
     res_a: dict = {}
     if jobs_a:
         t0 = _t.perf_counter()
-        with _analyzing(console, "Analyzing your attempts…"):
+        with _spinner(console, "Analyzing your attempts…"):
             res_a = _analysis.run_group(jobs_a, parallel_safe=parallel_safe, concurrency=concurrency)
         wall += _t.perf_counter() - t0
 
@@ -805,7 +981,7 @@ def _analyze(
             jobs_b["coaching"] = _job_coaching
         if jobs_b:
             t0 = _t.perf_counter()
-            with _analyzing(console, "Scoring coverage and writing your coaching…"):
+            with _spinner(console, "Scoring coverage and writing your coaching…"):
                 res_b = _analysis.run_group(
                     jobs_b, parallel_safe=parallel_safe, concurrency=concurrency
                 )
@@ -898,6 +1074,7 @@ def run_session(
     timings_display: bool = False,
     key_reader=None,
     ui_sleep=time.sleep,
+    pronunciation_drills: PronunciationDrills | None = None,
 ) -> SessionResult:
     """Run a full session for one Question; return the report path + Session.
 
@@ -1077,13 +1254,59 @@ def run_session(
     # yield a byte-identical report (FR-027). If the user aborted during the follow-ups,
     # skip the (minute-long) analysis and write a resumable pending report rather than
     # making them wait past their Ctrl-C (never lose the finished attempts).
+    pending_outs = _AnalysisOutputs(
+        grammar_patterns=[], phase="B", phase_c_error=None, analysis_pending=True,
+        pronunciation_flags=[], coverage_records=[], content_errors=[], key_points_set=None,
+        key_points_newly_derived=False, coverage_aggregate=None, coaching=None,
+        coach_error=None, analysis_mode="serial", analysis_wall_seconds=0.0,
+    )
+    drills_result: dict | None = None
     if abort.abort_event.is_set():
-        outs = _AnalysisOutputs(
-            grammar_patterns=[], phase="B", phase_c_error=None, analysis_pending=True,
-            pronunciation_flags=[], coverage_records=[], content_errors=[], key_points_set=None,
-            key_points_newly_derived=False, coverage_aggregate=None, coaching=None,
-            coach_error=None, analysis_mode="serial", analysis_wall_seconds=0.0,
+        outs = pending_outs
+    elif pronunciation_drills is not None:
+        # 016: run the text feedback in a BACKGROUND thread while the user does the user-paced
+        # read-aloud drill block on the main thread; the report waits for BOTH (FR-002/003/004).
+        # The backgrounded analysis is `quiet=True` and writes to a DISCARD console so two live
+        # `rich` displays never collide; any degradation is still captured in frontmatter. The
+        # drill block does not touch the store and _analyze's single store mutation stays on the
+        # main thread below, so concurrency never reorders persisted state (O6 holds).
+        holder: dict = {}
+
+        def _bg_analyze() -> None:
+            try:
+                holder["outs"] = _analyze(
+                    real_transcripts=real_transcripts, triaged=triaged, question=question,
+                    runners=runners, grammar_analyzer=grammar_analyzer, coach=coach, store=store,
+                    console=Console(file=io.StringIO(), force_terminal=False, width=200),
+                    parallel_safe=analysis_parallel_safe, concurrency=analysis_concurrency,
+                    stage_timer=stage_timer, quiet=True,
+                )
+            except Exception:  # noqa: BLE001 — degrade to a resumable pending report
+                holder["outs"] = None
+
+        feedback_thread = threading.Thread(
+            target=_bg_analyze, name="speakloop-feedback", daemon=True
         )
+        feedback_thread.start()
+        drills_result = _run_pronunciation_drills(
+            drills=pronunciation_drills,
+            record_fn=record_fn,
+            scratch_dir=scratch_dir,
+            early_exit_event=early_exit_event,
+            console=console,
+            key_reader=key_reader,
+            ui_sleep=ui_sleep,
+        )
+        # Wait for the feedback to finish — it may already be done; if not, show one live
+        # spinner now that the drills (and their live display) are finished.
+        if feedback_thread.is_alive():
+            with session_ui.working(console, SessionState.ANALYZING, "Finishing your feedback…"):
+                feedback_thread.join()
+        else:
+            feedback_thread.join()
+        outs = holder.get("outs")
+        if outs is None:
+            outs = pending_outs
     else:
         outs = _analyze(
             real_transcripts=real_transcripts,
@@ -1214,6 +1437,9 @@ def run_session(
             analysis_concurrency=analysis_concurrency,
             analysis_wall_seconds=outs.analysis_wall_seconds,
         ),
+        # 016: read-aloud pronunciation drill results (additive optional; None ⇒ omitted,
+        # byte-identical). Distinct from `pronunciation_flags` (010 ASR mishearings).
+        pronunciation_drills=drills_result,
     )
     body = report_builder.build(session)
     markdown_writer.write_atomic(report_path, body)

@@ -353,6 +353,61 @@ def _claude_code(probe: dict | None = None) -> list[CheckRow]:
     return rows
 
 
+def _pronunciation() -> list[CheckRow]:
+    """016: optional read-aloud pronunciation drills. NEVER FAILs the exit code — the model
+    is opt-in, so its absence is informational (WARN/OK), and the gate estimate is advisory.
+    Imports stay function-local so the section is light."""
+    from speakloop.config import loop_config
+    from speakloop.pronunciation import assess_safety
+
+    cfg = loop_config.load()
+    rows: list[CheckRow] = []
+
+    m = manifest.WAV2VEC2_PRONUNCIATION
+    r = validator.validate(m)
+    rows.append(
+        CheckRow(
+            section="Pronunciation drills",
+            label="model",
+            status="OK" if r.ok else "WARN",
+            detail=(
+                f"{m.name} present"
+                if r.ok
+                else f"not downloaded (opt-in, ~1.3 GB): {m.local_path}"
+            ),
+            remediation=""
+            if r.ok
+            else "downloaded automatically the first time you opt into drills.",
+        )
+    )
+    rows.append(
+        CheckRow(
+            section="Pronunciation drills",
+            label="setting",
+            status="OK",
+            detail=(
+                f"pronunciation_drills: {cfg.pronunciation_drills} "
+                f"(loop.yaml; auto/on/off; min free {cfg.pronunciation_min_free_mb} MB)"
+            ),
+        )
+    )
+    active = engine_status.active_engine()
+    decision = assess_safety(active, min_free_mb=cfg.pronunciation_min_free_mb)
+    rows.append(
+        CheckRow(
+            section="Pronunciation drills",
+            label="availability",
+            status="OK" if decision.safe else "WARN",
+            detail=(
+                ("would be offered" if decision.safe else "would be skipped")
+                + f" with the active engine ({active})"
+            ),
+            remediation="" if decision.safe else decision.reason,
+        )
+    )
+    return rows
+
+
 def _collect() -> list[CheckRow]:
     # Probe the Claude Code CLI once and share it across the sections that report it,
     # so a single `doctor` run never spawns the (credit-free) `claude` subprocess twice.
@@ -369,6 +424,7 @@ def _collect() -> list[CheckRow]:
         *_cloud(),
         *_interview_loop(),
         *_claude_code(claude_probe),
+        *_pronunciation(),
     ]
 
 

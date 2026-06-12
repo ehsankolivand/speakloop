@@ -19,7 +19,10 @@ LLM grammar analysis, cloud coaching, timing instrumentation, and atomic file wr
   (`markdown_writer.py:35-50`).
 - `report_builder.build(session) -> str` — order: header → cross-attempt comparison →
   grammar section → coaching section (009, cloud only, body-only) → interview-loop
-  sections (010) → transcripts (`report_builder.py:388-395`).
+  sections (010) → pronunciation-drills section (016) → transcripts. The 016 section
+  (`_pronunciation_drills_section`) delegates wording to `pronunciation.render_drills_section`
+  (function-local import; pure formatter, no engine package) and is None when no drills ran →
+  a no-drills report is byte-identical.
 - `grammar_analyzer.analyze(transcripts, llm, *, max_tokens, system_prompt=None) ->
   list[GrammarPattern]` — see **Owner O4** block below. Calls LLM with `temperature=0.3`.
 - `coach.coach(question_text, transcripts, patterns, llm, *, system_prompt) -> str`
@@ -87,6 +90,8 @@ Never hand-roll repair regexes. `json-repair` handles truncated/unclosed objects
 ## Invariants & traps
 
 - **`schema_version` stays 1** — additive optional keys only; pointer to root CLAUDE.md.
+  016 adds `Session.pronunciation_drills: dict | None` (the drill-block result) — DISTINCT
+  from the 010 `pronunciation_flags` (ASR mishearings). Emitted only when present.
 - **`GrammarPattern.catalog_id`** retained for legacy round-trip; new sessions → `None`.
 - **`ideal_answer` never enters analytic LLM calls** — see `.claude/rules/llm-calls.md`.
 - Generation config (sampler, rep-penalty, stop tokens) owned by `llm/qwen_engine.py`;

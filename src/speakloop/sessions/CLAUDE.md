@@ -15,6 +15,13 @@ single-key controls, background ASR worker, concurrent analysis executor, and cl
   Coach runs only after a successful grammar pass; degrades gracefully to `coach_error`.
   Follow-up generation fires BEFORE heavy analysis the instant the final transcript lands
   (`coordinator.py:1048-1069`).
+- `coordinator.PronunciationDrills` (016) — injected bundle (`scorer`, `bank`, `engine_note`),
+  built by `cli/practice.py` ONLY after the safety gate permitted + the user opted in. When
+  passed, `run_session` runs `_analyze` in a BACKGROUND daemon thread (`quiet=True`, to a
+  discard console — two live `rich` displays must never collide) while `_run_pronunciation_drills`
+  runs the user-paced read-aloud drill block on the main thread, then JOINs → one report waits
+  for both (FR-002/003/004). No-op (None) when absent → byte-identical; drill WAVs are scratch,
+  discarded after scoring. `_analyze(..., quiet=…)` swaps the spinner for a no-op context.
 - `coordinator.Runners` — dataclass of optional LLM callables injected by `cli/practice.py`
   (`coordinator.py:40-62`): `mishearing`, `followups`, `consistency`, `drill`, `keypoints`,
   `coverage`. Each is `Callable | None`; absent capability → feature skipped, session runs.
@@ -61,12 +68,18 @@ byte comparison. Concurrency is engine-declared via per-class `parallel_safe` at
 (`qwen_engine.py:47` False, `openrouter_engine.py:41` True, `claude_code_engine.py:183` True)
 — local Qwen always runs serial.
 Gate: `tests/integration/test_analysis_equivalence.py`.
+016 preserves O6: running `_analyze` in a background thread (drill-concurrent path) does not
+change its output (same name-keyed slots, same fixed-order assembly); the drill block never
+touches the store, and the single store mutation stays on the main thread after the join — so
+a no-drills report is byte-identical (gate: `test_drills_additive_byte_identical.py`).
 
 ## Dependencies
 
 - Internal: `speakloop.asr`, `speakloop.audio`, `speakloop.config`, `speakloop.content`,
   `speakloop.coverage`, `speakloop.feedback`, `speakloop.metrics`, `speakloop.srs`,
-  `speakloop.store`, `speakloop.trends`, `speakloop.triage`, `speakloop.warmup`.
+  `speakloop.store`, `speakloop.trends`, `speakloop.triage`, `speakloop.warmup`,
+  `speakloop.pronunciation` (016 — only `feedback.live_flag_summary`, function-local; the
+  scorer is injected, never imported here, so the coordinator loads no torch/transformers).
   Most are conditional/function-local in `coordinator.py`.
 - No engine packages imported here — engines arrive as injected wrappers (Principle V).
 

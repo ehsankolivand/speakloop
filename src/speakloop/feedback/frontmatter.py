@@ -142,6 +142,12 @@ class Session:
     # when present so a no-timings report is byte-identical to before. NOT rendered
     # into the human body. schema_version STAYS 1 (additive optional key).
     timings: dict | None = None
+    # --- Additive read-aloud pronunciation drills (016-pronunciation-drills) ----
+    # The drill-block result dict (engine_note + items[] + summary), rendered into a
+    # dedicated body section by report_builder. DISTINCT from `pronunciation_flags`
+    # above (010 ASR mishearings) — different concept, different key. Emitted only when
+    # present so a no-drills report is byte-identical to before; schema_version STAYS 1.
+    pronunciation_drills: dict | None = None
 
 
 class _LiteralStr(str):
@@ -263,6 +269,9 @@ def dump(session: Session) -> str:
     # 012: per-stage timings — machine-only, additive optional (schema_version stays 1).
     if session.timings:
         payload["timings"] = session.timings
+    # 016: read-aloud pronunciation drills — additive optional (schema_version stays 1).
+    if session.pronunciation_drills:
+        payload["pronunciation_drills"] = session.pronunciation_drills
     body = yaml.dump(payload, sort_keys=False, allow_unicode=True, default_flow_style=False)
     return f"---\n{body}---\n"
 
@@ -410,4 +419,9 @@ def parse(text: str) -> Session:
             data.get("pattern_trends") if isinstance(data.get("pattern_trends"), dict) else None
         ),
         timings=data.get("timings") if isinstance(data.get("timings"), dict) else None,
+        pronunciation_drills=(
+            data.get("pronunciation_drills")
+            if isinstance(data.get("pronunciation_drills"), dict)
+            else None
+        ),
     )
