@@ -197,6 +197,44 @@ uv run speakloop practice --cloud
 - **Bad/missing token?** The error tells you how to update the token or just drop `--cloud`
   to use the local model.
 
+## Pronunciation drills (optional)
+
+While your spoken-answer feedback is being generated, speakloop can fill that otherwise-idle
+wait with **read-aloud pronunciation drills**: it shows a short word, you read it aloud, and it
+scores your pronunciation **against the known target** and tells you which sounds were off, with
+a one-line articulatory tip. A **Pronunciation drills** section is added to the session report.
+The combined report appears only after **both** the drills and the feedback finish.
+
+It is **opt-in**, **offline after a one-time download**, and **gated by engine + free memory** so
+it never risks freezing your Mac:
+
+- The pronunciation model is heavy (~1.3 GB on disk, ~2–3 GB in memory). With a **cloud feedback
+  engine** (`--engine openrouter` / `--engine claude`) the large local feedback model isn't
+  resident, so there's room — drills are **offered**.
+- With the **local** feedback engine (the default), loading the pronunciation model on top of the
+  resident Qwen model would likely exhaust memory, so drills are **skipped** with a plain reason
+  (switch to a cloud engine to enable them). They're also skipped when free memory is low.
+- If drills are skipped but you insist, the tool offers an explicit override behind a clear
+  *"this may freeze your machine"* confirmation.
+
+Control it in `~/.speakloop/loop.yaml` (all keys optional, silent defaults):
+
+```yaml
+pronunciation_drills: auto      # auto (offer when safe — default) | on | off
+pronunciation_min_free_mb: 4500 # free RAM needed before drills are offered on a cloud engine
+```
+
+Per-run override: `uv run speakloop practice --drills` (offer this run) / `--no-drills` (skip
+this run) — the safety gate still applies. The first time you opt in, the model is downloaded
+through the same resilient (parallel, resumable) downloader as every other model, after
+disclosing its size; a user who never opts in never downloads it. `uv run speakloop doctor`
+shows whether the model is present, your setting, and whether drills would be offered.
+
+**Honest calibration**: detection ("a sound was off") is reliable; any specific guess
+("heard as …") is shown as a *suggestion*, not a verdict. Scoring is **read-aloud only** —
+your spontaneous answers are not scored. `speakloop resume` and `--listen-only` do not run
+drills. (Future: stress/intonation scoring; scoring your actual answers.)
+
 ## What you get: an example report
 
 Every session writes a Markdown file with a YAML frontmatter block. Here is a

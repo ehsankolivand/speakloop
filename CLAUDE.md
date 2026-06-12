@@ -58,12 +58,15 @@ From `pyproject.toml`, confirmed against imports.
   silero with `onnx=True`, and `silero-vad` ≥6 declares `onnxruntime` only under its
   onnx extras. Removing the declaration breaks the first live VAD call.
 - **`torchaudio<2.9`** (`pyproject.toml:38`) — capped; see Traps.
+- **`transformers` ≥4.34 + `torch` (≈2.8, via torchaudio) + `psutil` ≥5.9** (016): the
+  optional pronunciation scorer wraps a wav2vec2 CTC model (transformers/torch, function-local
+  in `pronunciation/wav2vec2_engine.py`, CPU) and the safety gate reads live RAM via psutil.
 
 ## Layout
 
-Nineteen single-responsibility modules under `src/speakloop/`, each with its own
+Twenty single-responsibility modules under `src/speakloop/`, each with its own
 CLAUDE.md (constitution Principle IV). Edges below are from an import scan
-(`rg -o "from speakloop\.(\w+)" src/speakloop/<mod>/`), regenerated 2026-06-11.
+(`rg -o "from speakloop\.(\w+)" src/speakloop/<mod>/`), regenerated 2026-06-12.
 
 | Module | Responsibility | Depends on (internal) |
 |--------|----------------|-----------------------|
@@ -84,8 +87,9 @@ CLAUDE.md (constitution Principle IV). Edges below are from an import scan
 | `warmup/` | Warm-up drill generation + deterministic judge | config, feedback, llm |
 | `srs/` | Grade + interval ladder + due queue (pure logic) | store |
 | `store/` | Derived JSON store, rebuildable cache | feedback |
-| `sessions/` | 4/3/2 coordinator, keyboard, session UI, analysis executor, timer, abort | asr, audio, config, content, coverage, feedback, metrics, srs, store, trends, triage, warmup |
-| `cli/` | `practice`, `setup`, `questions`, `doctor`, `trends`, `today`, `rebuild`, `resume` | all 16 others except debrief at module level (debrief imported function-local) |
+| `pronunciation/` | Read-aloud scorer (owns `torch`+`transformers`), pure-numpy CTC GOP, engine/RAM safety gate, bundled drill bank (015) | installer |
+| `sessions/` | 4/3/2 coordinator, keyboard, session UI, analysis executor, timer, abort, drill block (016) | asr, audio, config, content, coverage, feedback, metrics, pronunciation, srs, store, trends, triage, warmup |
+| `cli/` | `practice`, `setup`, `questions`, `doctor`, `trends`, `today`, `rebuild`, `resume` | all 17 others except debrief at module level (debrief + pronunciation imported function-local) |
 
 ## Commands
 
@@ -93,7 +97,7 @@ CLAUDE.md (constitution Principle IV). Edges below are from an import scan
 uv run speakloop --help     # must work with NO models downloaded
 uv run speakloop setup [--engine local|openrouter|claude] [--no-download]  # persist engine + download only what it needs (015)
 uv run speakloop doctor     # environment + model health, engine-aware (exit 0 when healthy)
-uv run speakloop practice [--listen-only] [--cloud] [--engine local|openrouter|claude] [--timings]
+uv run speakloop practice [--listen-only] [--cloud] [--engine local|openrouter|claude] [--timings] [--drills/--no-drills]  # --drills: read-aloud pronunciation drills during the feedback wait, engine/RAM-gated (016)
 uv run speakloop questions validate [PATH] | template | where  # author/validate your own Q&A (015)
 uv run speakloop today | resume | rebuild | trends
 uv run pytest               # full suite — re-measure pass count after each feature
@@ -128,9 +132,10 @@ pre-existing findings — not a passing gate.
    crashes the first live VAD call (commit `21dfb86`).
 2. **A module-level engine import breaks `--help`.**
    `tests/integration/test_help_without_models.py:27` asserts importing the CLI loads
-   none of the five engine packages (`mlx_whisper`, `silero_vad`, `parakeet_mlx`,
-   `mlx_lm`, `kokoro_mlx`); `tests/unit/asr/test_engine_import_isolation.py` pins each
-   to its single wrapper file.
+   none of the engine packages (`mlx_whisper`, `silero_vad`, `parakeet_mlx`, `mlx_lm`,
+   `kokoro_mlx`, plus `torch`/`transformers` from 016);
+   `tests/unit/asr/test_engine_import_isolation.py` pins each to its single wrapper file
+   (`torch`/`transformers` → `pronunciation/wav2vec2_engine.py`).
 3. **Serial and concurrent analysis must produce a byte-identical report** — rule
    owned by `src/speakloop/sessions/CLAUDE.md`; gate:
    `tests/integration/test_analysis_equivalence.py`.
@@ -173,7 +178,7 @@ commit (constitution v1.1.0). `tests/integration/test_context_file_budget.py` en
 - Per-module guidance: `src/speakloop/<module>/CLAUDE.md` (loads on demand).
 - Path-scoped rules: `.claude/rules/testing.md` (tests/**),
   `.claude/rules/llm-calls.md` (LLM-caller modules).
-- Specs: `specs/001`–`specs/014` (plan.md · spec.md per feature).
-- Engine research: `doc/research_{tts,asr,llm,methodology}.md`; context engineering:
-  `doc/research_context_engineering.md`.
+- Specs: `specs/001`–`specs/016` (plan.md · spec.md per feature).
+- Engine research: `doc/research_{tts,asr,llm,methodology,pronunciation}.md`; context
+  engineering: `doc/research_context_engineering.md`.
 - Governance: `.specify/memory/constitution.md` (v1.1.0) — wins on any conflict.
