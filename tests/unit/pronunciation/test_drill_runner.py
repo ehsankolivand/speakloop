@@ -12,7 +12,12 @@ import io
 import pytest
 from rich.console import Console
 
-from speakloop.pronunciation import build_block_result, run_drill_item, select_drills
+from speakloop.pronunciation import (
+    build_block_result,
+    run_drill_block,
+    run_drill_item,
+    select_drills,
+)
 from speakloop.pronunciation.drill_bank import Contrast, Drill
 from speakloop.pronunciation.drill_runner import DrillQuit
 from speakloop.pronunciation.interface import DrillResult, PhoneFlag
@@ -116,6 +121,35 @@ def test_q_during_hear_first_raises_drill_quit(tmp_path):
     scorer = _FakeScorer(flag_on=set())
     with pytest.raises(DrillQuit):
         _run(scorer, FakeKeyReader(["q"]), scratch=tmp_path)
+
+
+class _OneDrillBank:
+    def base_drills(self):
+        return [_drill()]
+
+    def contrast(self, cid):
+        return _CONTRAST
+
+    def next_drills(self, *a, **k):
+        return []
+
+
+def test_quit_during_retry_preserves_the_flagged_item(tmp_path):
+    # Regression (self-review finding 1): pressing q DURING a retry must not silently drop the
+    # already-scored, flagged first attempt — it stays in the block result + weak-sound tally.
+    scorer = _FakeScorer(flag_on={1, 2, 3})  # first attempt flags → enters retry
+    bank = _OneDrillBank()
+    # first hear-first → "space" (record); retry hear-first → "q" (quit).
+    items, quit_now = run_drill_block(
+        bank.base_drills(), bank=bank, scorer=scorer,
+        speak=lambda t: None, record=lambda w, l: None,
+        key_reader=FakeKeyReader(["space", "q"]), console=_console(),
+        scratch_dir=tmp_path, retries=1, tts_on=True, max_followons=0, ui_sleep=lambda *_: None,
+    )
+    assert quit_now is True
+    assert len(items) == 1, "the flagged first attempt must survive a mid-retry quit"
+    assert items[0]["flags"] and items[0]["contrast_id"] == "v_w"
+    assert items[0]["retry"]["attempts"] >= 1
 
 
 def test_build_block_result_summary(tmp_path):

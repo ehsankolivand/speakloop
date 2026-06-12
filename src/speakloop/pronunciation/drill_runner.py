@@ -34,7 +34,15 @@ class DrillQuit(PronunciationError):
 
     Subclasses ``PronunciationError`` so a caller that only catches the module base still
     degrades safely. The standalone command catches it to end the loop; the interview block
-    catches it to stop asking for more drills (the report is still written by run_session)."""
+    catches it to stop asking for more drills (the report is still written by run_session).
+
+    ``item`` carries the already-scored first-attempt dict when the learner quits DURING a retry
+    (so a flagged drill is not silently dropped from the block result / weak-sound tally); it is
+    None when the quit happened before any scoring (a never-scored drop, correctly discarded)."""
+
+    def __init__(self, *args, item: dict | None = None) -> None:
+        super().__init__(*args)
+        self.item = item
 
 
 def contrast_label(contrast) -> str:
@@ -222,11 +230,18 @@ def run_drill_block(
         if should_abort is not None and should_abort():
             return
         seen_ids.add(drill.id)
-        item = run_drill_item(
-            drill, contrast=bank.contrast(drill.contrast_id), scorer=scorer, speak=speak,
-            record=record, key_reader=key_reader, console=console, scratch_dir=scratch_dir,
-            retries=retries, tts_on=tts_on, is_follow_on=is_follow_on, ui_sleep=ui_sleep,
-        )
+        try:
+            item = run_drill_item(
+                drill, contrast=bank.contrast(drill.contrast_id), scorer=scorer, speak=speak,
+                record=record, key_reader=key_reader, console=console, scratch_dir=scratch_dir,
+                retries=retries, tts_on=tts_on, is_follow_on=is_follow_on, ui_sleep=ui_sleep,
+            )
+        except DrillQuit as quit_exc:
+            # The learner quit; a first attempt scored DURING a retry is preserved on the
+            # exception so it stays in the report + the weak-sound tally (not silently dropped).
+            if quit_exc.item is not None:
+                items.append(quit_exc.item)
+            raise
         items.append(item)
         if (
             not is_follow_on
@@ -299,22 +314,29 @@ def run_drill_item(
     interactive = getattr(key_reader, "raw_capable", False)
     if status == "scored" and flags and interactive and retries > 0:
         attempts, outcome, final_flags = 1, "still_off", flags
-        for _ in range(retries):
-            console.print("  [dim]Let's try that once more — listen and repeat.[/dim]")
-            _hear_first(drill, speak=speak, key_reader=key_reader, console=console, tts_on=tts_on, ui_sleep=ui_sleep)
-            r_status, r_flags = _score_once(
-                drill, contrast=contrast, scorer=scorer, record=record, scratch_dir=scratch_dir,
-                label=f"retry: {drill.prompt}",
-            )
-            attempts += 1
-            final_flags = r_flags
-            if r_status == "not_captured":
-                outcome = "not_captured"
-                break
-            if r_status == "scored" and not r_flags:
-                outcome = "improved"
-                break
-            outcome = "still_off"
+        try:
+            for _ in range(retries):
+                console.print("  [dim]Let's try that once more — listen and repeat.[/dim]")
+                _hear_first(drill, speak=speak, key_reader=key_reader, console=console, tts_on=tts_on, ui_sleep=ui_sleep)
+                r_status, r_flags = _score_once(
+                    drill, contrast=contrast, scorer=scorer, record=record, scratch_dir=scratch_dir,
+                    label=f"retry: {drill.prompt}",
+                )
+                attempts += 1
+                final_flags = r_flags
+                if r_status == "not_captured":
+                    outcome = "not_captured"
+                    break
+                if r_status == "scored" and not r_flags:
+                    outcome = "improved"
+                    break
+                outcome = "still_off"
+        except DrillQuit as quit_exc:
+            # Quit during a retry: keep the already-scored first attempt + the retry progress so
+            # far on the exception, so run_drill_block preserves this flagged drill (not dropped).
+            item["retry"] = {"attempts": attempts, "outcome": outcome, "final_flags": final_flags}
+            quit_exc.item = item
+            raise
         if outcome == "improved":
             console.print("  [green]Better — that sound is clear now ✓[/green]")
         elif outcome == "not_captured":

@@ -121,7 +121,7 @@ the tally round-trips + rebuilds from reports; a no-flags run adds nothing.
 - [x] T032 Update `doc/research_pronunciation.md` with the 017 "implementation decisions" (trainer loop, sentence canonical, standalone RAM-only gate, weak-sound store tally) — Constitution X.
 - [x] T033 Extend `tests/integration/test_drills_additive_byte_identical.py`: a session that ran no drills stays byte-identical despite the new retry/tricky-sounds code paths; assert retry/tricky data is additive-only.
 - [x] T034 Run and confirm green: `test_help_without_models`, `test_engine_import_isolation` (torch/transformers/kokoro_mlx still isolated; `pronounce` not imported at `--help`), `test_path_portability_audit`, `test_context_file_budget`, `test_analysis_equivalence`, `test_no_network_during_session`.
-- [ ] T035 Run the full `uv run pytest`; record pass count vs the pre-feature baseline. Run an adversarial self-review (subagents) over the high-risk surfaces — the hear/retry loop, the standalone gate variant, offline preservation, the byte-identical-when-absent guarantee, single-live-display safety, and the bundled-phoneme harness — and fix confirmed findings.
+- [x] T035 Run the full `uv run pytest`; record pass count vs the pre-feature baseline. Run an adversarial self-review (subagents) over the high-risk surfaces — the hear/retry loop, the standalone gate variant, offline preservation, the byte-identical-when-absent guarantee, single-live-display safety, and the bundled-phoneme harness — and fix confirmed findings.
 
 ---
 

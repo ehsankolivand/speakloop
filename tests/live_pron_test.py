@@ -41,12 +41,22 @@ def test_every_bundled_drill_scores_clean_through_its_own_tts():
     pytest.importorskip("transformers")
     pytest.importorskip("kokoro_mlx")
 
+    import json
+
     from speakloop.pronunciation import build_scorer, load_drill_bank
     from speakloop.tts.kokoro_engine import KokoroEngine
 
     bank = load_drill_bank()
     tts = KokoroEngine()
     scorer = build_scorer()
+
+    # Vocab coverage: the scorer SILENTLY DROPS any canonical symbol absent from the model
+    # vocab, which would make a wrong target phone pass unnoticed. Assert every bank symbol is
+    # in the vocab so a typo'd/out-of-vocab symbol fails the harness loudly, not silently.
+    vocab_path = manifest.WAV2VEC2_PRONUNCIATION.local_path / "vocab.json"
+    vocab = set(json.loads(vocab_path.read_text(encoding="utf-8")).keys())
+    missing = {s for s in bank.all_symbols() if s not in vocab}
+    assert not missing, f"drill-bank symbols missing from the model vocab (will be silently dropped): {missing}"
 
     failures: list[str] = []
     for d in bank.drills:
