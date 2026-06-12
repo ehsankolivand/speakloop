@@ -673,20 +673,10 @@ def _weak_contrasts_from_store(store) -> list[str]:
     """Contrast ids ordered most-weak-first from the cross-session tally (US4, FR-015/016).
 
     Returns ``[]`` when there is no history → ``select_drills`` falls back to the curated order.
-    Defensive: tolerates a store without the ``pronunciation_contrasts`` section (an old store, or
-    before the section lands), so the call site is safe at every stage."""
-    if store is None:
+    Defensive: tolerates a store without the derivation (an old store / None)."""
+    if store is None or not hasattr(store, "weak_contrasts"):
         return []
-    series = getattr(store, "pronunciation_contrasts", None) or {}
-    totals: dict[str, int] = {}
-    for cid, points in series.items():
-        try:
-            totals[cid] = sum(
-                int(p[1]) for p in points if isinstance(p, (list, tuple)) and len(p) >= 2
-            )
-        except (TypeError, ValueError):
-            continue
-    return [cid for cid in sorted(totals, key=lambda c: (-totals[c], c)) if totals.get(cid, 0) > 0]
+    return store.weak_contrasts()
 
 
 def _run_pronunciation_drills(
@@ -751,49 +741,23 @@ def _run_pronunciation_drills(
         "\n[bold]Pronunciation drills[/bold] — listen, then read each one aloud while your "
         "feedback is prepared. (Detection is reliable; any specific guess is a suggestion.)"
     )
-    items: list[dict] = []
-    seen_ids: set[str] = set()
-    state = {"followons_left": MAX_FOLLOWON_DRILLS}
-
-    def _run(drill, *, is_follow_on: bool) -> None:
-        if abort.abort_event.is_set():
-            return
-        seen_ids.add(drill.id)
-        contrast = bank.contrast(drill.contrast_id)
-        item = pronunciation.run_drill_item(
-            drill,
-            contrast=contrast,
-            scorer=scorer,
-            speak=speak,
-            record=record,
-            key_reader=key_reader,
-            console=console,
-            scratch_dir=scratch_dir,
-            retries=retries,
-            tts_on=tts_on,
-            is_follow_on=is_follow_on,
-            ui_sleep=ui_sleep,
-        )
-        items.append(item)
-        # Route a flagged base drill into bounded follow-on minimal pairs (016 routing; the
-        # decision uses the FIRST attempt's flags).
-        if not is_follow_on and item["status"] == "scored" and item.get("flags") and state["followons_left"] > 0:
-            for nxt in bank.next_drills(
-                drill.contrast_id, exclude_ids=seen_ids, max=state["followons_left"]
-            ):
-                if state["followons_left"] <= 0 or abort.abort_event.is_set():
-                    break
-                state["followons_left"] -= 1
-                _run(nxt, is_follow_on=True)
-
-    try:
-        for drill in base:
-            if abort.abort_event.is_set():
-                break
-            _run(drill, is_follow_on=False)
-    except pronunciation.DrillQuit:
-        pass  # the learner ended the drill block early — keep what we have.
-
+    # The per-drill loop + bounded follow-on routing live in the pure pronunciation module
+    # (DrillQuit + abort both stop asking for more; finished work is kept).
+    items, _quit = pronunciation.run_drill_block(
+        base,
+        bank=bank,
+        scorer=scorer,
+        speak=speak,
+        record=record,
+        key_reader=key_reader,
+        console=console,
+        scratch_dir=scratch_dir,
+        retries=retries,
+        tts_on=tts_on,
+        max_followons=MAX_FOLLOWON_DRILLS,
+        ui_sleep=ui_sleep,
+        should_abort=abort.abort_event.is_set,
+    )
     return pronunciation.build_block_result(items, bank=bank, engine_note=drills.engine_note)
 
 
@@ -1457,6 +1421,16 @@ def run_session(
             advanced = _srs_schedule.next_due(entry, answer_grade, today=started_at.date())
             store.schedule[question.id] = advanced
             next_due = advanced.next_due
+        # 017: fold this session's flagged pronunciation contrasts into the cross-session
+        # tally (main thread, after the join — like patterns; the drill block never mutates
+        # the store, so concurrency never reorders persisted state, O6). Only when drills ran.
+        if drills_result:
+            from speakloop.pronunciation import flagged_contrast_counts
+
+            store.record_contrasts(
+                flagged_contrast_counts(drills_result.get("items") or []),
+                date_iso=started_at.date().isoformat(),
+            )
         from speakloop.store import io as _store_io
 
         _store_io.save_atomic(store_path, store)

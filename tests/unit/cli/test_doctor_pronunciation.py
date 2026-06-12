@@ -17,7 +17,8 @@ def test_pronunciation_section_rows_render_and_never_fail():
     sections = {r.section for r in rows}
     assert sections == {"Pronunciation drills"}
     labels = {r.label for r in rows}
-    assert {"model", "setting", "availability"} <= labels
+    # 017: the in-session row was clarified and a RAM-only standalone row added.
+    assert {"model", "setting", "in-session availability", "standalone (`pronounce`)"} <= labels
     # opt-in feature: NONE of its rows may be FAIL (model absent ⇒ WARN, not FAIL).
     assert all(r.status != "FAIL" for r in rows)
 

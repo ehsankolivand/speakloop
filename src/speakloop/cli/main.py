@@ -128,6 +128,23 @@ def practice_cmd(
     )
 
 
+@app.command("pronounce")
+def pronounce_cmd(
+    limit: int = typer.Option(
+        None,
+        "--limit",
+        help=(
+            "Max number of base sentences per round (default 6). The standalone trainer is "
+            "user-paced — press q to stop, or answer the 'practise another round?' prompt."
+        ),
+    ),
+) -> None:
+    """Practise pronunciation standalone: hear → say → see → retry, outside an interview."""
+    from speakloop.cli import pronounce as _pronounce  # local import; engine touch is deferred.
+
+    _pronounce.run(limit=limit)
+
+
 @app.command("setup")
 def setup_cmd(
     engine: str = typer.Option(

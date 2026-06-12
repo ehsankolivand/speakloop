@@ -192,6 +192,66 @@ def _print_outcome(console, status: str, flags: list[dict]) -> None:
         console.print("  [green]clear ✓[/green]")
 
 
+def run_drill_block(
+    base,
+    *,
+    bank,
+    scorer,
+    speak: Callable[[str], None] | None,
+    record: Callable[[Path, str], None],
+    key_reader,
+    console,
+    scratch_dir: Path,
+    retries: int = 1,
+    tts_on: bool = True,
+    max_followons: int = 2,
+    ui_sleep: Callable[[float], None] = time.sleep,
+    should_abort: Callable[[], bool] | None = None,
+) -> tuple[list[dict], bool]:
+    """Run a block of base drills, routing a flagged base drill into bounded follow-on minimal
+    pairs (016 routing, FR-009/024). Shared by the interview block and the standalone command.
+
+    Returns ``(items, quit)``: ``items`` are the per-drill dicts in run order; ``quit`` is True
+    when the learner ended the block with ``q`` (``DrillQuit``). ``should_abort`` (e.g. the
+    session abort flag) stops asking for more between drills. Never raises into the caller."""
+    items: list[dict] = []
+    seen_ids: set[str] = set()
+    state = {"followons_left": max(0, max_followons)}
+
+    def _run(drill, *, is_follow_on: bool) -> None:
+        if should_abort is not None and should_abort():
+            return
+        seen_ids.add(drill.id)
+        item = run_drill_item(
+            drill, contrast=bank.contrast(drill.contrast_id), scorer=scorer, speak=speak,
+            record=record, key_reader=key_reader, console=console, scratch_dir=scratch_dir,
+            retries=retries, tts_on=tts_on, is_follow_on=is_follow_on, ui_sleep=ui_sleep,
+        )
+        items.append(item)
+        if (
+            not is_follow_on
+            and item["status"] == "scored"
+            and item.get("flags")
+            and state["followons_left"] > 0
+        ):
+            for nxt in bank.next_drills(
+                drill.contrast_id, exclude_ids=seen_ids, max=state["followons_left"]
+            ):
+                if state["followons_left"] <= 0 or (should_abort is not None and should_abort()):
+                    break
+                state["followons_left"] -= 1
+                _run(nxt, is_follow_on=True)
+
+    try:
+        for drill in base:
+            if should_abort is not None and should_abort():
+                break
+            _run(drill, is_follow_on=False)
+    except DrillQuit:
+        return items, True
+    return items, False
+
+
 def run_drill_item(
     drill,
     *,

@@ -82,12 +82,12 @@ harness validates every canonical sequence.
 `local` engine (RAM only); declining provisioning exits clean; no report is written; the store tally
 updates.
 
-- [ ] T017 [US3] Add `gate.assess_standalone_safety(*, min_free_mb, available_mb=None) -> SafetyDecision` to `src/speakloop/pronunciation/gate.py` (RAM-only, `engine="standalone"`, no engine penalty) and export it from `pronunciation/__init__.py` — per `contracts/standalone-gate.md`. Leave `assess_safety` (016) untouched.
-- [ ] T018 [P] [US3] Unit test `tests/unit/pronunciation/test_standalone_gate.py`: same low-RAM input → `assess_safety("local",…)` UNSAFE but `assess_standalone_safety(…)` follows RAM; high RAM → SAFE; psutil-absent → safe-cautious.
-- [ ] T019 [US3] Create `src/speakloop/cli/pronounce.py` with `run(...)` per `contracts/pronounce-command.md`: load config → `assess_standalone_safety` (+ freeze-warned override) → `ensure_models("A")` + `ensure_pronunciation_model` (decline → clean exit; NO ASR) → build scorer/bank/tts/play/record/key_reader → load store + derive `weak_contrasts` → user-paced loop via `select_drills` + `run_drill_item` (`q` quits) → closing summary + store `pronunciation_contrasts` update; NO markdown report. All heavy imports function-local.
-- [ ] T020 [US3] Register `@app.command("pronounce")` in `src/speakloop/cli/main.py` with a `--limit` option, delegating to `cli.pronounce.run` via a deferred (function-local) import so `--help` loads nothing.
-- [ ] T021 [P] [US3] Unit test `tests/unit/cli/test_pronounce_command.py`: standalone loop speaks before recording; RAM-only gate (a `local` `loop.yaml` does not block; low-RAM skips unless interactive override; model build never invoked when skipped); declining provisioning exits with no build; no report file is written; the store tally is updated.
-- [ ] T022 [US3] Update `src/speakloop/cli/CLAUDE.md` (the `pronounce` command + wiring) and `cli/doctor._pronunciation()` (a standalone-availability line + the new config keys) — same commit.
+- [x] T017 [US3] Add `gate.assess_standalone_safety(*, min_free_mb, available_mb=None) -> SafetyDecision` to `src/speakloop/pronunciation/gate.py` (RAM-only, `engine="standalone"`, no engine penalty) and export it from `pronunciation/__init__.py` — per `contracts/standalone-gate.md`. Leave `assess_safety` (016) untouched.
+- [x] T018 [P] [US3] Unit test `tests/unit/pronunciation/test_standalone_gate.py`: same low-RAM input → `assess_safety("local",…)` UNSAFE but `assess_standalone_safety(…)` follows RAM; high RAM → SAFE; psutil-absent → safe-cautious.
+- [x] T019 [US3] Create `src/speakloop/cli/pronounce.py` with `run(...)` per `contracts/pronounce-command.md`: load config → `assess_standalone_safety` (+ freeze-warned override) → `ensure_models("A")` + `ensure_pronunciation_model` (decline → clean exit; NO ASR) → build scorer/bank/tts/play/record/key_reader → load store + derive `weak_contrasts` → user-paced loop via `select_drills` + `run_drill_item` (`q` quits) → closing summary + store `pronunciation_contrasts` update; NO markdown report. All heavy imports function-local.
+- [x] T020 [US3] Register `@app.command("pronounce")` in `src/speakloop/cli/main.py` with a `--limit` option, delegating to `cli.pronounce.run` via a deferred (function-local) import so `--help` loads nothing.
+- [x] T021 [P] [US3] Unit test `tests/unit/cli/test_pronounce_command.py`: standalone loop speaks before recording; RAM-only gate (a `local` `loop.yaml` does not block; low-RAM skips unless interactive override; model build never invoked when skipped); declining provisioning exits with no build; no report file is written; the store tally is updated.
+- [x] T022 [US3] Update `src/speakloop/cli/CLAUDE.md` (the `pronounce` command + wiring) and `cli/doctor._pronunciation()` (a standalone-availability line + the new config keys) — same commit.
 
 ---
 
@@ -99,13 +99,13 @@ surface a "tricky sounds" summary; degrade to curated order with no history.
 **Independent test**: a recorded weak contrast orders that contrast first; no history → curated order;
 the tally round-trips + rebuilds from reports; a no-flags run adds nothing.
 
-- [ ] T023 [US4] Add an additive `pronunciation_contrasts: dict[str, list[list]]` section to `src/speakloop/store/model.py` (`Store` field + `to_dict`/`from_dict`; default `{}`); `STORE_VERSION` stays 1.
-- [ ] T024 [US4] Fold report `pronunciation_drills` → `pronunciation_contrasts` in `src/speakloop/store/rebuild.py` (append `[date, flagged_count]` per flagged contrast per session).
-- [ ] T025 [US4] Wire the tally: in `sessions/coordinator.py` write the flagged-contrast tally to the store after the analysis join (main thread, alongside the existing `patterns` write); in `cli/pronounce.py` read+write it; have both pass `weak_contrasts` (derived from the tally, most-weak first) into `select_drills`.
-- [ ] T026 [US4] Render the "tricky sounds" line: in `pronunciation/feedback.py` (additive, inside the report Pronunciation section) and in the standalone closing summary. Only when flags exist (byte-identical when absent).
-- [ ] T027 [P] [US4] Unit test `tests/unit/store/test_pronunciation_contrasts.py`: `Store` round-trips the section; `rebuild` folds it from a report fixture; an old store without the key loads to `{}`.
-- [ ] T028 [P] [US4] Unit test `tests/unit/pronunciation/test_select_drills.py`: weak contrasts ordered first (curated order within ties); empty history → curated order unchanged; `max_base` cap honoured.
-- [ ] T029 [US4] Update `src/speakloop/store/CLAUDE.md`: the new `pronunciation_contrasts` section + the rebuild caveat (standalone-only history lost on rebuild, matching the SRS `next_due` precedent) — same commit.
+- [x] T023 [US4] Add an additive `pronunciation_contrasts: dict[str, list[list]]` section to `src/speakloop/store/model.py` (`Store` field + `to_dict`/`from_dict`; default `{}`); `STORE_VERSION` stays 1.
+- [x] T024 [US4] Fold report `pronunciation_drills` → `pronunciation_contrasts` in `src/speakloop/store/rebuild.py` (append `[date, flagged_count]` per flagged contrast per session).
+- [x] T025 [US4] Wire the tally: in `sessions/coordinator.py` write the flagged-contrast tally to the store after the analysis join (main thread, alongside the existing `patterns` write); in `cli/pronounce.py` read+write it; have both pass `weak_contrasts` (derived from the tally, most-weak first) into `select_drills`.
+- [x] T026 [US4] Render the "tricky sounds" line: in `pronunciation/feedback.py` (additive, inside the report Pronunciation section) and in the standalone closing summary. Only when flags exist (byte-identical when absent).
+- [x] T027 [P] [US4] Unit test `tests/unit/store/test_pronunciation_contrasts.py`: `Store` round-trips the section; `rebuild` folds it from a report fixture; an old store without the key loads to `{}`.
+- [x] T028 [P] [US4] Unit test `tests/unit/pronunciation/test_select_drills.py`: weak contrasts ordered first (curated order within ties); empty history → curated order unchanged; `max_base` cap honoured.
+- [x] T029 [US4] Update `src/speakloop/store/CLAUDE.md`: the new `pronunciation_contrasts` section + the rebuild caveat (standalone-only history lost on rebuild, matching the SRS `next_due` precedent) — same commit.
 
 ---
 

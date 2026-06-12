@@ -52,6 +52,10 @@ class Store:
     key_points: dict[str, dict[str, dict]] = field(default_factory=dict)
     # pattern label -> chronological list of [iso_date, occurrence_count]
     patterns: dict[str, list[list]] = field(default_factory=dict)
+    # 017 (additive): pronunciation contrast id -> chronological [iso_date, flagged_count]
+    # series (mirrors `patterns`). Feeds weak-sound drill prioritisation. Rebuildable from the
+    # `pronunciation_drills` data in session reports; STORE_VERSION stays 1 (default-empty).
+    pronunciation_contrasts: dict[str, list[list]] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -60,6 +64,7 @@ class Store:
             "schedule": {qid: asdict(e) for qid, e in self.schedule.items()},
             "key_points": self.key_points,
             "patterns": self.patterns,
+            "pronunciation_contrasts": self.pronunciation_contrasts,
         }
 
     @classmethod
@@ -78,4 +83,28 @@ class Store:
             schedule=schedule,
             key_points=d.get("key_points") or {},
             patterns=d.get("patterns") or {},
+            pronunciation_contrasts=d.get("pronunciation_contrasts") or {},
         )
+
+    def weak_contrasts(self) -> list[str]:
+        """Contrast ids ordered most-weak-first from the cross-session tally (017, FR-015/016).
+
+        Empty when there is no history → drill selection falls back to the curated order. Pure
+        derivation; tolerates a malformed series entry."""
+        totals: dict[str, int] = {}
+        for cid, points in (self.pronunciation_contrasts or {}).items():
+            try:
+                totals[cid] = sum(
+                    int(p[1]) for p in points if isinstance(p, (list, tuple)) and len(p) >= 2
+                )
+            except (TypeError, ValueError):
+                continue
+        return [cid for cid in sorted(totals, key=lambda c: (-totals[c], c)) if totals.get(cid, 0) > 0]
+
+    def record_contrasts(self, counts: dict[str, int], *, date_iso: str) -> None:
+        """Append today's per-contrast flagged counts to the tally (017). No-op for empty/zero
+        counts. Called on the main thread after a drills run (interview or standalone)."""
+        for cid, n in (counts or {}).items():
+            if not cid or int(n) <= 0:
+                continue
+            self.pronunciation_contrasts.setdefault(cid, []).append([date_iso, int(n)])

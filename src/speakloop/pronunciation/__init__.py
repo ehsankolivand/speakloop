@@ -19,6 +19,7 @@ from speakloop.pronunciation.drill_runner import (
     build_block_result,
     contrast_label,
     flagged_contrast_counts,
+    run_drill_block,
     run_drill_item,
     select_drills,
 )
@@ -64,6 +65,7 @@ __all__ = [
     "live_flag_summary",
     "load_drill_bank",
     "render_drills_section",
+    "run_drill_block",
     "run_drill_item",
     "select_drills",
 ]

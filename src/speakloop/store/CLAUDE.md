@@ -11,7 +11,11 @@ no engine imports.
 ## Public interface
 
 - `model.Store`, `model.ScheduleEntry`, `model.STORE_VERSION` — pure dataclasses;
-  `Store.to_dict()` / `Store.from_dict()` round-trip the JSON.
+  `Store.to_dict()` / `Store.from_dict()` round-trip the JSON. **017**: adds the additive
+  `pronunciation_contrasts` section (`contrast_id -> [[iso_date, flagged_count]]`, mirrors
+  `patterns`) + `Store.weak_contrasts()` (most-weak-first, empty with no history → curated drill
+  order) + `Store.record_contrasts(counts, *, date_iso)` (append today's flagged counts).
+  `STORE_VERSION` stays 1 (default-empty section; old stores load it as `{}`; old code ignores it).
 - `io.load(path) -> Store` — returns empty `Store` on missing, corrupt, or
   newer-than-current `store_version` (caller rebuilds; io.py:20-33).
 - `io.save_atomic(path, store)` — `tempfile.mkstemp` + `os.fsync` + `os.replace`
@@ -21,11 +25,11 @@ no engine imports.
   `session.grammar_patterns` only — follow-up grammar patterns nested inside
   `follow_ups` entries are NOT folded, rebuild.py:52; divergence — code fix pending);
   `key_points` (latest set per question + ideal-answer hash); `schedule` (observed
-  `last_grade`/`last_practiced`/`total_reviews`). `next_due` is set to the
-  last-practiced date as a placeholder (rebuild.py:69) — `speakloop rebuild` does NOT
+  `last_grade`/`last_practiced`/`total_reviews`); **`pronunciation_contrasts`** (017 — per
+  report, the count of items whose target sound was flagged, grouped by contrast). `next_due` is
+  set to the last-practiced date as a placeholder (rebuild.py) — `speakloop rebuild` does NOT
   restore the real SRS schedule. Schedule advance (interval ladder / next_due /
-  mastery) happens at session end in `sessions/coordinator.py:1231` and
-  `cli/resume.py:183` (imports at :1227/:176), not in rebuild.
+  mastery) happens at session end in `sessions/coordinator.py` and `cli/resume.py`, not in rebuild.
 
 ## Dependencies & consumers
 
@@ -51,6 +55,10 @@ no engine imports.
 - `speakloop rebuild` sets `next_due` to `last_practiced` as a placeholder —
   **it does not restore real SRS intervals**. Users lose future scheduling fidelity
   on a rebuild; they recover it session by session as they practice.
+- **017**: the `pronunciation_contrasts` tally is rebuildable from *interview-session* reports.
+  Standalone `speakloop pronounce` runs write NO report, so their contribution is **live-only**
+  and is dropped by a manual `rebuild` (recovered as the user practises) — the same accepted
+  trade-off as the SRS `next_due` placeholder above. The store stays a recoverable cache.
 - Main-thread store-write rule: see `src/speakloop/sessions/CLAUDE.md` (owner O6).
 
 ## Common modification patterns

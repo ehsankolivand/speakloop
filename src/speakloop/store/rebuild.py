@@ -71,9 +71,24 @@ def rebuild(sessions_dir: Path, *, rebuilt_at: str | None = None) -> Store:
                 entry.last_grade = session.answer_grade
             store.schedule[qid] = entry
 
+        # --- pronunciation contrasts (017) — flagged-contrast tally, rebuildable -
+        # Per session, count items whose target sound was flagged, grouped by contrast.
+        # (Standalone `pronounce` runs write no report, so their tally is live-only and is
+        # not restored on rebuild — documented in store/CLAUDE.md, like the SRS next_due.)
+        drills = session.pronunciation_drills
+        if isinstance(drills, dict):
+            counts: dict[str, int] = {}
+            for it in drills.get("items") or []:
+                if isinstance(it, dict) and it.get("flags") and it.get("contrast_id"):
+                    cid = str(it["contrast_id"])
+                    counts[cid] = counts.get(cid, 0) + 1
+            store.record_contrasts(counts, date_iso=iso_date)
+
     # patterns are appended in chronological order already (sessions sorted), but
     # sort defensively so the series is always chronological.
     for series in store.patterns.values():
+        series.sort(key=lambda pair: pair[0])
+    for series in store.pronunciation_contrasts.values():
         series.sort(key=lambda pair: pair[0])
 
     return store

@@ -358,7 +358,7 @@ def _pronunciation() -> list[CheckRow]:
     is opt-in, so its absence is informational (WARN/OK), and the gate estimate is advisory.
     Imports stay function-local so the section is light."""
     from speakloop.config import loop_config
-    from speakloop.pronunciation import assess_safety
+    from speakloop.pronunciation import assess_safety, assess_standalone_safety
 
     cfg = loop_config.load()
     rows: list[CheckRow] = []
@@ -387,7 +387,8 @@ def _pronunciation() -> list[CheckRow]:
             status="OK",
             detail=(
                 f"pronunciation_drills: {cfg.pronunciation_drills} "
-                f"(loop.yaml; auto/on/off; min free {cfg.pronunciation_min_free_mb} MB)"
+                f"(auto/on/off; min free {cfg.pronunciation_min_free_mb} MB; "
+                f"tts_playback={cfg.pronunciation_tts_playback}; retries={cfg.pronunciation_retries})"
             ),
         )
     )
@@ -396,13 +397,26 @@ def _pronunciation() -> list[CheckRow]:
     rows.append(
         CheckRow(
             section="Pronunciation drills",
-            label="availability",
+            label="in-session availability",
             status="OK" if decision.safe else "WARN",
             detail=(
                 ("would be offered" if decision.safe else "would be skipped")
                 + f" with the active engine ({active})"
             ),
             remediation="" if decision.safe else decision.reason,
+        )
+    )
+    # 017: the standalone `speakloop pronounce` gate is RAM-only (no resident feedback engine).
+    standalone = assess_standalone_safety(min_free_mb=cfg.pronunciation_min_free_mb)
+    rows.append(
+        CheckRow(
+            section="Pronunciation drills",
+            label="standalone (`pronounce`)",
+            status="OK" if standalone.safe else "WARN",
+            detail=(
+                ("available now (RAM-only gate)" if standalone.safe else "would be skipped (low memory)")
+            ),
+            remediation="" if standalone.safe else standalone.reason,
         )
     )
     return rows
