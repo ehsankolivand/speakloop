@@ -1,15 +1,23 @@
-# Bundled read-aloud pronunciation drill bank (016). Shipped in-package; read-only at
+# Bundled read-aloud pronunciation drill bank (016 + 017). Shipped in-package; read-only at
 # runtime; NO network / g2p / NLTK is used to read it (research D2).
 #
 # `canonical` holds the model's espeak-IPA phoneme symbols (validated against the model
-# vocab.json — stress-less). The CTC blank is the model's <pad> token (id 0). Symbols were
-# hand-authored from English→espeak-IPA and should be re-validated against the model on the
-# first real run (a tiny dev script: TTS the prompt → run the model → compare greedy decode).
-# The flag decision centres on each drill's `targets` (the contrast phone), where the symbol
-# is unambiguous, so minor vowel-symbol drift elsewhere does not change the contrast check.
+# vocab.json — stress-less). The CTC blank is the model's <pad> token (id 0).
 #
-# NOTE on "wrapper/rapper": in standard English the <wr> is /ɹ/ (silent w), so those are
-# homophones — the real /w/–/r/ contrast lives in true minimal pairs (west/rest, wing/ring).
+# 017 — SENTENCE base drills:
+#   * Base drills (`is_base: true`) are natural SENTENCES; the 016 minimal-pair WORDS are kept
+#     as `is_base: false` follow-ons, routed when a contrast is flagged.
+#   * A sentence's `canonical` is the FLAT CONCATENATION of its words' phoneme sequences, with
+#     NO word-separator token — the CTC forced alignment inserts blanks between every canonical
+#     token, so word boundaries need no special symbol (research 017/D3). This avoids depending
+#     on whether the vocab contains a space token.
+#   * The target contrast is placed at an UNAMBIGUOUS, usually SENTENCE-INITIAL position so its
+#     forced alignment is anchored and robust; `targets.index` points at that phone in the flat
+#     list (and `canonical[index] == contrast.expected`, enforced by test_drill_bank.py).
+#   * AUTHORING / VALIDATION: symbols were hand-authored from English→espeak-IPA and MUST be
+#     re-validated on a real run via the live harness `uv run pytest -m live_pron` (TTS each
+#     prompt → run the scorer → assert it scores clean). A drill that flags its own clean TTS
+#     rendering has a wrong canonical and must be fixed before shipping.
 version: 1
 
 contrasts:
@@ -39,13 +47,57 @@ contrasts:
     tip: "For 'l', touch your tongue tip to the ridge just behind your top teeth."
 
 drills:
+  # === SENTENCE base drills (is_base: true) — the primary practice unit ===========
+  # --- /w/ vs /r/ : "We read the list." -----------------------------------------
+  - id: wr-sentence
+    contrast_id: w_r
+    prompt: "We read the list."
+    canonical: ["w", "iː", "ɹ", "iː", "d", "ð", "ə", "l", "ɪ", "s", "t"]
+    targets: [{index: 0, word: "we"}]
+    is_base: true
+  # --- /v/ vs /w/ : "Verify the value." -----------------------------------------
+  - id: vw-sentence
+    contrast_id: v_w
+    prompt: "Verify the value."
+    canonical: ["v", "ɛ", "ɹ", "ɪ", "f", "aɪ", "ð", "ə", "v", "æ", "l", "j", "uː"]
+    targets: [{index: 0, word: "verify"}]
+    is_base: true
+  # --- /θ/ vs /s/ : "Thick and thin." -------------------------------------------
+  - id: ths-sentence
+    contrast_id: th_s
+    prompt: "Thick and thin."
+    canonical: ["θ", "ɪ", "k", "æ", "n", "d", "θ", "ɪ", "n"]
+    targets: [{index: 0, word: "thick"}]
+    is_base: true
+  # --- /ð/ vs /d/ : "This is the thread." ---------------------------------------
+  - id: thd-sentence
+    contrast_id: th_d
+    prompt: "This is the thread."
+    canonical: ["ð", "ɪ", "s", "ɪ", "z", "ð", "ə", "θ", "ɹ", "ɛ", "d"]
+    targets: [{index: 0, word: "this"}]
+    is_base: true
+  # --- /ɪ/ vs /iː/ : "Ship the sheet." (vowel target, index 1) -------------------
+  - id: ihiy-sentence
+    contrast_id: ih_iy
+    prompt: "Ship the sheet."
+    canonical: ["ʃ", "ɪ", "p", "ð", "ə", "ʃ", "iː", "t"]
+    targets: [{index: 1, word: "ship"}]
+    is_base: true
+  # --- /l/ vs /r/ : "List the right files." -------------------------------------
+  - id: lr-sentence
+    contrast_id: l_r
+    prompt: "List the right files."
+    canonical: ["l", "ɪ", "s", "t", "ð", "ə", "ɹ", "aɪ", "t", "f", "aɪ", "l", "z"]
+    targets: [{index: 0, word: "list"}]
+    is_base: true
+
+  # === WORD follow-ons (is_base: false) — routed when a contrast is flagged =======
   # --- /w/ vs /r/ ---------------------------------------------------------------
   - id: west
     contrast_id: w_r
     prompt: "west"
     canonical: ["w", "ɛ", "s", "t"]
     targets: [{index: 0, word: "west"}]
-    is_base: true
   - id: wing
     contrast_id: w_r
     prompt: "wing"
@@ -62,7 +114,6 @@ drills:
     prompt: "vest"
     canonical: ["v", "ɛ", "s", "t"]
     targets: [{index: 0, word: "vest"}]
-    is_base: true
   - id: van
     contrast_id: v_w
     prompt: "van"
@@ -79,7 +130,6 @@ drills:
     prompt: "thin"
     canonical: ["θ", "ɪ", "n"]
     targets: [{index: 0, word: "thin"}]
-    is_base: true
   - id: think
     contrast_id: th_s
     prompt: "think"
@@ -96,7 +146,6 @@ drills:
     prompt: "this"
     canonical: ["ð", "ɪ", "s"]
     targets: [{index: 0, word: "this"}]
-    is_base: true
   - id: they
     contrast_id: th_d
     prompt: "they"
@@ -113,7 +162,6 @@ drills:
     prompt: "ship"
     canonical: ["ʃ", "ɪ", "p"]
     targets: [{index: 1, word: "ship"}]
-    is_base: true
   - id: sit
     contrast_id: ih_iy
     prompt: "sit"

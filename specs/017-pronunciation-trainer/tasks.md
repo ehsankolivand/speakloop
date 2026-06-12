@@ -67,10 +67,10 @@ harness validates every canonical sequence.
 **Independent test**: base drills are sentences (>1 word); a flag routes into word follow-ons; the
 `live_pron` harness scores every bundled drill clean on a model-equipped machine.
 
-- [ ] T013 [US2] Expand `src/speakloop/pronunciation/drill_bank.yaml`: add sentence base drills (`is_base: true`, flat per-word `canonical` in the model symbol set with no separator token, `targets` at the contrast phone) for the primary 016 contrasts (v_w, w_r, th_s, th_d, ih_iy, l_r); keep the 016 words as follow-ons (`is_base: false`); update the header comment to explain the flat-concatenation rule (research D3). Compose sentences from already-validated word sequences + simple connectives; place the contrast word-initial.
-- [ ] T014 [US2] Add `tests/live_pron_test.py` (marker `live_pron`, self-skipping via `importorskip` + model-presence check): for every drill in `load_drill_bank()`, render `drill.prompt` with the real `KokoroEngine`, score with `build_scorer()`, assert `status == "scored"` and no flag at any `targets` index. Excluded from the default suite.
-- [ ] T015 [P] [US2] Extend `tests/unit/pronunciation/test_drill_bank.py`: assert every `is_base` drill prompt has >1 word; every drill's `targets` indices are in range; each base contrast has ≥1 word follow-on.
-- [ ] T016 [US2] Update `src/speakloop/pronunciation/CLAUDE.md`: sentence-led bank, the flat-canonical rule, and the `live_pron` harness pointer — same commit.
+- [x] T013 [US2] Expand `src/speakloop/pronunciation/drill_bank.yaml`: add sentence base drills (`is_base: true`, flat per-word `canonical` in the model symbol set with no separator token, `targets` at the contrast phone) for the primary 016 contrasts (v_w, w_r, th_s, th_d, ih_iy, l_r); keep the 016 words as follow-ons (`is_base: false`); update the header comment to explain the flat-concatenation rule (research D3). Compose sentences from already-validated word sequences + simple connectives; place the contrast word-initial.
+- [x] T014 [US2] Add `tests/live_pron_test.py` (marker `live_pron`, self-skipping via `importorskip` + model-presence check): for every drill in `load_drill_bank()`, render `drill.prompt` with the real `KokoroEngine`, score with `build_scorer()`, assert `status == "scored"` and no flag at any `targets` index. Excluded from the default suite.
+- [x] T015 [P] [US2] Extend `tests/unit/pronunciation/test_drill_bank.py`: assert every `is_base` drill prompt has >1 word; every drill's `targets` indices are in range; each base contrast has ≥1 word follow-on.
+- [x] T016 [US2] Update `src/speakloop/pronunciation/CLAUDE.md`: sentence-led bank, the flat-canonical rule, and the `live_pron` harness pointer — same commit.
 
 ---
 

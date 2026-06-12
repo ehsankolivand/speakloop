@@ -43,6 +43,19 @@ def test_next_drills_is_bounded_and_excludes_seen():
         assert all(d.id not in seen for d in again)
 
 
+def test_base_drills_are_sentences_with_word_followons():
+    # 017: base drills are SENTENCES (>1 word); every base contrast has ≥1 word follow-on.
+    bank = drill_bank.load_drill_bank()
+    base = bank.base_drills()
+    assert base, "bank must have base drills"
+    for d in base:
+        assert len(d.prompt.split()) > 1, f"base drill {d.id} should be a sentence, got {d.prompt!r}"
+    for d in base:
+        follow = bank.next_drills(d.contrast_id, exclude_ids=set(), max=5)
+        word_followons = [f for f in follow if len(f.prompt.split()) == 1]
+        assert word_followons, f"contrast {d.contrast_id} has no word follow-on"
+
+
 def test_load_rejects_unknown_contrast(tmp_path):
     bad = tmp_path / "bad.yaml"
     bad.write_text(
