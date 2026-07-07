@@ -252,13 +252,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Added a `TYPE_CHECKING` block importing `Question` from `speakloop.content` and changed the annotation `speakloop.content.Question | None` → `Question | None`, dropping the `# noqa: F821` (the name `speakloop` was never bound). No runtime import added (only used in the annotation, which `from __future__ import annotations` stringizes). Verified: ruff clean (F821/F401 both satisfied), help-isolation + cli suites pass, full suite 911.
 
-- [ ] **IMP-026 — Harden `_coverage_section` against missing per-point keys**
+- [x] **IMP-026 — Harden `_coverage_section` against missing per-point keys**
   - Impact: Low
   - Area: Correctness
   - Where: `src/speakloop/feedback/report_builder.py:196-213` (`_coverage_section`)
   - What & why: `_coverage_section` subscripts parsed dicts directly (`int(pp["id"])`, `pp["state"]`) — values that come straight from `frontmatter.parse` with no inner-key validation. In `resume` the coverage runner may not overwrite `session.coverage`, so a hand-edited or truncated pending report with a per-point missing `state`/`id` reaches `build()`, which is called at `resume.py:166` **outside** the loop's `try/except` — so one malformed report raises `KeyError`/`ValueError` and aborts the whole resume pass, even though `parse()` is deliberately tolerant. The same file is already defensive at `:304` (`pp.get("state")`).
   - How to do it: Switch the direct subscripts to `.get(...)` with sane fallbacks (`pp.get("state", "missed")`, skip a per-point whose id is missing/non-int), mirroring `:304`. Add a render test feeding a coverage record with a malformed per-point.
   - Effort: Small
+  - Resolution: Added a reusable `_coerce_int(value) -> int | None` helper and routed every per-point `int(pp["id"])`/`pp["state"]` in `_coverage_section` through it (skip a per-point whose `id` is missing/non-int; `pp.get("state", "missed")`), including the key-points `point_text`/`point_ids` builds and the fallback. Valid input renders byte-identically (report-invariance + analysis-equivalence gates pass). Test: `test_coverage_section_render.py` (malformed per-points: missing state, non-int id, missing id, non-int key-point id → renders, no crash; + a no-keypoints fallback case). Verified: 8 passed, full suite 913 (+2), ruff clean.
 
 - [ ] **IMP-027 — Don't silently return zero grammar patterns when the model omits the `errors` wrapper**
   - Impact: Low
