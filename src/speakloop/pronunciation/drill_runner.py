@@ -363,6 +363,99 @@ def run_drill_block(
     return items, False
 
 
+def _attempt(
+    drill,
+    *,
+    label: str,
+    contrast,
+    scorer,
+    speak: Callable[[str], None] | None,
+    record: Callable[[Path, str], None],
+    key_reader,
+    console,
+    scratch_dir: Path,
+    tts_on: bool,
+    ui_sleep: Callable[[float], None],
+) -> tuple[str, list[dict], str]:
+    """One hear → record → score pass — the shared first-attempt/retry body. Plays the target
+    (interactive replay), records, scores; returns ``(status, flags, detail)``. ``DrillQuit``
+    (learner pressed ``q`` during hear-first) propagates to the caller."""
+    _hear_first(drill, speak=speak, key_reader=key_reader, console=console, tts_on=tts_on, ui_sleep=ui_sleep)
+    return _score_once(
+        drill, contrast=contrast, scorer=scorer, record=record, scratch_dir=scratch_dir, label=label,
+    )
+
+
+def _run_bounded_retry(
+    drill,
+    *,
+    contrast,
+    scorer,
+    speak: Callable[[str], None] | None,
+    teach_speak: Callable[[str], None] | None,
+    record: Callable[[Path, str], None],
+    key_reader,
+    console,
+    scratch_dir: Path,
+    retries: int,
+    tts_on: bool,
+    ui_sleep: Callable[[float], None],
+    flags: list[dict],
+    item: dict,
+) -> dict:
+    """The bounded per-sound retry (interactive-only, FR-003/004/025). Runs the focused teaching
+    beat, then up to ``retries`` more hear→score passes on the SAME drill, stopping early once the
+    target clears / can't be scored. Returns the additive ``retry`` sub-dict. On ``DrillQuit``
+    mid-retry, attaches the partial item to the exception (so `run_drill_block` preserves this
+    flagged drill rather than dropping it) and re-raises."""
+    # Focused per-sound teaching beat FIRST: show the respelling + model the flagged word(s) in
+    # isolation at the slower rate, then run the bounded retry (FR-006, P2).
+    _teach_sound(
+        drill, flags, speak=speak, teach_speak=teach_speak, console=console,
+        tts_on=tts_on, ui_sleep=ui_sleep,
+    )
+    attempts, outcome, final_flags = 1, "still_off", flags
+    try:
+        for _ in range(retries):
+            console.print("  [dim]Now once more — listen and repeat.[/dim]")
+            r_status, r_flags, r_detail = _attempt(
+                drill, label=f"retry: {drill.prompt}", contrast=contrast, scorer=scorer,
+                speak=speak, record=record, key_reader=key_reader, console=console,
+                scratch_dir=scratch_dir, tts_on=tts_on, ui_sleep=ui_sleep,
+            )
+            attempts += 1
+            final_flags = r_flags
+            if r_status == "not_captured":
+                outcome = "not_captured"
+                break
+            if r_status == "error":
+                # Surface the real reason instead of pretending it was "still a bit off". A
+                # scoring/mic failure is its OWN outcome — never conflate it with a scored-but-
+                # still-flagged result (would print a contradictory line + persist a false verdict).
+                _print_outcome(console, "error", [], r_detail)
+                outcome = "error"
+                break
+            if r_status == "scored" and not r_flags:
+                outcome = "improved"
+                break
+            outcome = "still_off"
+    except DrillQuit as quit_exc:
+        # Quit during a retry: keep the already-scored first attempt + retry progress so far on
+        # the exception, so run_drill_block preserves this flagged drill (not dropped).
+        item["retry"] = {"attempts": attempts, "outcome": outcome, "final_flags": final_flags}
+        quit_exc.item = item
+        raise
+    if outcome == "improved":
+        console.print("  [green]Better — that sound is clear now ✓[/green]")
+    elif outcome == "not_captured":
+        console.print("  [dim]not captured — moving on[/dim]")
+    elif outcome == "error":
+        pass  # the actionable "couldn't score" reason was already printed above (no verdict)
+    else:
+        console.print("  [dim]Still a little off — keep practising; moving on.[/dim]")
+    return {"attempts": attempts, "outcome": outcome, "final_flags": final_flags}
+
+
 def run_drill_item(
     drill,
     *,
@@ -393,10 +486,10 @@ def run_drill_item(
     if drill.say_like:
         console.print(f"  [dim]Say it like:[/dim] {drill.say_like}")
 
-    _hear_first(drill, speak=speak, key_reader=key_reader, console=console, tts_on=tts_on, ui_sleep=ui_sleep)
-    status, flags, detail = _score_once(
-        drill, contrast=contrast, scorer=scorer, record=record, scratch_dir=scratch_dir,
-        label=f"drill: {drill.prompt}",
+    status, flags, detail = _attempt(
+        drill, label=f"drill: {drill.prompt}", contrast=contrast, scorer=scorer,
+        speak=speak, record=record, key_reader=key_reader, console=console,
+        scratch_dir=scratch_dir, tts_on=tts_on, ui_sleep=ui_sleep,
     )
     _print_outcome(console, status, flags, detail)
 
@@ -414,52 +507,10 @@ def run_drill_item(
     # exactly like 016 (one attempt, no retry). FR-003/004/025.
     interactive = getattr(key_reader, "raw_capable", False)
     if status == "scored" and flags and interactive and retries > 0:
-        # Focused per-sound teaching beat FIRST: show the respelling + model the flagged
-        # word(s) in isolation at the slower rate, then run the bounded retry (FR-006, P2).
-        _teach_sound(
-            drill, flags, speak=speak, teach_speak=teach_speak, console=console,
-            tts_on=tts_on, ui_sleep=ui_sleep,
+        item["retry"] = _run_bounded_retry(
+            drill, contrast=contrast, scorer=scorer, speak=speak, teach_speak=teach_speak,
+            record=record, key_reader=key_reader, console=console, scratch_dir=scratch_dir,
+            retries=retries, tts_on=tts_on, ui_sleep=ui_sleep, flags=flags, item=item,
         )
-        attempts, outcome, final_flags = 1, "still_off", flags
-        try:
-            for _ in range(retries):
-                console.print("  [dim]Now once more — listen and repeat.[/dim]")
-                _hear_first(drill, speak=speak, key_reader=key_reader, console=console, tts_on=tts_on, ui_sleep=ui_sleep)
-                r_status, r_flags, r_detail = _score_once(
-                    drill, contrast=contrast, scorer=scorer, record=record, scratch_dir=scratch_dir,
-                    label=f"retry: {drill.prompt}",
-                )
-                attempts += 1
-                final_flags = r_flags
-                if r_status == "not_captured":
-                    outcome = "not_captured"
-                    break
-                if r_status == "error":
-                    # Surface the real reason instead of pretending it was "still a bit off".
-                    # A scoring/mic failure is its OWN outcome — never conflate it with a
-                    # scored-but-still-flagged result (would print a contradictory "still off"
-                    # line and persist a false verdict to the report).
-                    _print_outcome(console, "error", [], r_detail)
-                    outcome = "error"
-                    break
-                if r_status == "scored" and not r_flags:
-                    outcome = "improved"
-                    break
-                outcome = "still_off"
-        except DrillQuit as quit_exc:
-            # Quit during a retry: keep the already-scored first attempt + the retry progress so
-            # far on the exception, so run_drill_block preserves this flagged drill (not dropped).
-            item["retry"] = {"attempts": attempts, "outcome": outcome, "final_flags": final_flags}
-            quit_exc.item = item
-            raise
-        if outcome == "improved":
-            console.print("  [green]Better — that sound is clear now ✓[/green]")
-        elif outcome == "not_captured":
-            console.print("  [dim]not captured — moving on[/dim]")
-        elif outcome == "error":
-            pass  # the actionable "couldn't score" reason was already printed above (no verdict)
-        else:
-            console.print("  [dim]Still a little off — keep practising; moving on.[/dim]")
-        item["retry"] = {"attempts": attempts, "outcome": outcome, "final_flags": final_flags}
 
     return item

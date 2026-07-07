@@ -315,13 +315,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Deleted `_cross_attempt_paragraph`; `build()`'s narrative-less fallback now uses `narrative.build_narrative(session.attempts, session.grammar_patterns)` (imported as `_narrative` to avoid the local `narrative` var shadow; no cycle). Note: the entry's "same prose" premise was empirically WRONG — `build_narrative` gates on captured speech (words_total) and folds in patterns, so it produces DIFFERENT (and better — graceful for <3 attempts / no speech) fallback wording. Since production always persists `cross_attempt_narrative`, the fallback is test-only and reports stay byte-identical (analysis-equivalence + report-invariance pass); the full suite is green with NO test relying on the old wording. Documented in `feedback/CLAUDE.md`. Verified: full suite 918, ruff clean.
 
-- [ ] **IMP-033 — Dedupe the first-attempt and retry hear→score steps in `run_drill_item`**
+- [x] **IMP-033 — Dedupe the first-attempt and retry hear→score steps in `run_drill_item`**
   - Impact: Low
   - Area: Structure
   - Where: `src/speakloop/pronunciation/drill_runner.py:366-465` (`run_drill_item`): first attempt at `:396-401` vs retry loop body at `:425-448`
   - What & why: `run_drill_item` is a ~100-line function whose retry loop re-implements the first attempt's hear→record→score sequence (`_hear_first(...)` + `_score_once(..., label=...)` mirrored with a `retry:` label), with outcome bookkeeping interleaved with console printing across a 4-deep nested block — making the early-break outcomes and quit-during-retry item-preservation contract harder to follow than needed.
   - How to do it: Extract a small `_attempt(drill, *, label, ...) -> (status, flags, detail)` helper wrapping `_hear_first` + `_score_once`, and lift the retry loop into `_run_bounded_retry(...)` that returns the retry sub-dict and re-raises `DrillQuit` with the partial item attached. Existing `test_drill_runner*.py` tests pin the behavior, so it stays a pure readability refactor.
   - Effort: Small
+  - Resolution: Extracted `_attempt(drill, *, label, ...)` (the shared `_hear_first`+`_score_once` hear→score pass, used by both the first attempt and each retry) and `_run_bounded_retry(...)` (teaching beat + bounded loop + early-break outcomes + `DrillQuit` partial-item preservation → returns the `retry` sub-dict). `run_drill_item` shrank to first-attempt + optional retry-delegation. Behaviour-preserving. Documented in `pronunciation/CLAUDE.md`. Verified: pronunciation suite 63 + drill integration (hear-first/retry, concurrent) pass, mypy green (drill_runner is in scope), full suite 918, ruff clean.
 
 - [ ] **IMP-034 — Promote the shared `_extract_json` to public API**
   - Impact: Low

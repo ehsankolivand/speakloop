@@ -135,6 +135,8 @@ accented-but-acceptable sound is NOT over-flagged (0.5 over-flagged /w/ — the 
 - `drill_runner.py` (017) — pure hear→say→see→retry loop + `_teach_sound` (P2 teaching beat) +
   failure-detail surfacing (`_score_once`→`(status,flags,detail)`, `SPEAKLOOP_DEBUG`) + `select_drills`
   + `build_block_result` + `DrillQuit`; injects speak/record/scorer/`teach_speak` (no engine/sessions/tts/audio).
+  `run_drill_item` delegates the shared hear→score pass to `_attempt` and the retry loop (teaching beat
+  + bounded passes + quit-preservation contract) to `_run_bounded_retry` (IMP-033; behaviour-preserving).
 - `drill_bank.py` + `drill_bank.yaml` — bundled sentence base drills + word follow-ons + routing +
   curated `Drill.say_like` English respellings (P2).
 - `feedback.py` — calibrated Markdown/terminal wording (+ 017 retry/tricky-sounds lines).
