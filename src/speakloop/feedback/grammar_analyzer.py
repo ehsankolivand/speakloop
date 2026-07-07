@@ -140,6 +140,40 @@ def _extract_json(raw: str) -> dict:
     raise ValueError(f"Could not extract JSON from LLM response: {raw[:200]}")
 
 
+def generate_json(
+    llm: LLMEngine,
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    max_tokens: int,
+    temperature: float,
+    empty_message: str,
+) -> dict:
+    """Generate + JSON-recover a structured-output call with ONE bounded regenerate.
+
+    The shared recovery path for the non-grammar structured callers (coverage scoring,
+    key-point derivation, follow-up generation): a single transient empty/JSON hiccup
+    should not discard the whole result (IMP-011). Runs one ``generate`` + ``_extract_json``;
+    on an empty response OR a parse failure it does exactly one ``retry=True`` regenerate,
+    mirroring ``analyze``'s bounded retry. Terminal failure keeps each caller's existing
+    contract: a still-empty response raises ``LLMEngineError(empty_message)``; a still-
+    unparseable response lets ``_extract_json``'s ``ValueError`` propagate — so the
+    coordinator degrades that ONE call gracefully rather than crashing the session.
+    """
+    raw = llm.generate(system_prompt, user_prompt, max_tokens=max_tokens, temperature=temperature)
+    if raw and raw.strip():
+        try:
+            return _extract_json(raw)
+        except (ValueError, json.JSONDecodeError):
+            pass  # transient parse hiccup → one bounded regenerate below
+    raw = llm.generate(
+        system_prompt, user_prompt, max_tokens=max_tokens, temperature=temperature, retry=True
+    )
+    if not raw or not raw.strip():
+        raise LLMEngineError(empty_message)
+    return _extract_json(raw)  # ValueError propagates on terminal parse failure
+
+
 def _looks_like_repetition_loop(text: str) -> bool:
     """Detect degenerate repetition (the 4-bit loop / truncation signature) so
     the analyzer can trigger ONE bounded regenerate. Deliberately conservative

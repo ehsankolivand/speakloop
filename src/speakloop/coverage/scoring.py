@@ -12,8 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from speakloop.asr import Transcript
-from speakloop.feedback.grammar_analyzer import _extract_json
-from speakloop.llm import LLMEngine, LLMEngineError
+from speakloop.feedback.grammar_analyzer import generate_json
+from speakloop.llm import LLMEngine
 
 _COVERAGE_MAX_TOKENS = 1024
 _COVERAGE_TEMPERATURE = 0.2
@@ -97,12 +97,14 @@ def score_coverage(
         f"Reference answer:\n{ideal_answer.strip()}\n\n"
         f"Candidate attempts:\n{attempts_block}"
     )
-    out = llm.generate(
-        system_prompt, user_prompt, max_tokens=_COVERAGE_MAX_TOKENS, temperature=_COVERAGE_TEMPERATURE
+    raw = generate_json(
+        llm,
+        system_prompt,
+        user_prompt,
+        max_tokens=_COVERAGE_MAX_TOKENS,
+        temperature=_COVERAGE_TEMPERATURE,
+        empty_message="Coverage scoring returned an empty response.",
     )
-    if not out or not out.strip():
-        raise LLMEngineError("Coverage scoring returned an empty response.")
-    raw = _extract_json(out)
 
     records = _coverage_records(raw, key_points, version=version)
     content_errors = validate_content_errors(raw.get("content_errors"))

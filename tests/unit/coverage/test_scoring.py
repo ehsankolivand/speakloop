@@ -89,6 +89,27 @@ def test_capitalized_states_are_normalized_not_downgraded():
     assert result.attempt_records[0]["aggregate"] == 0.75  # (1 + 0.5) / 2, not 0.0
 
 
+def test_coverage_recovers_after_one_bounded_retry():
+    """IMP-011: a transient unparseable first response is recovered by one bounded
+    regenerate instead of discarding the whole (expensive) coverage result."""
+    good = '{"attempts": [{"ordinal": 1, "coverage": [{"id": 1, "state": "covered"}]}], "content_errors": []}'
+
+    class _FlakyLLM:
+        def __init__(self):
+            self.calls = 0
+
+        def generate(self, system_prompt, user_prompt, max_tokens=2048, temperature=0.7, retry=False):
+            self.calls += 1
+            return "garbage no json" if self.calls == 1 else good
+
+    llm = _FlakyLLM()
+    result = scoring.score_coverage(
+        [{"id": 1, "text": "a"}], [Transcript(text="t")], "ideal", llm, system_prompt="sp", version=1,
+    )
+    assert llm.calls == 2  # first pass failed to parse, the bounded retry recovered it
+    assert result.attempt_records[0]["per_point"][0]["state"] == "covered"
+
+
 def test_non_numeric_ordinal_or_id_skipped_not_crashing():
     """IMP-005: a non-numeric attempt ordinal / coverage id from the model must not crash
     the whole coverage pass — skip just the malformed attempt / coverage entry."""

@@ -14,17 +14,18 @@ transcripts — never from the question bank (FR-001).
   Each kept follow-up passes `_is_grounded`: passes if any `>=4`-letter content word from the
   generated question appears in the learner transcript, OR `probe_ref` is non-empty
   (`followups.py:39-44`). Constants: `_FOLLOWUPS_TEMPERATURE=0.4`, `_FOLLOWUPS_MAX_TOKENS=256`.
-  Raises `LLMEngineError` on empty response (`followups.py:76`); `ValueError` can propagate
-  from `_extract_json` on terminal parse failure (`followups.py:77`). The coordinator catches
-  both with a broad `except Exception` (`coordinator.py:448`) — session never crashes.
+  Routes JSON recovery through the shared `grammar_analyzer.generate_json` (one bounded
+  regenerate on empty/parse-fail, IMP-011). Terminal failure still raises `LLMEngineError` on a
+  still-empty response OR propagates `ValueError` on a still-unparseable one. The coordinator
+  catches both with a broad `except Exception` — session never crashes.
 - `prompts.load_followups_prompt() -> (text, path)` — seeds and reads
   `~/.speakloop/openrouter_followups_prompt.txt` (used in local AND cloud modes).
 
 ## Dependencies & consumers
 
 - Internal: `speakloop.asr` (`Transcript`), `speakloop.config` (paths via `prompts.py`),
-  `speakloop.llm` (`LLMEngine`/`LLMEngineError`). JSON recovery: shared `_extract_json` ladder
-  from `feedback.grammar_analyzer` (see `src/speakloop/feedback/CLAUDE.md`).
+  `speakloop.llm` (`LLMEngine`). JSON recovery: shared `grammar_analyzer.generate_json` wrapper
+  over the `_extract_json` ladder (see `src/speakloop/feedback/CLAUDE.md`).
 - `ideal_answer` is EXCLUDED from `generate_followups` (followups.py:47-53); see
   `.claude/rules/llm-calls.md` O7.
 - Consumers: `cli` (builds the follow-up runner over the shared engine),

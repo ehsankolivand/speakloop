@@ -13,8 +13,8 @@ from __future__ import annotations
 import hashlib
 import re
 
-from speakloop.feedback.grammar_analyzer import _extract_json
-from speakloop.llm import LLMEngine, LLMEngineError
+from speakloop.feedback.grammar_analyzer import generate_json
+from speakloop.llm import LLMEngine
 
 _KEYPOINTS_MAX_TOKENS = 512
 _KEYPOINTS_TEMPERATURE = 0.2
@@ -55,15 +55,14 @@ def derive_key_points(
     if question_type == "behavioral":
         return star_key_points()
 
-    raw = llm.generate(
+    data = generate_json(
+        llm,
         system_prompt,
         f"Interview question:\n{question_text.strip()}\n\nIdeal answer:\n{ideal_answer.strip()}",
         max_tokens=_KEYPOINTS_MAX_TOKENS,
         temperature=_KEYPOINTS_TEMPERATURE,
+        empty_message="Key-point derivation returned an empty response.",
     )
-    if not raw or not raw.strip():
-        raise LLMEngineError("Key-point derivation returned an empty response.")
-    data = _extract_json(raw)
     points: list[dict] = []
     for i, text in enumerate(data.get("key_points") or [], start=1):
         t = str(text).strip()

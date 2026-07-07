@@ -25,8 +25,9 @@ Coverage aggregate drives the answer-quality grade.
 ## Dependencies & consumers
 
 - Internal: `speakloop.asr` (`Transcript`), `speakloop.config` (paths via `prompts.py`),
-  `speakloop.llm` (`LLMEngine`/`LLMEngineError`). JSON recovery: shared `_extract_json` ladder
-  from `feedback.grammar_analyzer` (see `src/speakloop/feedback/CLAUDE.md`).
+  `speakloop.llm` (`LLMEngine`). JSON recovery: `score_coverage`/`derive_key_points` route through
+  the shared `feedback.grammar_analyzer.generate_json` (generate + `_extract_json` + one bounded
+  regenerate on empty/parse-fail, IMP-011; see `src/speakloop/feedback/CLAUDE.md`).
 - `ideal_answer` is legitimately passed here (it is the reference); see `.claude/rules/llm-calls.md` O7.
 - Consumers: `sessions` (coordinator derives/caches key points + scores coverage),
   `cli/resume.py:133-143` (re-scores coverage on pending-report retry).

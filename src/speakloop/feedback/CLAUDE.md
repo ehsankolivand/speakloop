@@ -57,6 +57,13 @@ separate. On terminal failure → raises `LLMEngineError` → coordinator record
 
 Never hand-roll repair regexes. `json-repair` handles truncated/unclosed objects.
 
+`grammar_analyzer.generate_json(llm, system, user, *, max_tokens, temperature, empty_message)`
+is the SHARED bounded-retry wrapper (IMP-011): one `generate` + `_extract_json`, then exactly one
+`retry=True` regenerate on an empty OR unparseable first response (mirrors `analyze`'s retry).
+Terminal failure keeps each caller's contract — still-empty → `LLMEngineError(empty_message)`,
+still-unparseable → `_extract_json`'s `ValueError`. `coverage.score_coverage`,
+`coverage.derive_key_points`, and `interviewer.generate_followups` route through it.
+
 `SPEAKLOOP_DEBUG_LLM=1` dumps raw LLM output (first 8000 chars) to
 `data/sessions/.debug-llm-raw/` (`grammar_analyzer.py:162-180`).
 
