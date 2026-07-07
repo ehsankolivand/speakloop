@@ -6,6 +6,7 @@ budget elapses (FR-007).
 
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 import time
@@ -16,6 +17,8 @@ import sounddevice as sd
 import soundfile as sf
 
 DEFAULT_SAMPLE_RATE = 16000
+
+_LOG = logging.getLogger(__name__)
 
 
 class RecorderError(RuntimeError):
@@ -44,11 +47,16 @@ def record(
     from speakloop.sessions import abort
 
     chunks: queue.Queue[np.ndarray] = queue.Queue()
+    overflow_count = 0
 
     def _callback(indata, frames, time_info, status):
-        if status:
-            # don't raise inside the audio thread — surface later if needed
-            pass
+        nonlocal overflow_count
+        # Input overflow = the mic delivered samples faster than we drained them, so some were
+        # DROPPED — exactly the condition that degrades the ASR this app relies on. Don't raise
+        # inside the audio thread; count it (a single serialized callback thread) and surface
+        # ONE warning after the stream closes instead of silently dropping it (IMP-029).
+        if status and status.input_overflow:
+            overflow_count += 1
         chunks.put(indata.copy())
 
     start = time.monotonic()
@@ -75,6 +83,13 @@ def record(
         raise RecorderError(f"Recording failed: {e}. Run `speakloop doctor` to diagnose.") from e
 
     duration = time.monotonic() - start
+
+    if overflow_count:
+        _LOG.warning(
+            "Audio input overflowed %d time(s) while recording — some microphone samples were "
+            "dropped, which can degrade transcription. Close other audio apps or reduce load.",
+            overflow_count,
+        )
 
     # Drain queue into an array.
     pieces = []

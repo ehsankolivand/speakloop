@@ -279,13 +279,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: `_fetch_metadata` now inspects `proc.returncode`: 0 → ok; `_CURL_NETWORK_EXITS` (6/7/28/35/56 — DNS/connect/timeout/TLS/recv, after curl's own `--retry`) → a DISTINCT yellow "network error (curl exit N); the shard plan may be incomplete — check your connection" warning; everything else incl. 22 → the quiet "not in repo, skipping" absence message. Chose the distinct-warning branch of the entry's "either/or" (over raising) to avoid changing the download flow/error contract on a path that can't be network-verified locally; the warning still corrects the misdiagnosis (a swallowed index blip no longer reads as absence). Documented in `installer/CLAUDE.md`. Tests: exit 6 → "network error" (not "skipping"); exit 22 → "skipping" (not "network error"). Verified: 6 passed, full suite 918 (+2), ruff clean.
 
-- [ ] **IMP-029 — Surface input-stream overflow instead of silently dropping it**
+- [x] **IMP-029 — Surface input-stream overflow instead of silently dropping it**
   - Impact: Low
   - Area: Correctness
   - Where: `src/speakloop/audio/recorder.py:48` (`_callback`)
   - What & why: The `InputStream` callback receives a `status` flag signalling input overflow (dropped mic samples) — the exact condition that degrades the ASR this app depends on — but discards it with a bare `pass` and a comment "surface later if needed", and nothing ever surfaces it. A glitchy capture yields a worse transcript with zero diagnostic trail.
   - How to do it: Thread-safely record overflow occurrences from the callback (set a `threading.Event` or increment a counter when `status` is truthy / has `input_overflow`), and after the stream closes log one English warning (optionally note it in ASR provenance) if any overflow was seen. Observability only — no change to recording behavior.
   - Effort: Small
+  - Resolution: `record`'s `_callback` now increments a `nonlocal overflow_count` when `status.input_overflow` (single serialized audio-thread callback → no race), and after the stream closes `record` logs ONE `WARNING` via `logging.getLogger("speakloop.audio.recorder")` naming the dropped-samples/ASR-degradation cause. Observability only — recording behavior unchanged (chose logging over threading it into ASR provenance, per the "optionally"). Documented in `audio/CLAUDE.md`. Tests: an overflow-status fake stream → warning logged (via `caplog`) + WAV still written; a clean (status=None) capture → no warning. Verified: 4 passed, full suite 920 (+2), ruff clean.
 
 - [ ] **IMP-030 — Remove or re-home the unused `timer.run` countdown**
   - Impact: Low

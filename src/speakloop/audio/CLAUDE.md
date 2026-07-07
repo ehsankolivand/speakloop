@@ -40,7 +40,9 @@ via `sounddevice` + `soundfile`. No model packages here.
   blocking)` (IMP-018): `play` calls it `blocking=True`, `_start_nonblocking` `blocking=False`.
   `_OPEN_RETRIES = 3`, backoff `0.25 s`. Resample fallback imports `scipy.signal.resample_poly`
   — see Traps.
-- `recorder.py` — `record()` via `sd.InputStream`; lazy `abort` import at `:44`.
+- `recorder.py` — `record()` via `sd.InputStream`; lazy `abort` import. Counts input-overflow
+  callbacks (dropped mic samples) and logs ONE `WARNING` (`speakloop.audio.recorder`) after the
+  stream closes rather than silently dropping the `status` flag (IMP-029; observability only).
 - `devices.py` — device enumeration.
 
 ## Invariants & traps
