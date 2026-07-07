@@ -13,6 +13,8 @@ from rich.console import Console
 
 from speakloop import installer
 from speakloop.audio import devices, playback
+from speakloop.cli.gate_prompt import confirm_freeze_override
+from speakloop.cli.gate_prompt import is_interactive as _is_interactive
 from speakloop.config import paths
 from speakloop.content import QALoadError, load
 from speakloop.sessions import keyboard as _keyboard
@@ -253,12 +255,6 @@ def resolve_engine_choice(engine: str | None, cloud: bool) -> str:
 # --- Pronunciation drills (016) --------------------------------------------
 
 
-def _is_interactive() -> bool:
-    """Whether we can prompt the user (a real terminal on stdin). Module-level so tests
-    can override it without touching the process's real stdin."""
-    return sys.stdin.isatty()
-
-
 def _resolve_pronunciation_drills(engine_choice: str, console: Console, *, drills_flag, input_fn=input):
     """Resolve whether to offer read-aloud pronunciation drills and, if so, build the bundle.
 
@@ -304,19 +300,10 @@ def _resolve_pronunciation_drills(engine_choice: str, console: Console, *, drill
 
     # Unsafe: warn + skip by default; offer the explicit freeze-warned override interactively.
     console.print(f"[yellow]Pronunciation drills skipped:[/yellow] {decision.reason}")
-    if interactive and setting in ("auto", "on"):
-        try:
-            ans = input_fn(
-                "Load the pronunciation model anyway? This may freeze your machine. [y/N]: "
-            ).strip().lower()
-        except EOFError:
-            return None
-        if ans in {"y", "yes"}:
-            console.print(
-                "[red]Override accepted — loading the pronunciation model despite the memory "
-                "risk.[/red]"
-            )
-            return _provision_and_build_drills(console, decision, cfg, input_fn=input_fn)
+    if setting in ("auto", "on") and confirm_freeze_override(
+        console, input_fn=input_fn, interactive=interactive
+    ):
+        return _provision_and_build_drills(console, decision, cfg, input_fn=input_fn)
     return None
 
 

@@ -15,12 +15,14 @@ See ``specs/017-pronunciation-trainer/contracts/pronounce-command.md``.
 from __future__ import annotations
 
 import os
-import sys
 import threading
 import time
 from pathlib import Path
 
 from rich.console import Console
+
+from speakloop.cli.gate_prompt import confirm_freeze_override
+from speakloop.cli.gate_prompt import is_interactive as _is_interactive
 
 # A small bounded default round size when the learner doesn't pass --limit.
 DEFAULT_STANDALONE_DRILLS = 6
@@ -60,11 +62,6 @@ def _configure_debug_logging(console: Console) -> None:
         console.print("[dim]Debug logging on (console only).[/dim]")
 
 
-def _is_interactive() -> bool:
-    """Whether we can prompt the learner (a real terminal). Module-level so tests override it."""
-    return sys.stdin.isatty()
-
-
 def _gate_ok(console: Console, cfg, *, input_fn) -> bool:
     """RAM-only standalone gate (FR-011/012). Returns True to proceed (safe or freeze-warned
     override), False to skip. Never loads the model — it only decides."""
@@ -75,16 +72,7 @@ def _gate_ok(console: Console, cfg, *, input_fn) -> bool:
         console.print(f"[cyan]Pronunciation practice[/cyan]: {decision.reason}")
         return True
     console.print(f"[yellow]Pronunciation practice skipped:[/yellow] {decision.reason}")
-    if not _is_interactive():
-        return False
-    try:
-        ans = input_fn("Load the pronunciation model anyway? This may freeze your machine. [y/N]: ").strip().lower()
-    except EOFError:
-        return False
-    if ans in {"y", "yes"}:
-        console.print("[red]Override accepted — loading the model despite the memory risk.[/red]")
-        return True
-    return False
+    return confirm_freeze_override(console, input_fn=input_fn, interactive=_is_interactive())
 
 
 def _provision(console: Console, *, input_fn) -> bool:

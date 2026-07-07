@@ -297,13 +297,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Chose deletion (re-homing would change the live recording UX — higher risk). Removed `timer.run` (and its now-unused `threading`/`time`/`Callable`/`Console`/rich.progress imports), leaving `time_budget_for` + `BUDGETS` (the live production API). Deleted its two tests (`test_early_exit_interrupts`, `test_budget_elapsed_is_returned`) and their unused imports. Updated `sessions/CLAUDE.md` (both the interface and file-map bullets) to point at `session_ui.make_recording_progress` + `_record_stage._ticker` as the live countdown path. Verified: timer tests 3 passed, ruff clean, full suite 918 (−2 deleted tests).
 
-- [ ] **IMP-031 — Deduplicate the pronunciation RAM-gate interactive-override UX**
+- [x] **IMP-031 — Deduplicate the pronunciation RAM-gate interactive-override UX**
   - Impact: Low
   - Area: Structure
   - Where: `src/speakloop/cli/practice.py:305 & :354-369` vs `cli/pronounce.py:63 & :77-87`
   - What & why: `practice.py` and `pronounce.py` each define an identical `_is_interactive()` and each implement the same "unsafe → offer the freeze-warned override" flow with a byte-identical prompt string — and the accept message has **already** drifted (`practice.py:365` "loading the pronunciation model…" vs `pronounce.py:85` "loading the model…"). Two copies of a machine-freeze consent prompt is exactly where inconsistency creeps in, and the drift proves it. Both live in the same `cli/` package.
   - How to do it: Extract one cli-level helper (e.g. `_confirm_freeze_override(console, decision, *, input_fn, interactive) -> bool`) plus a single shared `_is_interactive()`, and call it from both `_resolve_pronunciation_drills` and `_gate_ok`. The two gates still differ only in which `assess_*` produced `decision`.
   - Effort: Small
+  - Resolution: Created `cli/gate_prompt.py` with `is_interactive()` and `confirm_freeze_override(console, *, input_fn, interactive) -> bool` (one copy of the freeze-warned prompt + accept message — the drift ["loading the pronunciation model" vs "loading the model"] is gone). Both `practice` and `pronounce` now `from cli.gate_prompt import confirm_freeze_override, is_interactive as _is_interactive` — the re-export preserves each module's `_is_interactive` test seam, and `interactive` is passed as a param so the per-module patch still drives it. Dropped the now-unused `import sys` from pronounce.py. Documented in `cli/CLAUDE.md` (+ file-map entry). Verified: gate-wiring + pronounce-command + help-isolation (21) pass, full suite 918, ruff clean.
 
 - [ ] **IMP-032 — Deduplicate the two cross-attempt narrative generators**
   - Impact: Low
