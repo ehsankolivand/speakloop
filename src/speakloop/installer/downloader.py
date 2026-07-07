@@ -33,7 +33,7 @@ from rich.progress import (
     TransferSpeedColumn,
 )
 
-from speakloop.installer import aria
+from speakloop.installer import aria, validator
 from speakloop.installer.aria import Aria2Outcome, Aria2Progress
 from speakloop.installer.manifest import Model
 from speakloop.installer.shards import discover_shards
@@ -102,8 +102,14 @@ def download_model(model: Model, *, console: Console | None = None) -> None:
     aria_bin = shutil.which("aria2c")
     if aria_bin is None:
         _fallback_snapshot_download(model, token=token, console=console)
-        return
-    _download_via_aria(model, aria_bin=aria_bin, token=token, console=console)
+    else:
+        _download_via_aria(model, aria_bin=aria_bin, token=token, console=console)
+    # Both backends raise on failure, so reaching here means the download COMPLETED.
+    # Clear any leftover control markers — in particular a CROSS-BACKEND leftover
+    # (aria2's `<shard>.aria2` finished by the snapshot fallback, or a snapshot
+    # `.incomplete` finished by aria2) that the completing backend does not know to
+    # remove — so `validate` doesn't report `incomplete` forever (BUG-001 / IMP-002 gap).
+    validator.clear_incomplete_markers(model.local_path)
 
 
 # --------------------------------------------------------------------------- #

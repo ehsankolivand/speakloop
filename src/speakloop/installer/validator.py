@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from typing import Literal
 
@@ -42,6 +43,23 @@ def _directory_size(path) -> int:
 def _has_incomplete_download(path) -> bool:
     """True if any interrupted-download control/marker file remains under `path`."""
     return any(next(path.rglob(glob), None) is not None for glob in _INCOMPLETE_GLOBS)
+
+
+def clear_incomplete_markers(path) -> None:
+    """Remove any leftover aria2/snapshot control markers under `path`.
+
+    Called by the downloader once a backend reports the download COMPLETE — its
+    success return is the authoritative completion signal (a genuinely interrupted
+    download raises instead, so its marker is never cleared here). This closes a gap
+    IMP-002 left: a CROSS-BACKEND leftover — aria2's ``<shard>.aria2`` finished by the
+    snapshot fallback, or a snapshot ``*.incomplete`` finished by aria2 — is never
+    removed by the OTHER backend, so it would otherwise make `validate` report
+    ``incomplete`` on every run and re-download forever. A same-backend resume already
+    clears its own marker on completion, so this is a no-op there."""
+    for glob in _INCOMPLETE_GLOBS:
+        for marker in path.rglob(glob):
+            with contextlib.suppress(OSError):
+                marker.unlink()
 
 
 def validate(model: Model) -> ValidationResult:

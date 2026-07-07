@@ -29,8 +29,10 @@ and download orchestration. Keeps the Mac awake via `caffeinate`. No engine pack
 - `consent.prompt_for_consent(models) -> bool` — decline-by-default, size disclosure.
 - `downloader.download_model(model)` — curl metadata → shard discovery → aria2c shards
   → outer retry; fallback to `huggingface_hub.snapshot_download(resume_download=True)`
-  when aria2c absent. `spawn_caffeinate(console)` / `terminate_caffeinate(proc)` called
-  once per install by `ensure_models`.
+  when aria2c absent. On success (both backends raise on failure) it calls
+  `validator.clear_incomplete_markers(local_path)` so a CROSS-BACKEND leftover doesn't pin the
+  model as `incomplete` forever (BUG-001; see below). `spawn_caffeinate(console)` /
+  `terminate_caffeinate(proc)` called once per install by `ensure_models`.
 - `validator.validate(model) -> ValidationResult`.
   `ValidationResult` fields: `ok: bool`, `reason: Reason`, `measured_bytes: int`,
   `expected_bytes: int` (validator.py:14-18). `SIZE_TOLERANCE = 0.25` (±25%; validator.py:22).
@@ -38,6 +40,11 @@ and download orchestration. Keeps the Mac awake via `caffeinate`. No engine pack
   the size test) fires when a `*.aria2` control file or a `*.incomplete` marker remains under
   `local_path` — a download killed past the tolerance would otherwise validate as complete and
   never resume; not-ok re-queues it so aria2 `--continue`/snapshot `resume_download` finish it (IMP-002).
+- `validator.clear_incomplete_markers(local_path)` — removes those `*.aria2`/`*.incomplete`
+  markers; called by `download_model` after a backend reports the download COMPLETE (its success
+  return is authoritative). Fixes BUG-001: neither backend removes the OTHER's marker, so a
+  cross-backend leftover (aria2 killed, snapshot finishes it, or vice-versa) made `validate`
+  report `incomplete` on every run and re-download forever. A same-backend resume is a no-op.
 
 ## Dependencies & consumers
 
