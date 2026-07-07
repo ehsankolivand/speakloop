@@ -1147,8 +1147,9 @@ def _run_analysis_phase(
                     parallel_safe=parallel_safe, concurrency=concurrency,
                     stage_timer=stage_timer, quiet=True,
                 )
-            except Exception:  # noqa: BLE001 — degrade to a resumable pending report
+            except Exception as e:  # noqa: BLE001 — degrade to a resumable pending report
                 holder["outs"] = None
+                holder["error"] = repr(e)  # keep the reason (IMP-010) — never drop the diagnostic
 
         feedback_thread = threading.Thread(
             target=_bg_analyze, name="speakloop-feedback", daemon=True
@@ -1178,7 +1179,20 @@ def _run_analysis_phase(
             feedback_thread.join()
         outs = holder.get("outs")
         if outs is None:
-            outs = pending_outs
+            # The background analysis crashed UNEXPECTEDLY (per-call LLM failures are already
+            # handled inside _analyze). Keep the degrade-to-resumable-pending behavior, but stop
+            # dropping the reason: print one yellow line now AND thread it into phase_c_error so
+            # the report + `resume` explain why (IMP-010). Only this crash path changes → a
+            # normal drills run leaves `holder["error"]` unset and stays byte-identical.
+            reason = holder.get("error")
+            if reason:
+                console.print(
+                    "[yellow]Feedback analysis failed unexpectedly — your session was saved and "
+                    f"can be finished with [bold]speakloop resume[/bold]. Reason: {reason}[/yellow]"
+                )
+                outs = pending_outs._replace(phase_c_error=reason)
+            else:
+                outs = pending_outs
         return outs, drills_result
     outs = _analyze(
         real_transcripts=real_transcripts,

@@ -108,7 +108,9 @@ a no-drills report is byte-identical (gate: `test_drills_additive_byte_identical
   crash cannot hang exit. `Runners` + `SessionResult` near the top. `run_session` orchestrates
   named phase helpers (IMP-003): `_record_and_transcribe` (attempt loop + `_BackgroundAsr` +
   abort cleanup → transcripts), `_run_analysis_phase` (the three analysis strategies incl. the
-  drills-concurrent background thread → `(outs, drills_result)`), and `_persist_store` (SRS
+  drills-concurrent background thread → `(outs, drills_result)`; an UNEXPECTED background crash
+  still degrades to a resumable pending report but surfaces the reason — one yellow line +
+  threaded into `phase_c_error`, never dropped, IMP-010), and `_persist_store` (SRS
   advance + contrast tally + atomic save → next_due). All store mutations stay on the main
   thread (O6). The Session-constructor assembly + report write stay inline in `run_session`.
 - `keyboard.py` — `KeyReader` seam; re-entrancy guard at `:88`; `FakeKeyReader` two modes.
