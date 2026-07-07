@@ -23,6 +23,12 @@ DEFAULT_ENGINE = "local"
 VALID_ENGINES = ("local", "openrouter", "claude")
 DEFAULT_CLAUDE_FAST_MODEL = "haiku"
 DEFAULT_CLAUDE_STRONG_MODEL = "sonnet"
+# Optional reasoning-effort level per Claude Code tier. Unset by default (None) → the engine
+# emits no `--effort` flag, so behaviour and older CLI builds are unaffected; opt in via
+# loop.yaml. A value outside the known set is treated as unset (parsed in load()).
+DEFAULT_CLAUDE_FAST_EFFORT: str | None = None
+DEFAULT_CLAUDE_STRONG_EFFORT: str | None = None
+VALID_CLAUDE_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
 # Per-call hard timeout for the Claude Code engine. Raised from the engine's 90s
 # baseline because a strong-tier model (esp. Opus with extended thinking) running the
 # full grammar prompt over 3 attempts can take well over 90s.
@@ -63,6 +69,8 @@ class LoopConfig:
     engine: str = DEFAULT_ENGINE
     claude_fast_model: str = DEFAULT_CLAUDE_FAST_MODEL
     claude_strong_model: str = DEFAULT_CLAUDE_STRONG_MODEL
+    claude_fast_effort: str | None = DEFAULT_CLAUDE_FAST_EFFORT
+    claude_strong_effort: str | None = DEFAULT_CLAUDE_STRONG_EFFORT
     claude_timeout_seconds: int = DEFAULT_CLAUDE_TIMEOUT_SECONDS
     # 012 (additive optional): never-forced-to-relisten toggle + concurrent-analysis cap.
     autoplay_ideal_answer: bool = DEFAULT_AUTOPLAY_IDEAL_ANSWER
@@ -80,6 +88,14 @@ class LoopConfig:
 def _model(data: dict, key: str, default: str) -> str:
     val = data.get(key, default)
     return val if isinstance(val, str) and val.strip() else default
+
+
+def _effort(data: dict, key: str) -> str | None:
+    """A Claude Code effort level, normalized to lowercase; unset/unknown → None (no flag)."""
+    val = data.get(key)
+    if isinstance(val, str) and val.strip().lower() in VALID_CLAUDE_EFFORT_LEVELS:
+        return val.strip().lower()
+    return None
 
 
 def teach_speed(drill_speed: float) -> float:
@@ -145,6 +161,8 @@ def load() -> LoopConfig:
         engine=engine,
         claude_fast_model=_model(data, "claude_fast_model", DEFAULT_CLAUDE_FAST_MODEL),
         claude_strong_model=_model(data, "claude_strong_model", DEFAULT_CLAUDE_STRONG_MODEL),
+        claude_fast_effort=_effort(data, "claude_fast_effort"),
+        claude_strong_effort=_effort(data, "claude_strong_effort"),
         claude_timeout_seconds=timeout,
         autoplay_ideal_answer=autoplay,
         analysis_concurrency=concurrency,

@@ -39,6 +39,26 @@ def test_reads_claude_keys():
     assert c.claude_timeout_seconds == 300
 
 
+def test_effort_unset_by_default():
+    c = loop_config.load()
+    assert c.claude_fast_effort is None
+    assert c.claude_strong_effort is None
+
+
+def test_reads_effort_levels_normalized():
+    _write("claude_fast_effort: LOW\nclaude_strong_effort: high\n")
+    c = loop_config.load()
+    assert c.claude_fast_effort == "low"  # normalized to lowercase
+    assert c.claude_strong_effort == "high"
+
+
+def test_invalid_effort_falls_back_to_unset():
+    _write("claude_fast_effort: turbo\nclaude_strong_effort: 7\n")
+    c = loop_config.load()
+    assert c.claude_fast_effort is None  # unknown level → no flag emitted
+    assert c.claude_strong_effort is None
+
+
 def test_invalid_engine_falls_back_to_local():
     _write("engine: gpt-5\n")
     assert loop_config.load().engine == "local"

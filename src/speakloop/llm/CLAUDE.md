@@ -28,7 +28,9 @@ New engines MUST declare `parallel_safe` manually; omitting it causes `getattr(.
 ## Claude Code CLI contract (O13 — owned here)
 
 Pinned to observed `claude 2.1.170` (`claude_code_engine.py:39`). Flags (all named constants):
-`--print --output-format json --model <alias> --safe-mode --tools "" --no-session-persistence --system-prompt <prompt>`, user prompt on stdin.
+`--print --output-format json --model <alias> [--effort <level>] --safe-mode --tools "" --no-session-persistence --system-prompt <prompt>`, user prompt on stdin.
+
+- `--effort <level>` (low|medium|high|xhigh|max) is OPTIONAL and OPT-IN: emitted only when `ClaudeCodeEngine(effort=...)` is non-empty, inserted right after `--model`. Unset → no flag → behaviour unchanged and older CLI builds (pre-`--effort`) keep working. Level validation lives config-side (`loop_config._effort`, validated against `VALID_CLAUDE_EFFORT_LEVELS`); the engine emits whatever non-empty string it is handed. Wired per tier from `loop.yaml` `claude_strong_effort` / `claude_fast_effort` (`practice.py` builds `strong`/`fast` with each tier's effort).
 
 - Keys off envelope `is_error` (`claude_code_engine.py:58`), NOT `subtype` (stays "success" even on error).
 - `--safe-mode` NOT `--bare`: `--bare` forces `ANTHROPIC_API_KEY`/keychain auth and breaks subscription billing after the env strip.

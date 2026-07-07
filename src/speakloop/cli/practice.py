@@ -921,15 +921,25 @@ def _build_claude_grammar_analyzer(console: Console):
     # hard timeout is also configurable (claude_timeout_seconds) — a strong model
     # like Opus running the full grammar prompt can exceed the engine's 90s baseline.
     timeout = float(cfg.claude_timeout_seconds)
-    strong = ClaudeCodeEngine(model=cfg.claude_strong_model, timeout=timeout)
-    fast = ClaudeCodeEngine(model=cfg.claude_fast_model, timeout=timeout)
+    strong = ClaudeCodeEngine(
+        model=cfg.claude_strong_model, effort=cfg.claude_strong_effort, timeout=timeout
+    )
+    fast = ClaudeCodeEngine(
+        model=cfg.claude_fast_model, effort=cfg.claude_fast_effort, timeout=timeout
+    )
 
     cloud_system_prompt, prompt_path = _cloud_prompt.load_cloud_prompt()
     coach_system_prompt, coach_prompt_path = _cloud_prompt.load_coach_prompt()
 
+    strong_label = cfg.claude_strong_model + (
+        f" @ {cfg.claude_strong_effort} effort" if cfg.claude_strong_effort else ""
+    )
+    fast_label = cfg.claude_fast_model + (
+        f" @ {cfg.claude_fast_effort} effort" if cfg.claude_fast_effort else ""
+    )
     console.print(
         f"[cyan]Claude Code engine[/cyan]: analysis runs through your local Claude Code "
-        f"(strong=[bold]{cfg.claude_strong_model}[/bold], fast=[bold]{cfg.claude_fast_model}"
+        f"(strong=[bold]{strong_label}[/bold], fast=[bold]{fast_label}"
         "[/bold]), billed to your subscription. Your attempt transcripts are sent to Claude "
         "Code (audio and reports stay local)."
     )

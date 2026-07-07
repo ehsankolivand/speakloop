@@ -55,6 +55,8 @@ Two files with different stdlib footprints — see File map.
 | `followups_enabled` | `True` | bool() cast | :88 |
 | `claude_fast_model` | `"haiku"` | non-empty str | :90 |
 | `claude_strong_model` | `"sonnet"` | non-empty str | :91 |
+| `claude_fast_effort` | unset (`None`) | must be in (low, medium, high, xhigh, max); else None | `_effort` |
+| `claude_strong_effort` | unset (`None`) | must be in (low, medium, high, xhigh, max); else None | `_effort` |
 | `pronunciation_drills` (016) | `"auto"` | must be in (auto, on, off) | load() |
 | `pronunciation_min_free_mb` (016) | 4500 | max(0, int) | load() |
 | `pronunciation_tts_playback` (017) | `True` | must be `bool` | load() |
