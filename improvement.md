@@ -261,13 +261,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Added a reusable `_coerce_int(value) -> int | None` helper and routed every per-point `int(pp["id"])`/`pp["state"]` in `_coverage_section` through it (skip a per-point whose `id` is missing/non-int; `pp.get("state", "missed")`), including the key-points `point_text`/`point_ids` builds and the fallback. Valid input renders byte-identically (report-invariance + analysis-equivalence gates pass). Test: `test_coverage_section_render.py` (malformed per-points: missing state, non-int id, missing id, non-int key-point id → renders, no crash; + a no-keypoints fallback case). Verified: 8 passed, full suite 913 (+2), ruff clean.
 
-- [ ] **IMP-027 — Don't silently return zero grammar patterns when the model omits the `errors` wrapper**
+- [x] **IMP-027 — Don't silently return zero grammar patterns when the model omits the `errors` wrapper**
   - Impact: Low
   - Area: Correctness
   - Where: `src/speakloop/feedback/grammar_analyzer.py:327` (`analyze`)
   - What & why: After JSON recovery, `errors_raw = payload.get("errors") or []`. If the model returns a valid dict missing the `errors` wrapper (a bare single-error object or a synonym key), `analyze` returns `[]` and the report says "No actionable grammar patterns detected" though the model found errors — a silent-zero that is worse than the graceful `phase_c_error` path. It's also asymmetric: `_extract_json` only returns dicts, so a top-level JSON **list** of errors falls through to a `ValueError` and hard-fails to `phase_c_error`.
   - How to do it: When `payload` is a dict with no `errors` key but looks like a single error object (has `quote`/`attempt_ordinal`), wrap it into a one-element list; and let `_extract_json` return/coerce a top-level list so a bare list survives. Feed the coerced list to `_verify_and_enrich` — V1/V2/V3 still discard anything that isn't a real error, so only genuine findings are recovered. Add tests for an unwrapped single object and an unwrapped list.
   - Effort: Small
+  - Resolution (source in commit 7e7b385; improvement.md note follow-up): Fixed GRAMMAR-ONLY — the shared `_extract_json` stays dict-only for the coverage/keypoints/followups callers. In `analyze`, a payload dict with no `errors` key but with `quote`/`attempt_ordinal` is wrapped `[payload]`; `_generate_and_parse` recovers a bare top-level list via a new `_extract_top_level_list` → `{"errors": [...]}`. Both flow through V1/V2/V3 so only real errors survive; a genuine 'no errors' dict still returns []. Documented in `feedback/CLAUDE.md`. Tests: unwrapped single object recovered, bare list recovered (2 labels), non-error dict stays empty. Verified: full suite 916 passed (+3), ruff clean (2 pre-existing findings only).
 
 - [ ] **IMP-028 — Distinguish a network failure from a genuinely absent metadata file**
   - Impact: Low
