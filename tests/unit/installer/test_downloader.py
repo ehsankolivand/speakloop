@@ -290,3 +290,36 @@ def test_fetch_metadata_absent_file_still_skips_quietly(monkeypatch, tmp_path):
     out = _fetch_metadata_with_exit(monkeypatch, tmp_path, 22)
     assert "not in repo, skipping" in out
     assert "network error" not in out
+
+
+def test_download_model_clears_stale_cross_backend_marker_on_success(
+    monkeypatch, tmp_models_dir
+):
+    """BUG-001: an interrupted aria2 attempt left a `<shard>.aria2`; on the next run aria2
+    is gone, so the snapshot fallback completes the bytes but cannot remove aria2's marker.
+    download_model must clear the orphaned marker on success, or validate() reports
+    `incomplete` forever and re-downloads on every run."""
+    from speakloop.installer import validator
+
+    procs: list[_RecordingProc] = []
+    _patch_popen(monkeypatch, records=procs)
+    monkeypatch.setattr(downloader.shutil, "which", lambda _name: None)  # aria2 gone → snapshot
+
+    model = manifest.KOKORO_82M
+    stale = model.local_path / "model.safetensors.aria2"
+
+    def _fake_snapshot(**kwargs):
+        d = Path(kwargs["local_dir"])
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "model.safetensors").write_bytes(b"x" * 4096)  # completed by snapshot
+        stale.write_bytes(b"x" * 8)  # the orphaned control file from the earlier aria2 run
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", _fake_snapshot)
+
+    downloader.download_model(
+        model, console=Console(file=io.StringIO(), force_terminal=False, width=120)
+    )
+
+    assert not stale.exists(), "download_model left the stale cross-backend .aria2 marker"
+    # The marker is gone, so validate no longer reports the false `incomplete`.
+    assert validator.validate(model).reason != "incomplete"
