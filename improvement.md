@@ -333,13 +333,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Took the cleaner path — lifted `extract_json` + `strip_code_fences` (both now PUBLIC) into a new `feedback/json_recovery.py`. IMP-011 had already reduced the direct importers from six to three (coverage/keypoints/followups go via `generate_json`); re-pointed the remaining three (triage/mishearing, triage/consistency, warmup/drill) + `grammar_analyzer` itself at `json_recovery.extract_json`. `grammar_analyzer` re-exports it (so `ga.extract_json` still resolves for `test_grammar_repair`). Moved the dedicated `test_extract_json.py` to test `json_recovery.extract_json` (its natural home; kept a `ga` import for the SPEAKLOOP_DEBUG_LLM dump tests). No behavior change. Updated feedback O4 + triage/warmup/coverage/interviewer CLAUDE.md + `.claude/rules/llm-calls.md` O8. Verified: full suite 918, mypy green (coverage in scope imports it via generate_json), ruff clean (2 pre-existing findings in `_looks_like_repetition_loop`).
 
-- [ ] **IMP-035 — Consolidate the duplicated prompt seed-and-read helper**
+- [x] **IMP-035 — Consolidate the duplicated prompt seed-and-read helper**
   - Impact: Low
   - Area: Structure
   - Where: `src/speakloop/coverage/prompts.py:17` (`_seed_and_read`); `interviewer/prompts.py:21-24`; `triage/prompts.py:20-25`; `warmup/drill.py:43-46`; `feedback/cloud_prompt.py:30-33,46-49`
   - What & why: The identical "if not target.exists(): mkdir(parents) + write packaged default; return `(target.read_text(), target)`" block is copy-pasted seven times across six files. `coverage/prompts.py` already factored it into `_seed_and_read`; the other five reimplement it inline. Seven hand-maintained copies of a first-run seeding routine is a drift risk (encoding, mkdir, seed-vs-read ordering must stay in lockstep).
   - How to do it: Add one shared helper (e.g. `config.paths.seed_and_read(target, default_asset) -> tuple[str, Path]`, since `config` already owns the `~/.speakloop` path builders and is a leaf) and route all loaders through it. Public loader signatures stay identical. (`triage.load_consistency_prompt` reads without seeding — leave it out.)
   - Effort: Small
+  - Resolution: Added `config.paths.seed_and_read(target, default_asset) -> (text, Path)` and routed all SIX seeding loaders through it — `coverage.load_keypoints/coverage_prompt` (deleted its local `_seed_and_read`), `interviewer.load_followups_prompt`, `triage.load_triage_prompt`, `warmup.load_drill_prompt`, `feedback.load_cloud_prompt`/`load_coach_prompt`. Left `triage.load_consistency_prompt` (reads its packaged default directly, no seeding). Public loader signatures unchanged. Documented in `config/CLAUDE.md` (+ fixed the "no I/O except ensure_dir" note). Verified: prompt-loader tests pass, full suite 918, ruff + mypy clean.
 
 - [ ] **IMP-036 — Collapse the repeated scalar-validation boilerplate in `loop_config.load()`**
   - Impact: Low

@@ -26,11 +26,7 @@ def load_cloud_prompt() -> tuple[str, Path]:
     On first use the packaged default is copied to
     ``paths.openrouter_prompt_path()`` so the editable surface is discoverable;
     thereafter the user's (possibly edited) file is read verbatim."""
-    target = paths.openrouter_prompt_path()
-    if not target.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(_DEFAULT_ASSET.read_text(encoding="utf-8"), encoding="utf-8")
-    return target.read_text(encoding="utf-8"), target
+    return paths.seed_and_read(paths.openrouter_prompt_path(), _DEFAULT_ASSET)
 
 
 def load_coach_prompt() -> tuple[str, Path]:
@@ -42,8 +38,4 @@ def load_coach_prompt() -> tuple[str, Path]:
     verbatim and sent as the coach system prompt. The caller prints the returned
     path once so the user knows where to tune the teaching section. Wholly
     separate from the grammar prompt and from the local ``_SYSTEM_PROMPT``."""
-    target = paths.openrouter_coach_prompt_path()
-    if not target.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(_DEFAULT_COACH_ASSET.read_text(encoding="utf-8"), encoding="utf-8")
-    return target.read_text(encoding="utf-8"), target
+    return paths.seed_and_read(paths.openrouter_coach_prompt_path(), _DEFAULT_COACH_ASSET)

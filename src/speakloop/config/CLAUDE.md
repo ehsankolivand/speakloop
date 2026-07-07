@@ -29,6 +29,10 @@ Two files with different stdlib footprints — see File map.
   `openrouter_keypoints_prompt_path()`, `openrouter_coverage_prompt_path()`,
   `openrouter_triage_prompt_path()`, `openrouter_drill_prompt_path()`.
 - `paths.ensure_dir(path) -> Path` — mkdir -p, returns path.
+- `paths.seed_and_read(target, default_asset) -> (text, Path)` — the SINGLE first-run
+  prompt-seeding routine (IMP-035): seed `target` from its packaged default on first use, then
+  read the user's file. All six seeding prompt loaders (coverage/keypoints, followups, triage,
+  drill, cloud grammar/coach) route through it (was copy-pasted 7×).
 - Env overrides: `SPEAKLOOP_HOME` (base home dir; default `~/.speakloop`);
   XDG-aware: `XDG_DATA_HOME`, `XDG_CACHE_HOME` used for fallback resolution.
 
@@ -83,7 +87,7 @@ Two files with different stdlib footprints — see File map.
 - **Q&A precedence (O10)**: `--qa-file` / `SPEAKLOOP_QA_FILE` → `~/.speakloop/qa.yaml`
   (if exists) → `content/questions.yaml` (if exists) → `None`. The home file is an
   opt-in override — never auto-created (paths.py:103-124, specs/004-public-release-readiness).
-- `paths.py` does no I/O except `ensure_dir()`; `loop_config.py` reads YAML at call time
+- `paths.py` does no I/O except `ensure_dir()` and `seed_and_read()`; `loop_config.py` reads YAML at call time
   and writes ONLY via `save_engine()` (explicit `speakloop setup` action — never on a normal
   run, preserving the "nothing auto-created in your home dir" guarantee). Never add a network
   call or engine import to either file.

@@ -222,3 +222,17 @@ def openrouter_drill_prompt_path() -> Path:
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def seed_and_read(target: Path, default_asset: Path) -> tuple[str, Path]:
+    """Seed `target` from `default_asset` on first use, then read it verbatim.
+
+    The shared first-run prompt-seeding routine (IMP-035): the coverage/keypoints, follow-up,
+    triage, warm-up-drill, and cloud grammar/coach loaders each copy their packaged default into
+    the editable `~/.speakloop/` file the first time, then read the user's (possibly edited) file.
+    Returns `(text, target)`.
+    """
+    if not target.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(default_asset.read_text(encoding="utf-8"), encoding="utf-8")
+    return target.read_text(encoding="utf-8"), target
