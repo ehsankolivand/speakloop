@@ -103,10 +103,14 @@ a no-drills report is byte-identical (gate: `test_drills_additive_byte_identical
 
 ## File map
 
-- `coordinator.py` — 4/3/2 state machine + report assembly. `_BackgroundAsr`
-  (`coordinator.py:239-285`): a single queue-fed daemon thread (NOT a ThreadPoolExecutor);
-  one Whisper job at a time; daemon so a crash cannot hang exit. `Runners` + `SessionResult`
-  at `:40-78`. Follow-up reorder at `:1048-1069`. Store write at `:1110-1116`.
+- `coordinator.py` — 4/3/2 state machine + report assembly. `_BackgroundAsr`: a single
+  queue-fed daemon thread (NOT a ThreadPoolExecutor); one Whisper job at a time; daemon so a
+  crash cannot hang exit. `Runners` + `SessionResult` near the top. `run_session` orchestrates
+  named phase helpers (IMP-003): `_record_and_transcribe` (attempt loop + `_BackgroundAsr` +
+  abort cleanup → transcripts), `_run_analysis_phase` (the three analysis strategies incl. the
+  drills-concurrent background thread → `(outs, drills_result)`), and `_persist_store` (SRS
+  advance + contrast tally + atomic save → next_due). All store mutations stay on the main
+  thread (O6). The Session-constructor assembly + report write stay inline in `run_session`.
 - `keyboard.py` — `KeyReader` seam; re-entrancy guard at `:88`; `FakeKeyReader` two modes.
 - `session_ui.py` — one-state-at-a-time display + countdown + closing summary.
 - `analysis.py` — serial/concurrent `run_group`; serial fallback logic at `:62`.
