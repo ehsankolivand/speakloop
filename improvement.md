@@ -405,13 +405,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Added `aggregator.METRIC_LABELS` (key → "Speech rate (WPM)"/"Filler density (/100 words)"/…) and `METRIC_HIGHER_IS_BETTER` (WPM True; fillers/pauses/mean-pause/self-corrections False). `renderer.render` now shows the label and `_delta_cell(name, delta)` annotates the Δ `(better)`/`(worse)` per direction (with green/red colour for a real terminal, the word surviving the plain-text capture). So a `+2.0` on pauses now reads "worse", not an apparent improvement. `METRIC_KEYS` stays the ordering source. Documented in `trends/CLAUDE.md`. Test: friendly labels present (snake_case absent), WPM↑→better, fillers↓→better, pauses↑→worse. Verified: trends suite 17 passed, full suite 921 (+1), ruff clean.
 
-- [ ] **IMP-043 — Add a cross-parser agreement test for the two frontmatter readers**
+- [x] **IMP-043 — Add a cross-parser agreement test for the two frontmatter readers**
   - Impact: Low
   - Area: Testing
   - Where: `src/speakloop/trends/reader.py:60` (third-party `frontmatter.load`) vs `feedback/frontmatter.py:317` (custom `_FENCE_RE` split)
   - What & why: Reports written by `feedback.frontmatter.dump` are read back by **two** parsers: the custom `feedback.frontmatter.parse` (rebuild/resume/debrief) and the third-party `python-frontmatter` `frontmatter.load` (`trends.reader`). The BUG-001 fence-anchoring fix — a `---` line inside a block-scalar `question`/`ideal_answer` must not truncate the parse — is hardened and regression-tested only on the custom parser. No test pins that the trends reader stays consistent, so a future `dump` change or a `python-frontmatter`/PyYAML bump could silently diverge and drop grammar rows from the trends dashboard only.
   - How to do it: Add one integration test that dumps a report containing a `---` line inside `question` and `ideal_answer`, then asserts **both** `feedback.frontmatter.parse` and `trends.reader.read_reports` recover the same `schema_version`/`attempts`/`grammar_patterns` (and that `read_reports` does not put it in `.skipped`). Cheap insurance that both readers honor the fence invariant.
   - Effort: Small
+  - Resolution: Added `tests/integration/test_frontmatter_cross_parser.py` — dumps a Session with a standalone `---` inside both `question_text` and `ideal_answer` (the BUG-001 case), then reads it via BOTH the custom `feedback.frontmatter.parse` AND the third-party `trends.reader.read_reports`, asserting both recover 3 attempts, phase C, and the `missing articles` grammar pattern, the trends `Report.schema_version == 1`, and `result.skipped == []`. Note: the custom `Session` has no `schema_version` field (it's a dump constant), so schema_version is asserted on the trends `Report`. Testing-only (no behavior change). Verified: 1 passed, full suite 922 (+1), ruff clean.
 
 - [ ] **IMP-044 — Replace the tautological `assert ... or True` in the gate test**
   - Impact: Low
