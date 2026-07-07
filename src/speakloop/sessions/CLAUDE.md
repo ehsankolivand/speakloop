@@ -65,7 +65,10 @@ single-key controls, background ASR worker, concurrent analysis executor, and cl
   when `not parallel_safe` OR `concurrency <= 1` OR `len(jobs) <= 1`; otherwise
   `ThreadPoolExecutor(min(concurrency, len(jobs)))`. Results keyed by NAME (never completion
   order) so assembly is identical regardless of strategy (`analysis.py:48-73`).
-- `timer.run(budget_seconds, early_exit_event)` — `rich.progress` countdown.
+- `timer.time_budget_for(ordinal)` — the 4/3/2-minute per-attempt budgets (`BUDGETS`). The
+  recording countdown/progress is rendered by `session_ui.make_recording_progress` + the inline
+  `_ticker` in `coordinator._record_stage`; the old `timer.run` rich.progress countdown had no
+  caller and was removed (IMP-030).
 - `abort.install_signal_handler(sessions_dir)` — SIGINT handler: removes `*.tmp` under
   `sessions_dir` and sets `abort_event`. There is NO `sys.exit(130)` in
   the handler; the coordinator polls `abort_event` and raises `AbortedError`, which
@@ -120,7 +123,7 @@ a no-drills report is byte-identical (gate: `test_drills_additive_byte_identical
 - `keyboard.py` — `KeyReader` seam; re-entrancy guard at `:88`; `FakeKeyReader` two modes.
 - `session_ui.py` — one-state-at-a-time display + countdown + closing summary.
 - `analysis.py` — serial/concurrent `run_group`; serial fallback logic at `:62`.
-- `timer.py` — per-attempt countdown.
+- `timer.py` — per-attempt time budgets (`time_budget_for`); recording UI lives in `session_ui`/`_record_stage`.
 - `abort.py` — SIGINT handler; sets `abort_event`; cleans `*.tmp`.
 
 ## Invariants & traps

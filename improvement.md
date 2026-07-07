@@ -288,13 +288,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: `record`'s `_callback` now increments a `nonlocal overflow_count` when `status.input_overflow` (single serialized audio-thread callback → no race), and after the stream closes `record` logs ONE `WARNING` via `logging.getLogger("speakloop.audio.recorder")` naming the dropped-samples/ASR-degradation cause. Observability only — recording behavior unchanged (chose logging over threading it into ASR provenance, per the "optionally"). Documented in `audio/CLAUDE.md`. Tests: an overflow-status fake stream → warning logged (via `caplog`) + WAV still written; a clean (status=None) capture → no warning. Verified: 4 passed, full suite 920 (+2), ruff clean.
 
-- [ ] **IMP-030 — Remove or re-home the unused `timer.run` countdown**
+- [x] **IMP-030 — Remove or re-home the unused `timer.run` countdown**
   - Impact: Low
   - Area: Structure
   - Where: `src/speakloop/sessions/timer.py:27-64` (`run`); `sessions/CLAUDE.md:64`
   - What & why: `timer.run` has no production caller — the recording countdown/progress is owned by `session_ui.make_recording_progress` plus the inline `_ticker` thread in `coordinator._record_stage`. `timer.run`'s only references are its own two unit tests and `sessions/CLAUDE.md:64`, which still documents it as **the** "rich.progress countdown" public interface. It is dead code that makes the module doc misleading about how recording is actually rendered. (`timer.time_budget_for` is live — keep it.)
   - How to do it: Either delete `timer.run` + its two test cases and update the CLAUDE.md bullet to point at `session_ui.make_recording_progress` + `_record_stage` as the live path, or route `_record_stage` through it to remove the duplicated ticker/progress logic.
   - Effort: Small
+  - Resolution: Chose deletion (re-homing would change the live recording UX — higher risk). Removed `timer.run` (and its now-unused `threading`/`time`/`Callable`/`Console`/rich.progress imports), leaving `time_budget_for` + `BUDGETS` (the live production API). Deleted its two tests (`test_early_exit_interrupts`, `test_budget_elapsed_is_returned`) and their unused imports. Updated `sessions/CLAUDE.md` (both the interface and file-map bullets) to point at `session_ui.make_recording_progress` + `_record_stage._ticker` as the live countdown path. Verified: timer tests 3 passed, ruff clean, full suite 918 (−2 deleted tests).
 
 - [ ] **IMP-031 — Deduplicate the pronunciation RAM-gate interactive-override UX**
   - Impact: Low
