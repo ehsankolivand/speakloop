@@ -99,3 +99,29 @@ def test_warm_output_device_swallows_errors(monkeypatch):
     monkeypatch.setattr("sounddevice.stop", lambda **k: None)
     # Must not raise — warm-up is best-effort.
     playback.warm_output_device()
+
+
+def test_nonblocking_uses_the_shared_recovery_ladder_and_never_waits(monkeypatch):
+    """IMP-018: the non-blocking path shares `play`'s device-loss ladder (one PortAudio
+    failure reloads PortAudio and retries) but, unlike `play`, never calls `sd.wait`."""
+    import numpy as np
+    import sounddevice as sd
+
+    plays = {"n": 0}
+    waits = {"n": 0}
+    monkeypatch.setattr("sounddevice.stop", lambda ignore_errors=True: None)
+    monkeypatch.setattr("sounddevice.wait", lambda: waits.__setitem__("n", waits["n"] + 1))
+    monkeypatch.setattr(playback, "_reinitialize", lambda: None)
+    monkeypatch.setattr(playback.time, "sleep", lambda *a, **k: None)
+
+    def fake_play(data, samplerate):
+        plays["n"] += 1
+        if plays["n"] == 1:
+            raise sd.PortAudioError("headphones off [-9986]")
+
+    monkeypatch.setattr("sounddevice.play", fake_play)
+
+    rate = playback._start_nonblocking(np.zeros((100, 1), dtype="float32"), 24000)
+    assert plays["n"] == 2  # failed once, retried once — the shared ladder
+    assert waits["n"] == 0  # non-blocking → never sd.wait
+    assert rate == 24000

@@ -46,11 +46,6 @@ def _reinitialize() -> None:
         pass
 
 
-def _play_blocking(data, samplerate: int) -> None:
-    sd.play(data, samplerate=samplerate)
-    sd.wait()
-
-
 def _device_output_rate() -> int:
     """The default output device's native sample rate, or 0 if unavailable."""
     try:
@@ -71,14 +66,53 @@ def _resample(data, src_rate: int, dst_rate: int):
     return out.astype("float32").clip(-1.0, 1.0)
 
 
+def _open_with_recovery(data, sample_rate: int, *, blocking: bool) -> int:
+    """Play ``data`` with the shared device-loss/resample recovery ladder; return the
+    effective samplerate the stream was started at.
+
+    Resilient to a mid-session output-device change (the common case: Bluetooth headphones
+    powered off): (1) play at the clip's own rate — on a PortAudio failure the device table
+    is reloaded (a device that vanished mid-session is dropped, the new default used) and the
+    open retried; (2) fallback — resample the clip to the default output device's native rate
+    so PortAudio never has to switch the hardware sample rate (the usual ``-10851`` trigger)
+    before a final attempt. ``blocking=True`` waits for playback to finish (``play``);
+    ``blocking=False`` returns as soon as the stream starts (``play_interruptible``). Raises
+    ``PlaybackError`` if the device cannot be opened after every retry + the fallback.
+    """
+    last_err: Exception | None = None
+    for attempt in range(_OPEN_RETRIES):
+        try:
+            sd.play(data, samplerate=sample_rate)
+            if blocking:
+                sd.wait()
+            return int(sample_rate)
+        except sd.PortAudioError as e:
+            last_err = e
+            sd.stop(ignore_errors=True)
+            if attempt < _OPEN_RETRIES - 1:
+                _reinitialize()
+                time.sleep(_RETRY_BACKOFF_SECONDS)
+
+    device_rate = _device_output_rate()
+    if device_rate and device_rate != int(sample_rate):
+        try:
+            sd.play(_resample(data, int(sample_rate), device_rate), samplerate=device_rate)
+            if blocking:
+                sd.wait()
+            return int(device_rate)
+        except Exception as e:  # PortAudio failure, or SciPy unavailable
+            last_err = e
+            sd.stop(ignore_errors=True)
+
+    raise PlaybackError(
+        f"Audio output failed: {last_err}. Run `speakloop doctor` to diagnose."
+    ) from last_err
+
+
 def play(wav_path: Path) -> None:
     """Play a WAV file synchronously, blocking until playback finishes.
 
-    Resilient to a mid-session output-device change (the common case: Bluetooth
-    headphones powered off): on a PortAudio failure the device table is reloaded
-    and the open retried, and if it still fails the clip is resampled to the
-    default output device's native rate (so PortAudio never has to switch the
-    hardware sample rate — the usual `-10851` trigger) before a final attempt.
+    Resilient to a mid-session output-device change via ``_open_with_recovery``.
     """
     if not Path(wav_path).exists():
         raise PlaybackError(f"WAV not found: {wav_path}")
@@ -87,36 +121,7 @@ def play(wav_path: Path) -> None:
     except (FileNotFoundError, sf.LibsndfileError) as e:
         raise PlaybackError(f"Could not read WAV: {wav_path}: {e}") from e
 
-    last_err: Exception | None = None
-
-    # 1) Play at the clip's own rate. On failure, reload PortAudio so a device
-    #    that vanished mid-session is dropped and the new default is used, then
-    #    retry the open.
-    for attempt in range(_OPEN_RETRIES):
-        try:
-            _play_blocking(data, sample_rate)
-            return
-        except sd.PortAudioError as e:
-            last_err = e
-            sd.stop(ignore_errors=True)
-            if attempt < _OPEN_RETRIES - 1:
-                _reinitialize()
-                time.sleep(_RETRY_BACKOFF_SECONDS)
-
-    # 2) Fallback: resample to the device's native rate so the hardware rate
-    #    never has to change. Best-effort — any failure keeps the original error.
-    device_rate = _device_output_rate()
-    if device_rate and device_rate != int(sample_rate):
-        try:
-            _play_blocking(_resample(data, int(sample_rate), device_rate), device_rate)
-            return
-        except Exception as e:  # PortAudio failure, or SciPy unavailable
-            last_err = e
-            sd.stop(ignore_errors=True)
-
-    raise PlaybackError(
-        f"Audio output failed: {last_err}. Run `speakloop doctor` to diagnose."
-    ) from last_err
+    _open_with_recovery(data, int(sample_rate), blocking=True)
 
 
 def warm_output_device() -> None:
@@ -133,32 +138,12 @@ def warm_output_device() -> None:
 
 
 def _start_nonblocking(data, sample_rate: int) -> int:
-    """Start a non-blocking `sd.play`, reusing `play`'s device-loss/resample recovery.
+    """Start a non-blocking `sd.play`, reusing the shared device-loss/resample recovery
+    ladder (`_open_with_recovery`, `blocking=False`).
 
     Returns the effective samplerate the stream was started at; raises `PlaybackError`
-    if the device cannot be opened. Mirrors `play` step-for-step but does NOT `sd.wait`."""
-    last_err: Exception | None = None
-    for attempt in range(_OPEN_RETRIES):
-        try:
-            sd.play(data, samplerate=sample_rate)
-            return int(sample_rate)
-        except sd.PortAudioError as e:
-            last_err = e
-            sd.stop(ignore_errors=True)
-            if attempt < _OPEN_RETRIES - 1:
-                _reinitialize()
-                time.sleep(_RETRY_BACKOFF_SECONDS)
-    device_rate = _device_output_rate()
-    if device_rate and device_rate != int(sample_rate):
-        try:
-            sd.play(_resample(data, int(sample_rate), device_rate), samplerate=device_rate)
-            return int(device_rate)
-        except Exception as e:  # PortAudio failure, or SciPy unavailable
-            last_err = e
-            sd.stop(ignore_errors=True)
-    raise PlaybackError(
-        f"Audio output failed: {last_err}. Run `speakloop doctor` to diagnose."
-    ) from last_err
+    if the device cannot be opened."""
+    return _open_with_recovery(data, int(sample_rate), blocking=False)
 
 
 def play_interruptible(

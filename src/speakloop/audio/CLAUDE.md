@@ -36,18 +36,19 @@ via `sounddevice` + `soundfile`. No model packages here.
 ## File map
 
 - `playback.py` — `play`, `play_interruptible`, `warm_output_device`, `_start_nonblocking`.
-  Device-loss/resample recovery shared across all play paths: `_OPEN_RETRIES = 3`,
-  backoff `0.25 s` (`playback.py:35-36`). Resample fallback imports `scipy.signal.resample_poly`
-  (`playback.py:66`) — see Traps.
+  Device-loss/resample recovery lives in ONE place — `_open_with_recovery(data, sample_rate, *,
+  blocking)` (IMP-018): `play` calls it `blocking=True`, `_start_nonblocking` `blocking=False`.
+  `_OPEN_RETRIES = 3`, backoff `0.25 s`. Resample fallback imports `scipy.signal.resample_poly`
+  — see Traps.
 - `recorder.py` — `record()` via `sd.InputStream`; lazy `abort` import at `:44`.
 - `devices.py` — device enumeration.
 
 ## Invariants & traps
 
-- The resample fallback imports `scipy.signal.resample_poly` function-local at
-  `playback.py:66`; `scipy` is declared in `pyproject.toml`. A SciPy import failure is
-  caught with the PortAudio handler (`playback.py:113`/`:156`) and surfaces as
-  `PlaybackError`, so playback degrades with one English error rather than a traceback.
+- The resample fallback imports `scipy.signal.resample_poly` function-local in `_resample`;
+  `scipy` is declared in `pyproject.toml`. A SciPy import failure is caught with the PortAudio
+  handler in `_open_with_recovery` and surfaces as `PlaybackError`, so playback degrades with
+  one English error rather than a traceback.
 - `warm_output_device` is only called from `cli/practice.py` when `key_reader.raw_capable`
   is True (`practice.py:376-377`) — not unconditionally.
 - `recorder.py` lazy-imports `speakloop.sessions.abort` (not at module top) to avoid the
