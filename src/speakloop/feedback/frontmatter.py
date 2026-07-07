@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
@@ -9,6 +10,12 @@ from typing import Literal
 import yaml
 
 SCHEMA_VERSION = 1
+
+# The frontmatter fences are whole lines equal to `---`. Anchored to line starts so
+# an indented block-scalar line that merely contains `---` (a Markdown horizontal
+# rule inside `question`/`ideal_answer`) is never mistaken for the closing fence,
+# which would silently truncate the parsed YAML. See `_frontmatter_dict`.
+_FENCE_RE = re.compile(r"(?m)^---$")
 
 # Fallback impact rank for grammar patterns parsed from legacy reports that
 # pre-date the per-pattern impact_rank field (or sessions where impact_rank is
@@ -304,7 +311,10 @@ def _frontmatter_dict(text: str) -> dict:
     stripped = text.lstrip()
     if stripped.startswith("---"):
         # `---\n<yaml>\n---\n<body>` → take the block between the first two `---`.
-        parts = text.split("---\n", 2)
+        # Split only on whole-line `---` fences (not the `---\n` substring), so an
+        # indented block-scalar line containing `---` cannot be mistaken for the
+        # closing fence and silently truncate the frontmatter.
+        parts = _FENCE_RE.split(text, maxsplit=2)
         if len(parts) >= 2:
             loaded = yaml.safe_load(parts[1])
             return loaded if isinstance(loaded, dict) else {}
