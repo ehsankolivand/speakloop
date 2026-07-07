@@ -10,6 +10,7 @@ patterns gets an explicit "no patterns" line (FR-009/T040).
 from __future__ import annotations
 
 from speakloop.feedback import frontmatter
+from speakloop.feedback import narrative as _narrative
 from speakloop.feedback.frontmatter import OPEN_BUCKET_IMPACT_RANK
 
 # Exact body strings (also asserted by tests / T040).
@@ -35,26 +36,6 @@ def _attempts_table(attempts: list[frontmatter.Attempt]) -> str:
         "|-------|--------|------|-----|--------------|--------|",
     ] + [_attempt_row(a) for a in attempts]
     return "\n".join(rows)
-
-
-def _cross_attempt_paragraph(attempts: list[frontmatter.Attempt]) -> str:
-    """Fallback narrative when a session carries no persisted narrative."""
-    if len(attempts) < 3:
-        return ""
-    wpm1 = attempts[0].metrics.speech_rate_wpm
-    wpm3 = attempts[-1].metrics.speech_rate_wpm
-    fillers1 = attempts[0].metrics.filler_density_per_100_words
-    fillers3 = attempts[-1].metrics.filler_density_per_100_words
-    direction = "climbed" if wpm3 > wpm1 else "dropped" if wpm3 < wpm1 else "held steady at"
-    fillers_dir = (
-        "fell" if fillers3 < fillers1 else "rose" if fillers3 > fillers1 else "held steady"
-    )
-    return (
-        f"Your speech rate {direction} from {wpm1:.0f} to {wpm3:.0f} WPM across the three "
-        f"attempts. Filler density {fillers_dir} from {fillers1:.1f} to {fillers3:.1f} per "
-        "100 words. The 4/3/2 design intentionally compresses time on each round — "
-        "rising WPM and falling fillers together is the signature of successful proceduralization."
-    )
 
 
 def _rank_key(p: frontmatter.GrammarPattern):
@@ -406,7 +387,12 @@ def _transcripts_section(attempts: list[frontmatter.Attempt]) -> str:
 def build(session: frontmatter.Session, *, title: str | None = None) -> str:
     fm = frontmatter.dump(session)
     title = title or f"{session.question_id} — {session.started_at.date().isoformat()}"
-    narrative = session.cross_attempt_narrative or _cross_attempt_paragraph(session.attempts)
+    # Persisted narrative in production; fall back to the ONE canonical generator
+    # (`narrative.build_narrative`) for a Session built without it — no second divergent
+    # copy (IMP-032). `build_narrative` degrades gracefully for <3 attempts / no captured speech.
+    narrative = session.cross_attempt_narrative or _narrative.build_narrative(
+        session.attempts, session.grammar_patterns
+    )
 
     parts = [fm, f"# {title}", ""]
 

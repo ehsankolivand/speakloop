@@ -306,13 +306,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Created `cli/gate_prompt.py` with `is_interactive()` and `confirm_freeze_override(console, *, input_fn, interactive) -> bool` (one copy of the freeze-warned prompt + accept message — the drift ["loading the pronunciation model" vs "loading the model"] is gone). Both `practice` and `pronounce` now `from cli.gate_prompt import confirm_freeze_override, is_interactive as _is_interactive` — the re-export preserves each module's `_is_interactive` test seam, and `interactive` is passed as a param so the per-module patch still drives it. Dropped the now-unused `import sys` from pronounce.py. Documented in `cli/CLAUDE.md` (+ file-map entry). Verified: gate-wiring + pronounce-command + help-isolation (21) pass, full suite 918, ruff clean.
 
-- [ ] **IMP-032 — Deduplicate the two cross-attempt narrative generators**
+- [x] **IMP-032 — Deduplicate the two cross-attempt narrative generators**
   - Impact: Low
   - Area: Structure
   - Where: `src/speakloop/feedback/report_builder.py:40-57` (`_cross_attempt_paragraph`) and `feedback/narrative.py:147-194` (`build_narrative`)
   - What & why: Two independent implementations produce the same climbed/dropped/held-steady WPM-and-filler prose. `report_builder.build` uses `session.cross_attempt_narrative or _cross_attempt_paragraph(...)`, but both production callers always persist `cross_attempt_narrative` via `narrative.build_narrative` — so the fallback is effectively test-only code that can silently rot or diverge from the canonical wording, and is strictly worse for <3 attempts (returns "" → an empty "Cross-attempt comparison" section, whereas `build_narrative` degrades gracefully).
   - How to do it: In `build()`, replace `_cross_attempt_paragraph(session.attempts)` with `narrative.build_narrative(session.attempts, session.grammar_patterns)` and delete `_cross_attempt_paragraph` (no import cycle: `narrative` imports only `frontmatter`, which `report_builder` already depends on). One prose implementation.
   - Effort: Small
+  - Resolution: Deleted `_cross_attempt_paragraph`; `build()`'s narrative-less fallback now uses `narrative.build_narrative(session.attempts, session.grammar_patterns)` (imported as `_narrative` to avoid the local `narrative` var shadow; no cycle). Note: the entry's "same prose" premise was empirically WRONG — `build_narrative` gates on captured speech (words_total) and folds in patterns, so it produces DIFFERENT (and better — graceful for <3 attempts / no speech) fallback wording. Since production always persists `cross_attempt_narrative`, the fallback is test-only and reports stay byte-identical (analysis-equivalence + report-invariance pass); the full suite is green with NO test relying on the old wording. Documented in `feedback/CLAUDE.md`. Verified: full suite 918, ruff clean.
 
 - [ ] **IMP-033 — Dedupe the first-attempt and retry hear→score steps in `run_drill_item`**
   - Impact: Low

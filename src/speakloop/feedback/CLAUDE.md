@@ -94,7 +94,9 @@ still-unparseable → `_extract_json`'s `ValueError`. `coverage.score_coverage`,
   adjacent word is NOT enough (a lone unknown token is then 50% of a 2-word span) (IMP-009).
 - `cloud_prompt.py` — `load_cloud_prompt()` / `load_coach_prompt()`.
 - `coach.py` — `build_user_prompt` + `coach(...)`. Cloud-only.
-- `coherence.py`, `narrative.py` — ASR-garble filter + cross-attempt narrative.
+- `coherence.py`, `narrative.py` — ASR-garble filter + cross-attempt narrative. `narrative.build_narrative`
+  is the SINGLE cross-attempt-prose generator; `report_builder.build` delegates its narrative-less
+  fallback to it (no second copy — IMP-032 removed `_cross_attempt_paragraph`).
 - `timings.py` — `StageTimer`. Inner block has its own `TIMINGS_SCHEMA = 1`; report
   `schema_version` stays 1.
 - `openrouter_prompt_default.txt`, `openrouter_coach_prompt_default.txt` — packaged
