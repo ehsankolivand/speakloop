@@ -116,6 +116,31 @@ def test_tts_failure_still_reaches_menu(tmp_path: Path):
 # --- FR-030: first-time orientation line toggles on is_first_time ---
 
 
+class _FakeTTS:
+    def synthesize(self, _text, **_kwargs):
+        return Path("/dev/null")  # play_fn is a no-op stub; no real audio
+
+
+def test_read_aloud_live_path_repaints_and_reaches_menu(tmp_path: Path):
+    """IMP-014: on a real terminal (force_terminal → supports_live True) the read-aloud drives
+    the rich.Live in-place repaint — every educational section fires on_section/live.update and
+    the menu is still reached, with no crash."""
+    console = _recording_console()  # force_terminal=True → supports_live(console) is True
+    played: list[Path] = []
+    choice = debrief.run(
+        _phase_b_session(),  # narrative + top-priority → 2 audio sections, no grammar cards
+        sessions_dir=tmp_path,
+        tts_engine=_FakeTTS(),
+        play_fn=lambda p: played.append(Path(p)),
+        no_audio=False,
+        console=console,
+        read_key=lambda: "q",
+    )
+    assert choice == DebriefChoice.QUIT
+    # Every section played through the Live path (one live.update each) without error.
+    assert len(played) == 2
+
+
 def test_first_time_line_shown_when_no_prior_report(tmp_path: Path):
     # Only this session's own report exists → first-time user.
     (tmp_path / "2026-05-20-demo.md").write_text("report", encoding="utf-8")

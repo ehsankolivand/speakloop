@@ -33,7 +33,10 @@ and returns the user's next-step choice (replay / new / quit) [Phase C].
 ## File map
 
 - `debrief.py` — orchestrator: view model → `print_static` → read aloud → menu;
-  `ANNOUNCEMENT_LINE` constant.
+  `ANNOUNCEMENT_LINE` constant. Read-aloud repaints the highlight IN PLACE via the renderer's
+  `live()` (`rich.Live`) when `supports_live(console)` (a real terminal); non-terminals (test
+  StringIO consoles) keep the per-section `print_static` fallback so captured output is stable
+  (IMP-014 — previously it re-emitted the whole composed view per section and scrolled).
 - `view_model.py` — `build_view_model(session, *, sessions_dir)` + all dataclasses.
 - `renderer.py` — `DebriefRenderer`; `print_static` (one-shot) and `live` (`rich.Live`
   for animated highlight); `GRAMMAR_UNAVAILABLE_LINE`, `NO_PATTERNS_LINE`,
