@@ -436,8 +436,11 @@ def run_drill_item(
                     break
                 if r_status == "error":
                     # Surface the real reason instead of pretending it was "still a bit off".
+                    # A scoring/mic failure is its OWN outcome — never conflate it with a
+                    # scored-but-still-flagged result (would print a contradictory "still off"
+                    # line and persist a false verdict to the report).
                     _print_outcome(console, "error", [], r_detail)
-                    outcome = "still_off"
+                    outcome = "error"
                     break
                 if r_status == "scored" and not r_flags:
                     outcome = "improved"
@@ -453,6 +456,8 @@ def run_drill_item(
             console.print("  [green]Better — that sound is clear now ✓[/green]")
         elif outcome == "not_captured":
             console.print("  [dim]not captured — moving on[/dim]")
+        elif outcome == "error":
+            pass  # the actionable "couldn't score" reason was already printed above (no verdict)
         else:
             console.print("  [dim]Still a little off — keep practising; moving on.[/dim]")
         item["retry"] = {"attempts": attempts, "outcome": outcome, "final_flags": final_flags}

@@ -171,3 +171,35 @@ def test_teaching_beat_falls_back_to_speak_when_no_slower_voice():
     )
     # the word "we" is spoken in isolation during the beat (in addition to the sentence prompt).
     assert ("speak", "we") in events
+
+
+class _FlagThenErrorScorer:
+    """Flags the target on attempt 1, then errors (mic/model failure) on the retry."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def score(self, wav_path, *, canonical, targets, tip, competitors, drill_id, text, contrast_id):
+        self.calls += 1
+        if self.calls == 1:
+            t = targets[0]
+            flag = PhoneFlag(expected=canonical[t["index"]], word=t["word"], gop=-3.0,
+                             competitor="ɹ", competitor_margin=2.0, confident_diagnosis=True, tip=tip)
+            return DrillResult(drill_id, text, contrast_id, "scored", flags=[flag])
+        return DrillResult(drill_id, text, contrast_id, "error", detail="mic stream closed")
+
+
+def test_error_on_retry_is_not_mislabelled_still_off():
+    # A retry that ERRORS must not be conflated with "still a little off": the outcome is a
+    # distinct "error", the live output shows only the actionable reason (no contradictory
+    # "keep practising" line), and the report claims no verdict for the retry.
+    console = _console()
+    item, _ = _run(
+        scorer=_FlagThenErrorScorer(),
+        record=lambda w, l: None,
+        reader=FakeKeyReader(["space", "space"]), console=console, retries=1,
+    )
+    assert item["retry"]["outcome"] == "error"
+    out = console.file.getvalue()
+    assert "couldn't score that one" in out.lower(), "the real failure reason must be surfaced"
+    assert "still a little off" not in out.lower(), "must not print a contradictory verdict"

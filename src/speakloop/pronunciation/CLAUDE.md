@@ -40,7 +40,10 @@ pure per-drill loop, and the calibrated drill wording. Single responsibility (Pr
     exception text (mic failure), logs it at DEBUG (`logging.getLogger("speakloop.pronunciation.drill")`),
     and `_print_outcome` shows an ACTIONABLE, cause-distinguishing message (mic vs model). `SPEAKLOOP_DEBUG`
     (set by `pronounce --debug`) surfaces the raw `detail` inline; the report frontmatter is unchanged
-    (detail is runtime-only, not persisted → no-drills report stays byte-identical).
+    (detail is runtime-only, not persisted → no-drills report stays byte-identical). A retry that hits
+    this failure is recorded as its OWN retry `outcome` `"error"` (never `"still_off"`): the actionable
+    reason is printed once, no contradictory "still a little off" line is shown live, and `feedback._retry_line`
+    returns `None` so the report claims no verdict for a retry that was never scored.
 
 ## The function-local engine-import rule (Principle V; root CLAUDE.md O1)
 

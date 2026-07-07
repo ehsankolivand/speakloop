@@ -37,6 +37,8 @@ def _retry_line(retry: dict) -> str | None:
         return "  - On retry: still a little off — worth more practice."
     if outcome == "not_captured":
         return "  - On retry: not captured."
+    # "error" (the retry could not be scored) carries NO pronunciation verdict — the report
+    # must not claim the sound is "still off". Returning None omits the retry line entirely.
     return None
 
 

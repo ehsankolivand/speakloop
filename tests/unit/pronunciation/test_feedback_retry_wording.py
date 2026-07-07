@@ -40,6 +40,19 @@ def test_still_off_retry_line_is_non_blaming():
     assert "fail" not in out.lower() and "wrong" not in out.lower()
 
 
+def test_error_retry_omits_verdict_line():
+    # A retry that could not be scored (outcome "error") carries NO pronunciation verdict:
+    # the first-attempt detection line stays, but the report must NOT claim "still a little off".
+    drills = {"items": [_item(
+        flags=[{"expected": "v", "word": "verify", "tip": "press"}],
+        retry={"attempts": 2, "outcome": "error", "final_flags": []},
+    )]}
+    out = render_drills_section(drills)
+    assert "sounded off" in out  # the genuine first-attempt detection is still shown
+    assert "On retry" not in out  # but no retry verdict line at all
+    assert "still a little off" not in out.lower()
+
+
 def test_tricky_sounds_line_rendered_from_summary():
     drills = {"items": [_item(flags=[{"expected": "v", "word": "verify"}])],
               "summary": {"tricky_sounds": ["v vs w"]}}
