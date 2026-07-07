@@ -203,3 +203,35 @@ def test_error_on_retry_is_not_mislabelled_still_off():
     out = console.file.getvalue()
     assert "couldn't score that one" in out.lower(), "the real failure reason must be surfaced"
     assert "still a little off" not in out.lower(), "must not print a contradictory verdict"
+
+
+class _FlagThenNotCapturedScorer:
+    """Flags the target on attempt 1, then returns not_captured (silence) on the retry."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def score(self, wav_path, *, canonical, targets, tip, competitors, drill_id, text, contrast_id):
+        self.calls += 1
+        if self.calls == 1:
+            t = targets[0]
+            flag = PhoneFlag(expected=canonical[t["index"]], word=t["word"], gop=-3.0,
+                             competitor="ɹ", competitor_margin=2.0, confident_diagnosis=True, tip=tip)
+            return DrillResult(drill_id, text, contrast_id, "scored", flags=[flag])
+        return DrillResult(drill_id, text, contrast_id, "not_captured")
+
+
+def test_not_captured_on_retry_reports_a_distinct_not_captured_outcome():
+    # IMP-045: the fourth retry outcome (a retry returning not_captured) is its OWN outcome —
+    # the item records "not_captured", the live output shows "not captured — moving on", and it
+    # must NOT be conflated with "still a little off" (each retry outcome stays distinct, BUG-004).
+    console = _console()
+    item, _ = _run(
+        scorer=_FlagThenNotCapturedScorer(),
+        record=lambda w, _l: None,
+        reader=FakeKeyReader(["space", "space"]), console=console, retries=1,
+    )
+    assert item["retry"]["outcome"] == "not_captured"
+    out = console.file.getvalue().lower()
+    assert "not captured" in out and "moving on" in out
+    assert "still a little off" not in out

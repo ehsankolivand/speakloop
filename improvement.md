@@ -423,13 +423,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Chose the fresh-subprocess option (a MEANINGFUL check, not deletion) — simply dropping `or True` would FAIL, because sibling tests (`test_scorer_thresholds`, `test_read_audio`) import `wav2vec2_engine`, contaminating the in-process `sys.modules` (exactly why the `or True` was there). The test now runs `from speakloop.pronunciation import gate; gate.assess_safety('local', ...)` in a fresh interpreter and asserts none of `wav2vec2_engine`/`torch`/`transformers` leaked into `sys.modules` — verifying the gate DECIDES without loading the ~1.3 GB scorer, a check distinct from the module-load isolation guards. Also clears the ruff SIM222 tautology finding. Verified: gate suite 7 passed, full suite 922, ruff clean.
 
-- [ ] **IMP-045 — Add a retry `not_captured` test to close the drill_runner retry-outcome matrix**
+- [x] **IMP-045 — Add a retry `not_captured` test to close the drill_runner retry-outcome matrix**
   - Impact: Low
   - Area: Testing
   - Where: `src/speakloop/pronunciation/drill_runner.py:434-436` (retry `r_status=="not_captured"` → `outcome="not_captured"`) + `tests/unit/pronunciation/test_drill_runner*.py`
   - What & why: In `run_drill_item`'s bounded retry, three of four outcomes are pinned by tests (`improved`, `still_off`, `error` — the last has a dedicated test proving it isn't mislabelled, per BUG-004). The fourth, a retry returning `not_captured` (`:434-436`, which prints "not captured — moving on"), has no test. Given the care 017 took to keep each retry outcome distinct, this branch deserves the same pin so a refactor can't silently fold it into `still_off`.
   - How to do it: Add a scorer that flags on attempt 1 then returns `status="not_captured"` on retry (mirror `_FlagThenErrorScorer`), run interactively with two keypresses, and assert `item["retry"]["outcome"] == "not_captured"` and the "not captured — moving on" line appears while "Still a little off" does not.
   - Effort: Small
+  - Resolution: Added `_FlagThenNotCapturedScorer` (flags on attempt 1, returns `not_captured` on retry) + `test_not_captured_on_retry_reports_a_distinct_not_captured_outcome` to `test_drill_runner_teaching.py` (mirrors `_FlagThenErrorScorer`): runs with `FakeKeyReader(["space","space"])`, asserts `item["retry"]["outcome"] == "not_captured"`, "not captured"/"moving on" printed, and "still a little off" absent. This pins the fourth (previously untested) retry outcome — logic now lives in `_run_bounded_retry` after IMP-033. Used `lambda w, _l:` to avoid a new E741 (the file's `lambda w, l:` convention already has 8). Verified: pronunciation-teaching suite 8 passed, full suite 923 (+1), ruff introduces no new findings.
 
 ---
 
