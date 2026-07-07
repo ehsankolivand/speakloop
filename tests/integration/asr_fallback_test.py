@@ -65,7 +65,11 @@ def test_whisper_load_failure_falls_back_to_parakeet(
     monkeypatch.setattr("speakloop.asr.selection.WhisperMLXEngine", FailingWhisper)
     monkeypatch.setattr("speakloop.asr.selection.ParakeetEngine", StubParakeet)
     monkeypatch.setattr(installer, "ensure_models", lambda *a, **k: None)
-    monkeypatch.setattr("speakloop.cli.practice._build_grammar_analyzer", lambda: None)
+    from speakloop.cli import practice as _practice
+
+    monkeypatch.setattr(
+        "speakloop.cli.practice._build_grammar_analyzer", lambda: _practice._NO_ANALYSIS
+    )
     monkeypatch.setattr(coordinator.recorder, "record", stub_record)
 
     listen_keys = iter([" "])

@@ -87,3 +87,27 @@ def test_decode_listen_key_case_sensitive_and_specials():
     assert practice._decode_listen_key(b" ") == " "      # space → next
     assert practice._decode_listen_key(b"r") == "r"
     assert practice._decode_listen_key(b"R") == "R"      # case preserved, distinct from menu
+
+
+def test_grammar_analysis_requires_all_fields():
+    """IMP-017: a builder that forgets `engine` fails at CONSTRUCTION (the blind spot the
+    old bolted-on `.engine`/`.runners` attributes hid), not by silently going serial."""
+    with pytest.raises(TypeError):
+        practice.GrammarAnalysis(runner=lambda ts: [], runners=None, coach=None)  # engine missing
+
+
+def test_grammar_analysis_parallel_safe_reads_the_engine():
+    class _Cloud:
+        parallel_safe = True
+
+    class _Local:
+        parallel_safe = False
+
+    def _mk(engine):
+        return practice.GrammarAnalysis(runner=lambda ts: [], runners=None, engine=engine, coach=None)
+
+    assert _mk(_Cloud()).parallel_safe is True
+    assert _mk(_Local()).parallel_safe is False
+    # The null "no model" sentinel has no engine → serial, and no runner.
+    assert practice._NO_ANALYSIS.parallel_safe is False
+    assert practice._NO_ANALYSIS.runner is None

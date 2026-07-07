@@ -25,9 +25,9 @@ def test_run_defaults_to_local_mode():
 
 
 def test_default_analyzer_build_touches_no_cloud_or_engine(tmp_path):
-    """Fresh interpreter: local `_build_grammar_analyzer()` with the Qwen model
-    absent returns None (Phase-B only, as before) and loads neither `mlx_lm` nor
-    any OpenRouter cloud module — proving the default path is untouched."""
+    """Fresh interpreter: local `_build_grammar_analyzer()` with the Qwen model absent
+    returns the null `_NO_ANALYSIS` (runner is None → Phase-B only, as before) and loads
+    neither `mlx_lm` nor any OpenRouter cloud module — proving the default path is untouched."""
     code = (
         "import sys;"
         "from speakloop.cli import practice;"
@@ -40,7 +40,7 @@ def test_default_analyzer_build_touches_no_cloud_or_engine(tmp_path):
         ") if m in sys.modules};"
         "print('ANALYZER', ana);"
         "print('LOADED', sorted(cloud));"
-        "sys.exit(1 if (ana is not None or cloud) else 0)"
+        "sys.exit(1 if (ana.runner is not None or cloud) else 0)"
     )
     env = dict(
         os.environ,

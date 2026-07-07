@@ -87,9 +87,13 @@ def test_replay_loops_to_same_question_without_reload(
     # Stub everything that would touch a model or a device.
     monkeypatch.setattr("speakloop.asr.selection.WhisperMLXEngine", StubASR)
     monkeypatch.setattr(installer, "ensure_models", lambda *a, **k: None)
+    from speakloop.cli import practice as _practice
+
     monkeypatch.setattr(
         "speakloop.cli.practice._build_grammar_analyzer",
-        lambda: (lambda ts: analyze(ts, StubLLM())),
+        lambda: _practice.GrammarAnalysis(
+            runner=lambda ts: analyze(ts, StubLLM()), runners=None, engine=None, coach=None
+        ),
     )
     monkeypatch.setattr(coordinator.recorder, "record", stub_record)
 

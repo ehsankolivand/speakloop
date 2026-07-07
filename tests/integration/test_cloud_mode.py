@@ -105,7 +105,7 @@ def test_cloud_runner_produces_feedback_without_local_qwen(home, http, monkeypat
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-valid")
     mlx_before = "mlx_lm" in sys.modules
 
-    runner, _coach = practice._build_cloud_grammar_analyzer(_console())
+    runner = practice._build_cloud_grammar_analyzer(_console()).runner
     patterns = runner(TS)
 
     assert len(patterns) == 1
@@ -122,9 +122,9 @@ def test_cloud_runner_produces_feedback_without_local_qwen(home, http, monkeypat
 def test_first_run_prompts_then_stores_token(home, http):
     assert openrouter_credentials.resolve_token() is None
     inputs = iter(["sk-or-entered"])
-    runner, _coach = practice._build_cloud_grammar_analyzer(
+    runner = practice._build_cloud_grammar_analyzer(
         _console(), input_fn=lambda _prompt="": next(inputs)
-    )
+    ).runner
     runner(TS)
     # Stored for reuse.
     assert openrouter_credentials.resolve_token() == "sk-or-entered"
@@ -137,7 +137,7 @@ def test_second_run_is_silent(home, http):
     def _no_input(_prompt=""):
         raise AssertionError("should not prompt when a token is stored")
 
-    runner, _coach = practice._build_cloud_grammar_analyzer(_console(), input_fn=_no_input)
+    runner = practice._build_cloud_grammar_analyzer(_console(), input_fn=_no_input).runner
     assert runner(TS)  # completes without prompting
 
 
@@ -172,7 +172,7 @@ def test_model_id_from_yaml_used_in_request(home, http, monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-valid")
     paths.openrouter_config_path().write_text("model: acme/custom-model\n", encoding="utf-8")
 
-    runner, _coach = practice._build_cloud_grammar_analyzer(_console())
+    runner = practice._build_cloud_grammar_analyzer(_console()).runner
     runner(TS)
 
     bodies = http.chat_bodies()
@@ -181,7 +181,7 @@ def test_model_id_from_yaml_used_in_request(home, http, monkeypatch):
 
 def test_default_model_when_no_yaml(home, http, monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-valid")
-    runner, _coach = practice._build_cloud_grammar_analyzer(_console())
+    runner = practice._build_cloud_grammar_analyzer(_console()).runner
     runner(TS)
     assert http.chat_bodies()[0]["model"] == "qwen/qwen3.7-max"
 
@@ -195,7 +195,7 @@ def test_edited_prompt_file_is_sent(home, http, monkeypatch):
     paths.openrouter_prompt_path().parent.mkdir(parents=True, exist_ok=True)
     paths.openrouter_prompt_path().write_text("MY EDITED CLOUD PROMPT", encoding="utf-8")
 
-    runner, _coach = practice._build_cloud_grammar_analyzer(_console())
+    runner = practice._build_cloud_grammar_analyzer(_console()).runner
     runner(TS)
 
     system_msg = http.chat_bodies()[0]["messages"][0]
@@ -213,7 +213,8 @@ def test_build_returns_coach_runner_sending_coach_prompt_over_same_engine(
     paths.openrouter_coach_prompt_path().parent.mkdir(parents=True, exist_ok=True)
     paths.openrouter_coach_prompt_path().write_text("MY COACH PROMPT", encoding="utf-8")
 
-    grammar, coach = practice._build_cloud_grammar_analyzer(_console())
+    analysis = practice._build_cloud_grammar_analyzer(_console())
+    grammar, coach = analysis.runner, analysis.coach
     assert callable(grammar) and callable(coach)
 
     # The coach call goes over the same engine (one preflight /key, then a chat

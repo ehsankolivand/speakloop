@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 import typer
@@ -481,10 +483,12 @@ def run(
         )
     # Engine selection (011/012): local Qwen (default, offline), OpenRouter, or Claude Code.
     # Build the grammar analyzer + optional coach + runner bundle + concurrency capability
-    # ONCE, before the loop, reused per session.
-    grammar_analyzer, coach_runner, runners, analysis_parallel_safe = _build_analysis(
-        engine_choice, console
-    )
+    # ONCE, before the loop, reused per session (typed fields, IMP-017).
+    analysis = _build_analysis(engine_choice, console)
+    grammar_analyzer = analysis.runner
+    coach_runner = analysis.coach
+    runners = analysis.runners
+    analysis_parallel_safe = analysis.parallel_safe
 
     # 016: resolve the optional read-aloud pronunciation-drill capability ONCE, before the
     # timed loop (the model download/consent happens here, not mid-session). Returns a bundle
@@ -602,35 +606,53 @@ def _provision_models(engine_choice: str, *, listen_only: bool, console: Console
             )
 
 
-def _build_analysis(engine_choice: str, console: Console):
+@dataclass(frozen=True)
+class GrammarAnalysis:
+    """The feedback-analysis bundle for one engine (011/012), returned by the three
+    ``_build_*_grammar_analyzer`` builders.
+
+    All fields are REQUIRED (no defaults) so a builder that forgets ``engine`` fails at
+    construction rather than silently degrading ``parallel_safe`` to serial — the blind spot
+    the old bolted-on ``.engine``/``.runners`` attributes hid (IMP-017). ``_NO_ANALYSIS``
+    (every field None) is the "no local model available" sentinel, so callers read typed
+    fields uniformly: ``runner is None`` ⇒ degrade, ``parallel_safe`` ⇒ False.
+    """
+
+    runner: Callable | None  # grammar analyzer (transcripts) -> patterns
+    runners: object | None  # coordinator.Runners bundle (interview loop), or None
+    engine: object | None  # the LLM engine the analyzer was built over
+    coach: Callable | None  # additive coaching runner (cloud/claude only), or None
+
+    @property
+    def parallel_safe(self) -> bool:
+        """Whether the engine's analysis calls may run concurrently (012/FR-026)."""
+        return bool(getattr(self.engine, "parallel_safe", False))
+
+
+_NO_ANALYSIS = GrammarAnalysis(runner=None, runners=None, engine=None, coach=None)
+
+
+def _build_analysis(engine_choice: str, console: Console) -> GrammarAnalysis:
     """Build the feedback analysis bundle ONCE for the chosen engine (011/012).
 
-    Returns ``(grammar_analyzer, coach_runner, runners, analysis_parallel_safe)``. Cloud +
-    Claude build the grammar analyzer AND the additive coaching runner over one shared
-    engine; local keeps its byte-identical build and has no coach. `runners` (the 010
-    Interview Loop bundle) rides on the grammar-runner callable — None when no Phase-C model
-    is installed, so follow-ups/triage simply stay off. `analysis_parallel_safe` reads the
-    concurrency capability off the engine the analyzer was built over (012/FR-026).
+    Cloud + Claude build the grammar analyzer AND the additive coaching runner over one
+    shared engine; local keeps its byte-identical build and has no coach. Returns the null
+    ``_NO_ANALYSIS`` when no local Phase-C model is installed (so follow-ups/triage stay off
+    and the session degrades to a resumable pending report).
     """
     if engine_choice == "openrouter":
-        grammar_analyzer, coach_runner = _build_cloud_grammar_analyzer(console)
-    elif engine_choice == "claude":
-        grammar_analyzer, coach_runner = _build_claude_grammar_analyzer(console)
-    else:  # local
-        grammar_analyzer = _build_grammar_analyzer()
-        coach_runner = None
-    runners = getattr(grammar_analyzer, "runners", None)
-    analysis_engine = getattr(grammar_analyzer, "engine", None)
-    analysis_parallel_safe = bool(getattr(analysis_engine, "parallel_safe", False))
-    return grammar_analyzer, coach_runner, runners, analysis_parallel_safe
+        return _build_cloud_grammar_analyzer(console)
+    if engine_choice == "claude":
+        return _build_claude_grammar_analyzer(console)
+    return _build_grammar_analyzer()  # local — may be _NO_ANALYSIS
 
 
-def _build_grammar_analyzer():
-    """Return a callable `(transcripts) -> patterns` if Phase C LLM is installed; else None."""
+def _build_grammar_analyzer() -> GrammarAnalysis:
+    """Return a `GrammarAnalysis` if the local Phase-C LLM is installed; else `_NO_ANALYSIS`."""
     from speakloop.installer import manifest, validator
 
     if not validator.validate(manifest.QWEN3_14B_4BIT).ok:
-        return None
+        return _NO_ANALYSIS
 
     from speakloop.feedback.grammar_analyzer import analyze
     from speakloop.llm.qwen_engine import QwenEngine
@@ -640,13 +662,9 @@ def _build_grammar_analyzer():
     def _runner(transcripts):
         return analyze(transcripts, qwen)
 
-    # 010: attach the Interview Loop runner bundle (mishearing/consistency/follow-ups)
-    # built over the SAME engine. Stored as an attribute so the return type stays a
-    # plain callable (existing callers/tests unaffected); run() reads it via getattr.
-    _runner.runners = _build_runners(qwen)
-    # 012/FR-026: expose the engine so run() can read its parallel_safe capability.
-    _runner.engine = qwen
-    return _runner
+    # 010: the Interview Loop runner bundle (mishearing/consistency/follow-ups) is built
+    # over the SAME engine; local has no coach (009 is cloud-only).
+    return GrammarAnalysis(runner=_runner, runners=_build_runners(qwen), engine=qwen, coach=None)
 
 
 # 011 P2 — the static call-site → model-tier assignment (documentation + single
@@ -791,8 +809,8 @@ def _validated_token(console: Console, token: str, model: str, *, input_fn=input
     raise typer.Exit(1)
 
 
-def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input):
-    """Return ``(grammar_runner, coach_runner)``, both backed by OpenRouter.
+def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input) -> GrammarAnalysis:
+    """Return a `GrammarAnalysis` (grammar + coach runners), both backed by OpenRouter.
 
     Resolves the token (env > stored file; first-run prompt + store + disclosure),
     validates it once up front, loads the dedicated cloud prompts, and builds ONE
@@ -842,18 +860,20 @@ def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input):
             system_prompt=coach_system_prompt,
         )
 
-    # 010: the Interview Loop runners reuse the SAME OpenRouter engine (FR-039),
-    # attached to the grammar runner so the (grammar, coach) return type is unchanged.
-    _grammar_runner.runners = _build_runners(engine)
-    _grammar_runner.engine = engine  # 012/FR-026: expose parallel_safe to run()
-    return _grammar_runner, _coach_runner
+    # 010: the Interview Loop runners reuse the SAME OpenRouter engine (FR-039).
+    return GrammarAnalysis(
+        runner=_grammar_runner,
+        runners=_build_runners(engine),
+        engine=engine,  # 012/FR-026: exposes parallel_safe
+        coach=_coach_runner,
+    )
 
 
 # --- Claude Code mode (011) ------------------------------------------------
 
 
-def _build_claude_grammar_analyzer(console: Console):
-    """Return ``(grammar_runner, coach_runner)`` backed by the local Claude Code CLI.
+def _build_claude_grammar_analyzer(console: Console) -> GrammarAnalysis:
+    """Return a `GrammarAnalysis` (grammar + coach runners) backed by the local Claude Code CLI.
 
     Mirrors :func:`_build_cloud_grammar_analyzer` but drives the subscription-billed
     Claude Code product via subprocess (``ClaudeCodeEngine``). Reuses the SAME
@@ -924,6 +944,9 @@ def _build_claude_grammar_analyzer(console: Console):
             question_text, transcripts, patterns, strong, system_prompt=coach_system_prompt
         )
 
-    _grammar_runner.runners = _build_runners(strong, fast_engine=fast)
-    _grammar_runner.engine = strong  # 012/FR-026: expose parallel_safe to run()
-    return _grammar_runner, _coach_runner
+    return GrammarAnalysis(
+        runner=_grammar_runner,
+        runners=_build_runners(strong, fast_engine=fast),
+        engine=strong,  # 012/FR-026: exposes parallel_safe
+        coach=_coach_runner,
+    )
