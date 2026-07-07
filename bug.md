@@ -24,7 +24,7 @@ Method: ran `python -m compileall` (clean — no syntax errors), `ruff check` (1
 
 ## Medium
 
-- [ ] **BUG-002 — `store.io.load` crashes on valid-JSON-but-shape-corrupt store instead of returning an empty Store**
+- [x] **BUG-002 — `store.io.load` crashes on valid-JSON-but-shape-corrupt store instead of returning an empty Store**
   - Severity: Medium
   - Category: Functional
   - Location: src/speakloop/store/io.py:29 — `load` (root cause in `store/model.py:74,77,81` — `Store.from_dict`)
@@ -32,6 +32,7 @@ Method: ran `python -m compileall` (clean — no syntax errors), `ruff check` (1
   - Impact: A JSON-valid but wrong-shape `~/.speakloop/store.json` (external tampering or a hand-edit) makes `load()` raise instead of returning an empty, rebuildable `Store` — directly contradicting the module docstring ("missing / corrupt / older-version file loads as an empty Store") and `store/CLAUDE.md`. Every command that loads the store (`today`, `practice`, `resume`, `rebuild`) then crashes with a raw traceback, and recovery requires the user to manually delete the file — the exact outcome the cache contract exists to prevent. Reproduced: `{"schedule": [1,2,3]}` → `AttributeError`; `{"store_version": "abc"}` → `ValueError`; `{"store_version": null}` → `TypeError`.
   - How to fix: Wrap `Store.from_dict(data)` (io.py:29) in `try/except (ValueError, TypeError, AttributeError, KeyError): return Store()`. Additionally harden `from_dict`: guard `int()` around `store_version`, and require `isinstance(schedule_raw, dict)` before iterating (mirroring the existing per-entry `isinstance(e, dict)` guard).
   - Confidence: Confirmed — traced `load` + `from_dict` and reproduced all three crash inputs.
+  - Resolution: Wrapped the `Store.from_dict(data)` call in `store.io.load` in `try/except (ValueError, TypeError, AttributeError, KeyError): return Store()` — the single contract-owning site, mirroring the existing `json.loads` guard right above it (src/speakloop/store/io.py). Added a parametrized regression test (`test_load_valid_json_but_shape_corrupt_returns_empty`) covering `{"schedule":[1,2,3]}`, `{"store_version":"abc"}`, `{"store_version":null}` (tests/unit/store/test_rebuild.py). commit 01f407a; verified by reproducing all three original crashes now returning an empty Store, confirming a well-shaped store still loads its data unchanged, the store suite (14 passed) and the store-consumer suite (today/resume/pronounce/coordinator/coverage — 41 passed), plus an independent fresh-context investigator agent.
 
 - [ ] **BUG-003 — Unhashable `difficulty` / `type` value crashes `content.schema.parse` with an uncaught TypeError**
   - Severity: Medium
