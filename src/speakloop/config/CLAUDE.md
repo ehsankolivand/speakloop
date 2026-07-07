@@ -23,10 +23,16 @@ Two files with different stdlib footprints — see File map.
   / `openrouter_coach_prompt_path()` — paths only; YAML read happens in `llm/`.
 - `paths.store_path()` — `~/.speakloop/store.json` (010 cross-session store).
 - `paths.loop_config_path()` — `~/.speakloop/loop.yaml` (010).
+- `paths.logs_dir()` — `~/.speakloop/logs/` (017; opt-in debug logs only — written ONLY by
+  `pronounce --debug`, never on a normal run; caller mkdir-s on demand).
 - Five editable-prompt path functions (010): `openrouter_followups_prompt_path()`,
   `openrouter_keypoints_prompt_path()`, `openrouter_coverage_prompt_path()`,
   `openrouter_triage_prompt_path()`, `openrouter_drill_prompt_path()`.
 - `paths.ensure_dir(path) -> Path` — mkdir -p, returns path.
+- `paths.seed_and_read(target, default_asset) -> (text, Path)` — the SINGLE first-run
+  prompt-seeding routine (IMP-035): seed `target` from its packaged default on first use, then
+  read the user's file. All six seeding prompt loaders (coverage/keypoints, followups, triage,
+  drill, cloud grammar/coach) route through it (was copy-pasted 7×).
 - Env overrides: `SPEAKLOOP_HOME` (base home dir; default `~/.speakloop`);
   XDG-aware: `XDG_DATA_HOME`, `XDG_CACHE_HOME` used for fallback resolution.
 
@@ -53,10 +59,16 @@ Two files with different stdlib footprints — see File map.
 | `followups_enabled` | `True` | bool() cast | :88 |
 | `claude_fast_model` | `"haiku"` | non-empty str | :90 |
 | `claude_strong_model` | `"sonnet"` | non-empty str | :91 |
+| `claude_fast_effort` | unset (`None`) | must be in (low, medium, high, xhigh, max); else None | `_effort` |
+| `claude_strong_effort` | unset (`None`) | must be in (low, medium, high, xhigh, max); else None | `_effort` |
 | `pronunciation_drills` (016) | `"auto"` | must be in (auto, on, off) | load() |
 | `pronunciation_min_free_mb` (016) | 4500 | max(0, int) | load() |
 | `pronunciation_tts_playback` (017) | `True` | must be `bool` | load() |
 | `pronunciation_retries` (017) | 1 | int clamped to [0, 3] | load() |
+| `pronunciation_tts_speed` (017 P2) | 0.85 | float clamped to [0.5, 1.5] | load() |
+
+`loop_config.teach_speed(drill_speed) -> float` derives the slower per-sound teaching-beat speed
+(a step below the drill speed, clamped to the floor) — used by both `cli` and `sessions`.
 
 ## Dependencies & consumers
 
@@ -75,7 +87,7 @@ Two files with different stdlib footprints — see File map.
 - **Q&A precedence (O10)**: `--qa-file` / `SPEAKLOOP_QA_FILE` → `~/.speakloop/qa.yaml`
   (if exists) → `content/questions.yaml` (if exists) → `None`. The home file is an
   opt-in override — never auto-created (paths.py:103-124, specs/004-public-release-readiness).
-- `paths.py` does no I/O except `ensure_dir()`; `loop_config.py` reads YAML at call time
+- `paths.py` does no I/O except `ensure_dir()` and `seed_and_read()`; `loop_config.py` reads YAML at call time
   and writes ONLY via `save_engine()` (explicit `speakloop setup` action — never on a normal
   run, preserving the "nothing auto-created in your home dir" guarantee). Never add a network
   call or engine import to either file.
@@ -83,8 +95,9 @@ Two files with different stdlib footprints — see File map.
 ## Common modification patterns
 
 - **Add a path or constant**: add a function in `paths.py`; never hard-code a path elsewhere.
-- **Add a loop.yaml key**: add the field to `LoopConfig`, a default constant, and a
-  parse branch in `load()` in the same commit.
+- **Add a loop.yaml key**: add the field to `LoopConfig`, a default constant, and ONE
+  `_int`/`_float`/`_bool`/`_choice` helper call in `load()` (IMP-036 collapsed the copy-pasted
+  clamp/validate blocks into these) in the same commit.
 
 ## Pointers
 

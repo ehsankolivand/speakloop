@@ -37,3 +37,21 @@ def test_schema_version_unchanged():
     # adding `type` must not require a question-file schema_version bump
     qa = schema.parse(_doc([{"id": "q", "question": "Q", "ideal_answer": "A", "type": "behavioral"}]))
     assert qa.schema_version == 1
+
+
+@pytest.mark.parametrize("bad_type", [["behavioral"], {"a": 1}])
+def test_unhashable_type_degrades_not_crashes(bad_type):
+    # A list/dict `type` value is unhashable — the membership test must not raise
+    # TypeError; it degrades to a warning + "definition" default (like an unknown str).
+    qa = schema.parse(_doc([{"id": "q", "question": "Q", "ideal_answer": "A", "type": bad_type}]))
+    assert qa.questions[0].type == "definition"
+    assert any("unknown type" in w for w in qa.warnings)
+
+
+@pytest.mark.parametrize("bad_difficulty", [["easy", "hard"], {"a": 1}])
+def test_unhashable_difficulty_degrades_not_crashes(bad_difficulty):
+    qa = schema.parse(
+        _doc([{"id": "q", "question": "Q", "ideal_answer": "A", "difficulty": bad_difficulty}])
+    )
+    assert qa.questions[0].difficulty is None
+    assert any("unknown difficulty" in w for w in qa.warnings)

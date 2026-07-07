@@ -61,6 +61,23 @@ def test_prune_never_evicts_kept_entry(cache_dir):
     assert not (cache_dir / "new.wav").exists()
 
 
+def test_lookup_refreshes_mtime_so_used_entry_survives_eviction(cache_dir):
+    """IMP-038: accessing the OLDEST entry via lookup() bumps its mtime, so prune's LRU keeps
+    it and evicts a not-recently-used entry instead — true access-LRU, not LRU-by-creation."""
+    used = cache.cache_path("af_heart", "frequently replayed prompt")
+    _write(used, 100, mtime=1000)  # oldest by creation
+    _write(cache_dir / "unused.wav", 100, mtime=2000)  # newer, but never accessed
+
+    # Access the oldest via lookup → its mtime jumps to now (>> 2000).
+    assert cache.lookup("af_heart", "frequently replayed prompt") == used
+
+    # cap 150 → must drop ONE 100-byte file. Without the mtime bump, `used` (mtime 1000) would
+    # be evicted as oldest; with it, `unused` (mtime 2000) is now the least-recently-used.
+    assert cache.prune(max_bytes=150) == 1
+    assert used.exists(), "the recently-USED entry must survive eviction (access-LRU)"
+    assert not (cache_dir / "unused.wav").exists()
+
+
 def test_prune_tolerates_missing_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("SPEAKLOOP_TTS_CACHE_DIR", str(tmp_path / "does-not-exist"))
     assert cache.prune(max_bytes=10) == 0

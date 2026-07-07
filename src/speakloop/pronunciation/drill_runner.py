@@ -19,7 +19,10 @@ import cycle. See ``specs/017-pronunciation-trainer/contracts/drill-runner.md``.
 from __future__ import annotations
 
 import contextlib
+import logging
+import os
 import time
+import traceback
 from collections.abc import Callable
 from pathlib import Path
 
@@ -27,6 +30,29 @@ from speakloop.pronunciation.feedback import live_flag_summary
 from speakloop.pronunciation.interface import PronunciationError
 
 _KEY_POLL_INTERVAL_SECONDS = 0.03
+
+# Logger for drill scoring/recording diagnostics. Emits at DEBUG only (so nothing reaches
+# the stderr "last resort" handler during a normal run); a handler is attached by the CLI
+# when the learner opts into debug mode (``speakloop pronounce --debug`` / SPEAKLOOP_DEBUG).
+logger = logging.getLogger("speakloop.pronunciation.drill")
+
+
+def _debug_enabled() -> bool:
+    """True when SPEAKLOOP_DEBUG is set to a truthy value — surfaces the swallowed failure
+    reason inline (the score path never raises into the session, so the real cause — a mic
+    error vs a model error — is otherwise invisible). ``pronounce --debug`` sets this."""
+    return os.environ.get("SPEAKLOOP_DEBUG", "").strip().lower() not in ("", "0", "false", "no", "off")
+
+
+def _error_hint(detail: str) -> str:
+    """Map a captured failure ``detail`` to an actionable, English, non-technical hint so the
+    learner knows what to DO — distinguishing a microphone problem from a scoring-model one."""
+    d = detail.lower()
+    if any(k in d for k in ("recording", "microphone", "portaudio", "input stream", "no audio")):
+        return "couldn't reach your microphone — check it's connected and run `speakloop doctor`."
+    if any(k in d for k in ("model", "transformers", "torch", "espeak", "vocab", "weights", "load")):
+        return "couldn't run the scoring model — run `speakloop doctor` to check it downloaded."
+    return "give it another go; if it keeps happening run `speakloop doctor`."
 
 
 class DrillQuit(PronunciationError):
@@ -122,7 +148,7 @@ def select_drills(bank, *, weak_contrasts: list[str], max_base: int):
 def _hear_first(
     drill,
     *,
-    speak: Callable[[str], None],
+    speak: Callable[[str], None] | None,
     key_reader,
     console,
     tts_on: bool,
@@ -158,11 +184,16 @@ def _score_once(
     record: Callable[[Path, str], None],
     scratch_dir: Path,
     label: str,
-) -> tuple[str, list[dict]]:
-    """Record one rendering and score it. Returns ``(status, flags_as_dicts)``. The wav is
-    always discarded after scoring (privacy). Never raises (degrades to ``error``)."""
+) -> tuple[str, list[dict], str]:
+    """Record one rendering and score it. Returns ``(status, flags_as_dicts, detail)``.
+
+    ``detail`` carries the REAL reason a non-``scored`` outcome happened — the scorer's own
+    ``DrillResult.detail`` (a model/scoring failure) OR the recorder/scorer exception text (a
+    mic failure). The score path is designed never to raise into the session, which otherwise
+    *hides* the cause behind a vague "could not score"; capturing + logging ``detail`` makes it
+    visible (DEBUG log + inline when SPEAKLOOP_DEBUG). The wav is always discarded (privacy)."""
     wav_path = Path(scratch_dir) / f"drill-{drill.id}.wav"
-    status, flags = "error", []
+    status, flags, detail = "error", [], ""
     try:
         record(wav_path, label)
         result = scorer.score(
@@ -177,20 +208,35 @@ def _score_once(
         )
         status = result.status
         flags = [_flag_to_dict(f) for f in result.flags]
-    except Exception:  # noqa: BLE001 — a drill must never crash the session
+        detail = getattr(result, "detail", "") or ""
+    except Exception as e:  # noqa: BLE001 — a drill must never crash the session
         status = "error"
+        detail = f"{type(e).__name__}: {e}"
+        logger.debug("drill %r raised during record/score:\n%s", drill.id, traceback.format_exc())
     finally:
         with contextlib.suppress(OSError):
             wav_path.unlink()
-    return status, flags
+    if status != "scored" and detail:
+        logger.debug("drill %r → %s: %s", drill.id, status, detail)
+    return status, flags, detail
 
 
-def _print_outcome(console, status: str, flags: list[dict]) -> None:
-    """Calibrated live feedback for one attempt (detection-led, hedged — FR-006)."""
+def _print_outcome(console, status: str, flags: list[dict], detail: str = "") -> None:
+    """Calibrated live feedback for one attempt (detection-led, hedged — FR-006).
+
+    A non-``scored`` outcome gets an ACTIONABLE message (not a vague "could not score"):
+    ``not_captured`` points at the microphone/timing; ``error`` distinguishes a mic problem
+    from a model problem via ``detail``. When SPEAKLOOP_DEBUG is set the raw ``detail`` is
+    shown inline so the learner (or a maintainer) can always tell WHY it failed."""
     if status == "not_captured":
-        console.print("  [dim]not captured — read right after the prompt[/dim]")
+        console.print(
+            "  [yellow]I didn't catch any audio[/yellow] [dim]— check your microphone and "
+            "read right after the prompt.[/dim]"
+        )
     elif status == "error":
-        console.print("  [dim]could not score this one[/dim]")
+        console.print(f"  [yellow]I couldn't score that one[/yellow] [dim]— {_error_hint(detail)}[/dim]")
+        if detail and not _debug_enabled():
+            console.print("    [dim](run `speakloop pronounce --debug` to see the reason)[/dim]")
     elif flags:
         console.print(f"  → {live_flag_summary(flags)}")
         for fl in flags:
@@ -198,6 +244,54 @@ def _print_outcome(console, status: str, flags: list[dict]) -> None:
                 console.print(f"    [dim]Tip:[/dim] {fl['tip']}")
     else:
         console.print("  [green]clear ✓[/green]")
+    if detail and status != "scored" and _debug_enabled():
+        console.print(f"    [dim]debug: {detail}[/dim]")
+
+
+def _flagged_words(flags: list[dict]) -> list[str]:
+    """Distinct, order-preserved target words that flagged (drives the teaching beat)."""
+    words: list[str] = []
+    seen: set[str] = set()
+    for fl in flags:
+        w = str(fl.get("word", "")).strip()
+        if w and w.lower() not in seen:
+            seen.add(w.lower())
+            words.append(w)
+    return words
+
+
+def _teach_sound(
+    drill,
+    flags: list[dict],
+    *,
+    speak: Callable[[str], None] | None,
+    teach_speak: Callable[[str], None] | None,
+    console,
+    tts_on: bool,
+    ui_sleep: Callable[[float], None],
+) -> None:
+    """Focused per-sound coaching beat, shown BEFORE the bounded retry when a sound flagged
+    (FR-006, 017 P2). A calm "let me show you" moment that actually *teaches* the sound:
+
+    * show the curated English respelling highlighting the target sound (``drill.say_like``);
+    * play JUST the flagged word(s) in ISOLATION at the slower teaching rate (``teach_speak``,
+      falling back to ``speak`` when no slower voice is injected) so the learner hears the
+      correct word modelled on its own — Kokoro has no phoneme-stress control, so isolation +
+      a slower rendering + the respelling is the (documented) approximation of emphasis;
+    * cue the learner to repeat just that.
+
+    Best-effort and bounded: any playback failure is swallowed (never blocks the drill), and
+    it is a no-op when TTS is off / unavailable apart from still showing the respelling."""
+    words = _flagged_words(flags) or [drill.prompt]
+    console.print("  [bold]Let me show you[/bold] [dim]— here's just that part, slower:[/dim]")
+    if drill.say_like:
+        console.print(f"    [dim]Say it like:[/dim] {drill.say_like}")
+    play = teach_speak or speak
+    if tts_on and play is not None:
+        for w in words:
+            with contextlib.suppress(Exception):  # best-effort, never fatal (FR-005)
+                play(w)
+            ui_sleep(0.12)  # a small gap so each modelled word lands distinctly
 
 
 def run_drill_block(
@@ -215,6 +309,7 @@ def run_drill_block(
     max_followons: int = 2,
     ui_sleep: Callable[[float], None] = time.sleep,
     should_abort: Callable[[], bool] | None = None,
+    teach_speak: Callable[[str], None] | None = None,
 ) -> tuple[list[dict], bool]:
     """Run a block of base drills, routing a flagged base drill into bounded follow-on minimal
     pairs (016 routing, FR-009/024). Shared by the interview block and the standalone command.
@@ -235,6 +330,7 @@ def run_drill_block(
                 drill, contrast=bank.contrast(drill.contrast_id), scorer=scorer, speak=speak,
                 record=record, key_reader=key_reader, console=console, scratch_dir=scratch_dir,
                 retries=retries, tts_on=tts_on, is_follow_on=is_follow_on, ui_sleep=ui_sleep,
+                teach_speak=teach_speak,
             )
         except DrillQuit as quit_exc:
             # The learner quit; a first attempt scored DURING a retry is preserved on the
@@ -267,6 +363,99 @@ def run_drill_block(
     return items, False
 
 
+def _attempt(
+    drill,
+    *,
+    label: str,
+    contrast,
+    scorer,
+    speak: Callable[[str], None] | None,
+    record: Callable[[Path, str], None],
+    key_reader,
+    console,
+    scratch_dir: Path,
+    tts_on: bool,
+    ui_sleep: Callable[[float], None],
+) -> tuple[str, list[dict], str]:
+    """One hear → record → score pass — the shared first-attempt/retry body. Plays the target
+    (interactive replay), records, scores; returns ``(status, flags, detail)``. ``DrillQuit``
+    (learner pressed ``q`` during hear-first) propagates to the caller."""
+    _hear_first(drill, speak=speak, key_reader=key_reader, console=console, tts_on=tts_on, ui_sleep=ui_sleep)
+    return _score_once(
+        drill, contrast=contrast, scorer=scorer, record=record, scratch_dir=scratch_dir, label=label,
+    )
+
+
+def _run_bounded_retry(
+    drill,
+    *,
+    contrast,
+    scorer,
+    speak: Callable[[str], None] | None,
+    teach_speak: Callable[[str], None] | None,
+    record: Callable[[Path, str], None],
+    key_reader,
+    console,
+    scratch_dir: Path,
+    retries: int,
+    tts_on: bool,
+    ui_sleep: Callable[[float], None],
+    flags: list[dict],
+    item: dict,
+) -> dict:
+    """The bounded per-sound retry (interactive-only, FR-003/004/025). Runs the focused teaching
+    beat, then up to ``retries`` more hear→score passes on the SAME drill, stopping early once the
+    target clears / can't be scored. Returns the additive ``retry`` sub-dict. On ``DrillQuit``
+    mid-retry, attaches the partial item to the exception (so `run_drill_block` preserves this
+    flagged drill rather than dropping it) and re-raises."""
+    # Focused per-sound teaching beat FIRST: show the respelling + model the flagged word(s) in
+    # isolation at the slower rate, then run the bounded retry (FR-006, P2).
+    _teach_sound(
+        drill, flags, speak=speak, teach_speak=teach_speak, console=console,
+        tts_on=tts_on, ui_sleep=ui_sleep,
+    )
+    attempts, outcome, final_flags = 1, "still_off", flags
+    try:
+        for _ in range(retries):
+            console.print("  [dim]Now once more — listen and repeat.[/dim]")
+            r_status, r_flags, r_detail = _attempt(
+                drill, label=f"retry: {drill.prompt}", contrast=contrast, scorer=scorer,
+                speak=speak, record=record, key_reader=key_reader, console=console,
+                scratch_dir=scratch_dir, tts_on=tts_on, ui_sleep=ui_sleep,
+            )
+            attempts += 1
+            final_flags = r_flags
+            if r_status == "not_captured":
+                outcome = "not_captured"
+                break
+            if r_status == "error":
+                # Surface the real reason instead of pretending it was "still a bit off". A
+                # scoring/mic failure is its OWN outcome — never conflate it with a scored-but-
+                # still-flagged result (would print a contradictory line + persist a false verdict).
+                _print_outcome(console, "error", [], r_detail)
+                outcome = "error"
+                break
+            if r_status == "scored" and not r_flags:
+                outcome = "improved"
+                break
+            outcome = "still_off"
+    except DrillQuit as quit_exc:
+        # Quit during a retry: keep the already-scored first attempt + retry progress so far on
+        # the exception, so run_drill_block preserves this flagged drill (not dropped).
+        item["retry"] = {"attempts": attempts, "outcome": outcome, "final_flags": final_flags}
+        quit_exc.item = item
+        raise
+    if outcome == "improved":
+        console.print("  [green]Better — that sound is clear now ✓[/green]")
+    elif outcome == "not_captured":
+        console.print("  [dim]not captured — moving on[/dim]")
+    elif outcome == "error":
+        pass  # the actionable "couldn't score" reason was already printed above (no verdict)
+    else:
+        console.print("  [dim]Still a little off — keep practising; moving on.[/dim]")
+    return {"attempts": attempts, "outcome": outcome, "final_flags": final_flags}
+
+
 def run_drill_item(
     drill,
     *,
@@ -281,23 +470,28 @@ def run_drill_item(
     tts_on: bool = True,
     is_follow_on: bool = False,
     ui_sleep: Callable[[float], None] = time.sleep,
+    teach_speak: Callable[[str], None] | None = None,
 ) -> dict:
     """Run hear → say → see → retry for ONE drill; return the additive item dict (data-model §2).
 
     The first attempt's ``flags`` are preserved as the item ``flags`` (016 ``with_flags``
     semantics). When the target is flagged AND the terminal is interactive AND ``retries`` > 0,
-    up to ``retries`` more passes run on the SAME item (hear → record → score), stopping early
-    once the target clears; a ``retry`` sub-dict records the outcome. ``DrillQuit`` propagates
-    (the caller decides what quit means)."""
+    a focused per-sound teaching beat runs first (``_teach_sound`` — respelling + the flagged
+    word modelled in isolation at the slower ``teach_speak`` rate), then up to ``retries`` more
+    passes on the SAME item (hear → record → score), stopping early once the target clears; a
+    ``retry`` sub-dict records the outcome. ``DrillQuit`` propagates (the caller decides what
+    quit means)."""
     tag = " [dim](follow-up)[/dim]" if is_follow_on else ""
     console.print(f"\n[bold]Read aloud{tag}:[/bold] [cyan]{drill.prompt}[/cyan]")
+    if drill.say_like:
+        console.print(f"  [dim]Say it like:[/dim] {drill.say_like}")
 
-    _hear_first(drill, speak=speak, key_reader=key_reader, console=console, tts_on=tts_on, ui_sleep=ui_sleep)
-    status, flags = _score_once(
-        drill, contrast=contrast, scorer=scorer, record=record, scratch_dir=scratch_dir,
-        label=f"drill: {drill.prompt}",
+    status, flags, detail = _attempt(
+        drill, label=f"drill: {drill.prompt}", contrast=contrast, scorer=scorer,
+        speak=speak, record=record, key_reader=key_reader, console=console,
+        scratch_dir=scratch_dir, tts_on=tts_on, ui_sleep=ui_sleep,
     )
-    _print_outcome(console, status, flags)
+    _print_outcome(console, status, flags, detail)
 
     item = {
         "drill_id": drill.id,
@@ -313,36 +507,10 @@ def run_drill_item(
     # exactly like 016 (one attempt, no retry). FR-003/004/025.
     interactive = getattr(key_reader, "raw_capable", False)
     if status == "scored" and flags and interactive and retries > 0:
-        attempts, outcome, final_flags = 1, "still_off", flags
-        try:
-            for _ in range(retries):
-                console.print("  [dim]Let's try that once more — listen and repeat.[/dim]")
-                _hear_first(drill, speak=speak, key_reader=key_reader, console=console, tts_on=tts_on, ui_sleep=ui_sleep)
-                r_status, r_flags = _score_once(
-                    drill, contrast=contrast, scorer=scorer, record=record, scratch_dir=scratch_dir,
-                    label=f"retry: {drill.prompt}",
-                )
-                attempts += 1
-                final_flags = r_flags
-                if r_status == "not_captured":
-                    outcome = "not_captured"
-                    break
-                if r_status == "scored" and not r_flags:
-                    outcome = "improved"
-                    break
-                outcome = "still_off"
-        except DrillQuit as quit_exc:
-            # Quit during a retry: keep the already-scored first attempt + the retry progress so
-            # far on the exception, so run_drill_block preserves this flagged drill (not dropped).
-            item["retry"] = {"attempts": attempts, "outcome": outcome, "final_flags": final_flags}
-            quit_exc.item = item
-            raise
-        if outcome == "improved":
-            console.print("  [green]Better — that sound is clear now ✓[/green]")
-        elif outcome == "not_captured":
-            console.print("  [dim]not captured — moving on[/dim]")
-        else:
-            console.print("  [dim]Still a little off — keep practising; moving on.[/dim]")
-        item["retry"] = {"attempts": attempts, "outcome": outcome, "final_flags": final_flags}
+        item["retry"] = _run_bounded_retry(
+            drill, contrast=contrast, scorer=scorer, speak=speak, teach_speak=teach_speak,
+            record=record, key_reader=key_reader, console=console, scratch_dir=scratch_dir,
+            retries=retries, tts_on=tts_on, ui_sleep=ui_sleep, flags=flags, item=item,
+        )
 
     return item

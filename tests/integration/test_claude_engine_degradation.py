@@ -45,23 +45,22 @@ def absent_claude_analyzer(monkeypatch):
 
 
 def test_builder_returns_non_none_with_runners(absent_claude_analyzer):
-    # Always non-None so the session degrades to analysis_pending rather than the
+    # Always a real analyzer so the session degrades to analysis_pending rather than the
     # "no Phase-C model installed" path — and never auto-falls back to local.
-    grammar_analyzer, coach_runner = absent_claude_analyzer
-    assert grammar_analyzer is not None
-    assert coach_runner is not None
-    assert getattr(grammar_analyzer, "runners", None) is not None
+    assert absent_claude_analyzer.runner is not None
+    assert absent_claude_analyzer.coach is not None
+    assert absent_claude_analyzer.runners is not None
 
 
 def test_analysis_call_raises_llm_engine_error(absent_claude_analyzer):
-    grammar_analyzer, _coach = absent_claude_analyzer
+    grammar_analyzer = absent_claude_analyzer.runner
     with pytest.raises(LLMEngineError):
         grammar_analyzer([Transcript(text="I has two apple.")])
 
 
 def test_coordinator_contract_sets_analysis_pending(absent_claude_analyzer):
     """Replicate the coordinator's degradation clause: a raising analyzer → pending."""
-    grammar_analyzer, _coach = absent_claude_analyzer
+    grammar_analyzer = absent_claude_analyzer.runner
     analysis_pending = False
     phase = "B"
     try:  # mirrors sessions/coordinator.py: try grammar_analyzer(...) except Exception

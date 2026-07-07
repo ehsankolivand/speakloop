@@ -30,6 +30,7 @@ import json_repair
 from speakloop.asr import Transcript
 from speakloop.feedback import coherence
 from speakloop.feedback.frontmatter import GrammarPattern
+from speakloop.feedback.json_recovery import extract_json, strip_code_fences
 from speakloop.llm import LLMEngine, LLMEngineError
 
 # The grammar prompt is free-form: the model returns its own ``error_type``
@@ -49,7 +50,7 @@ For each error you find, produce:
 
 RULES:
 - Find grammar errors only. Do NOT flag vocabulary choices, word-choice issues, pronunciation, or stylistic preferences. If a word is wrong but grammatically the sentence works, skip it.
-- Quote the MINIMAL span containing the error — just the broken part, not the whole sentence.
+- Quote a MINIMAL but READABLE span: the broken part together with enough neighbouring words that the quote reads as a short natural phrase (usually three or four words) — never a single lone word, and never the whole sentence. A one-word error (a wrong plural, tense, or article) MUST still be quoted inside its surrounding phrase (quote "The childs are playing", not "childs").
 - The "corrected" rewrite must differ from the "quote" and must read as natural native English.
 - If a fragment looks like transcription noise (garbled, incomplete, filler like "Uh..."), skip it entirely.
 - If the English in a transcript is fully correct, return no errors for that transcript.
@@ -69,6 +70,9 @@ Schema:
 Example input — Attempt 1: "I have eight year experience and I like to programming."
 Example output — {"errors": [{"attempt_ordinal": 1, "quote": "eight year", "corrected": "eight years", "error_type": "missing plural -s", "explanation": "After a number greater than one, the noun must be plural."}, {"attempt_ordinal": 1, "quote": "like to programming", "corrected": "like programming", "error_type": "gerund/infinitive confusion", "explanation": "After 'like', use the -ing form, not 'to' + -ing."}]}
 
+Example input — Attempt 1: "The childs are playing and they goed to school."
+Example output — {"errors": [{"attempt_ordinal": 1, "quote": "The childs are playing", "corrected": "The children are playing", "error_type": "irregular plural", "explanation": "'Child' has the irregular plural 'children', not 'childs'."}, {"attempt_ordinal": 1, "quote": "they goed to school", "corrected": "they went to school", "error_type": "wrong past tense", "explanation": "'Go' is irregular; its past tense is 'went', not 'goed'."}]}
+
 Example input — Attempt 1: "I have eight years of experience and I enjoy programming."
 Example output — {"errors": []}
 
@@ -86,55 +90,38 @@ def _user_prompt(transcripts: list[Transcript]) -> str:
     return "\n".join(parts)
 
 
-_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", flags=re.DOTALL | re.IGNORECASE)
-def _strip_code_fences(raw: str) -> str:
-    """Remove a surrounding markdown code fence (```json ... ``` or ``` ... ```)."""
-    m = _FENCE_RE.search(raw)
-    if m:
-        return m.group(1).strip()
-    # Fence markers without a clean closing pair: drop stray ``` lines.
-    return re.sub(r"```(?:json)?", "", raw, flags=re.IGNORECASE).strip()
+def generate_json(
+    llm: LLMEngine,
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    max_tokens: int,
+    temperature: float,
+    empty_message: str,
+) -> dict:
+    """Generate + JSON-recover a structured-output call with ONE bounded regenerate.
 
-
-def _extract_json(raw: str) -> dict:
-    """Recover the grammar payload from the LLM response (recovery ladder —
-    contracts/grammar-output-schema.md §C; research Decision 3):
-
-    1. strict ``json.loads`` of the fence-stripped text,
-    2. strict parse of the first ``{...}`` region (tolerates surrounding prose),
-    3. ``json_repair`` on the full text — recovers single/bare-quoted keys,
-       trailing commas, junk-token-before-key, AND truncated/unclosed objects
-       (the case the old hand-rolled regex repair could not handle),
-    4. ``json_repair`` on just the ``{...}`` region as a last resort.
-
-    Raises ``ValueError`` only when nothing yields a JSON object (then analyze()
-    may bounded-regenerate once, else fall back gracefully)."""
-    raw = _strip_code_fences(raw.strip())
-    try:
-        obj = json.loads(raw)
-        if isinstance(obj, dict):
-            return obj
-    except json.JSONDecodeError:
-        pass
-
-    match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
-    if match:
+    The shared recovery path for the non-grammar structured callers (coverage scoring,
+    key-point derivation, follow-up generation): a single transient empty/JSON hiccup
+    should not discard the whole result (IMP-011). Runs one ``generate`` + ``extract_json``;
+    on an empty response OR a parse failure it does exactly one ``retry=True`` regenerate,
+    mirroring ``analyze``'s bounded retry. Terminal failure keeps each caller's existing
+    contract: a still-empty response raises ``LLMEngineError(empty_message)``; a still-
+    unparseable response lets ``extract_json``'s ``ValueError`` propagate — so the
+    coordinator degrades that ONE call gracefully rather than crashing the session.
+    """
+    raw = llm.generate(system_prompt, user_prompt, max_tokens=max_tokens, temperature=temperature)
+    if raw and raw.strip():
         try:
-            obj = json.loads(match.group(0))
-            if isinstance(obj, dict):
-                return obj
-        except json.JSONDecodeError:
-            pass
-
-    repaired = json_repair.loads(raw)
-    if isinstance(repaired, dict) and repaired:
-        return repaired
-    if match:
-        repaired = json_repair.loads(match.group(0))
-        if isinstance(repaired, dict) and repaired:
-            return repaired
-
-    raise ValueError(f"Could not extract JSON from LLM response: {raw[:200]}")
+            return extract_json(raw)
+        except (ValueError, json.JSONDecodeError):
+            pass  # transient parse hiccup → one bounded regenerate below
+    raw = llm.generate(
+        system_prompt, user_prompt, max_tokens=max_tokens, temperature=temperature, retry=True
+    )
+    if not raw or not raw.strip():
+        raise LLMEngineError(empty_message)
+    return extract_json(raw)  # ValueError propagates on terminal parse failure
 
 
 def _looks_like_repetition_loop(text: str) -> bool:
@@ -278,9 +265,38 @@ def _generate_and_parse(
         retry=retry,
     )
     try:
-        return _extract_json(raw), raw
+        return extract_json(raw), raw
     except (ValueError, json.JSONDecodeError):
+        # `extract_json` only returns dicts, so a top-level JSON LIST of error objects (the
+        # model omitted the `errors` wrapper entirely) otherwise hard-fails. Recover it under
+        # the wrapper key here — grammar-only, so the shared `extract_json` stays dict-only
+        # for the coverage/keypoints/followups callers (IMP-027).
+        listed = _extract_top_level_list(raw)
+        if listed is not None:
+            return {"errors": listed}, raw
         return None, raw
+
+
+def _extract_top_level_list(raw: str) -> list | None:
+    """Recover a top-level JSON list from ``raw`` (whole text, then the first ``[...]`` region),
+    trying strict parse then ``json_repair``. Returns the list, or None when it is not a bare
+    list. ``analyze`` wraps it as ``{"errors": [...]}``; V1/V2/V3 still filter the contents."""
+    stripped = strip_code_fences(raw.strip())
+    candidates = [stripped]
+    m = re.search(r"\[.*\]", stripped, flags=re.DOTALL)
+    if m:
+        candidates.append(m.group(0))
+    for text in candidates:
+        try:
+            obj = json.loads(text)
+        except json.JSONDecodeError:
+            try:
+                obj = json_repair.loads(text)
+            except Exception:  # noqa: BLE001 — json_repair is best-effort; try the next candidate
+                continue
+        if isinstance(obj, list):
+            return obj
+    return None
 
 
 def analyze(
@@ -324,7 +340,14 @@ def analyze(
         # improve parseability — keep the original payload rather than discard
         # usable output.
 
-    errors_raw = payload.get("errors") or []
+    errors_raw = payload.get("errors")
+    if errors_raw is None and ("quote" in payload or "attempt_ordinal" in payload):
+        # The model returned ONE error object with no `errors` wrapper — recover it (IMP-027)
+        # rather than silently returning zero patterns ("no actionable grammar patterns"), which
+        # is worse than a graceful phase_c_error. V1/V2/V3 in _verify_and_enrich still discard
+        # anything that isn't a real, verbatim, coherent error.
+        errors_raw = [payload]
+    errors_raw = errors_raw or []
     if not isinstance(errors_raw, list):
         raise LLMEngineError("LLM response 'errors' must be a list.")
 

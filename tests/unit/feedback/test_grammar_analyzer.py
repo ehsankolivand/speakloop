@@ -273,3 +273,87 @@ def test_explicit_system_prompt_used_on_bounded_regenerate():
     with pytest.raises(LLMEngineError):
         grammar_analyzer.analyze(TS, llm, system_prompt="CLOUD-PROMPT")
     assert llm.system_prompts == ["CLOUD-PROMPT", "CLOUD-PROMPT"]
+
+
+class _ScriptedLLM:
+    """Returns a scripted sequence of responses across calls (records each call)."""
+
+    def __init__(self, *responses: str) -> None:
+        self._responses = list(responses)
+        self.calls = 0
+
+    def generate(self, system_prompt, user_prompt, max_tokens=2048, temperature=0.7, retry=False):
+        self.calls += 1
+        return self._responses[min(self.calls - 1, len(self._responses) - 1)]
+
+
+def test_generate_json_no_retry_on_first_success():
+    """IMP-011: a valid first response returns immediately — no wasted regenerate."""
+    llm = _ScriptedLLM('{"ok": true}')
+    assert grammar_analyzer.generate_json(
+        llm, "sp", "up", max_tokens=64, temperature=0.2, empty_message="empty"
+    ) == {"ok": True}
+    assert llm.calls == 1
+
+
+def test_generate_json_recovers_after_one_bounded_retry_on_parse_failure():
+    """A transient JSON hiccup on the first pass is recovered by one bounded regenerate."""
+    llm = _ScriptedLLM("garbage no json", '{"recovered": 1}')
+    assert grammar_analyzer.generate_json(
+        llm, "sp", "up", max_tokens=64, temperature=0.2, empty_message="empty"
+    ) == {"recovered": 1}
+    assert llm.calls == 2
+
+
+def test_generate_json_recovers_after_empty_first_response():
+    llm = _ScriptedLLM("   ", '{"recovered": 1}')
+    assert grammar_analyzer.generate_json(
+        llm, "sp", "up", max_tokens=64, temperature=0.2, empty_message="empty"
+    ) == {"recovered": 1}
+    assert llm.calls == 2
+
+
+def test_generate_json_terminal_empty_raises_llmengineerror_with_message():
+    llm = _ScriptedLLM("", "   ")
+    with pytest.raises(LLMEngineError, match="the specific empty message"):
+        grammar_analyzer.generate_json(
+            llm, "sp", "up", max_tokens=64, temperature=0.2,
+            empty_message="the specific empty message",
+        )
+    assert llm.calls == 2
+
+
+def test_generate_json_terminal_parse_failure_propagates_valueerror():
+    llm = _ScriptedLLM("garbage no json", "still not json")
+    with pytest.raises(ValueError):
+        grammar_analyzer.generate_json(
+            llm, "sp", "up", max_tokens=64, temperature=0.2, empty_message="empty"
+        )
+    assert llm.calls == 2
+
+
+def test_unwrapped_single_error_object_is_recovered():
+    """IMP-027: a valid dict missing the `errors` wrapper (a bare single-error object) is
+    recovered, not silently reported as zero patterns."""
+    single = _err(1, "like to programming", "like programming", "gerund/infinitive",
+                  "Use -ing after 'like'.")
+    out = grammar_analyzer.analyze(TS, _StubLLM(json.dumps(single)))
+    assert [p.label for p in out] == ["gerund/infinitive"]
+
+
+def test_top_level_list_of_errors_is_recovered():
+    """IMP-027: a bare top-level JSON list (no `errors` wrapper at all) is recovered rather
+    than hard-failing to phase_c_error."""
+    listed = [
+        _err(1, "like to programming", "like programming", "gerund/infinitive", "Use -ing after 'like'."),
+        _err(3, "enjoy to build", "enjoy building", "verb pattern", "Use -ing after 'enjoy'."),
+    ]
+    out = grammar_analyzer.analyze(TS, _StubLLM(json.dumps(listed)))
+    assert {p.label for p in out} == {"gerund/infinitive", "verb pattern"}
+
+
+def test_dict_without_errors_or_error_fields_still_returns_zero():
+    """A dict that is neither an errors-wrapper NOR a single-error object stays empty (a real
+    'no errors' response must not be forced into a phantom pattern)."""
+    out = grammar_analyzer.analyze(TS, _StubLLM(json.dumps({"note": "all good", "summary": "ok"})))
+    assert out == []

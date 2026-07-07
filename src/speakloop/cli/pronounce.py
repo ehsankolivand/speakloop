@@ -14,21 +14,52 @@ See ``specs/017-pronunciation-trainer/contracts/pronounce-command.md``.
 
 from __future__ import annotations
 
-import sys
+import os
 import threading
 import time
 from pathlib import Path
 
 from rich.console import Console
 
+from speakloop.cli.gate_prompt import confirm_freeze_override
+from speakloop.cli.gate_prompt import is_interactive as _is_interactive
+
 # A small bounded default round size when the learner doesn't pass --limit.
 DEFAULT_STANDALONE_DRILLS = 6
 _STANDALONE_FOLLOWONS = 2
 
 
-def _is_interactive() -> bool:
-    """Whether we can prompt the learner (a real terminal). Module-level so tests override it."""
-    return sys.stdin.isatty()
+def _configure_debug_logging(console: Console) -> None:
+    """Turn on visible diagnostics for the score path (``--debug`` / SPEAKLOOP_DEBUG). The
+    score path never raises into the session, so a real failure (mic vs scoring-model) is
+    otherwise flattened to a vague "could not score"; this surfaces the swallowed reason inline
+    (via SPEAKLOOP_DEBUG, read by ``pronunciation.drill_runner``) AND to a log file the learner
+    can share. Offline, local-only; attaches handlers once (idempotent)."""
+    import logging
+
+    os.environ["SPEAKLOOP_DEBUG"] = "1"
+    logger = logging.getLogger("speakloop.pronunciation")
+    logger.setLevel(logging.DEBUG)
+    if any(getattr(h, "_speakloop_pron_debug", False) for h in logger.handlers):
+        return
+    sh = logging.StreamHandler()  # stderr
+    sh.setLevel(logging.DEBUG)
+    sh.setFormatter(logging.Formatter("[pronounce] %(levelname)s %(message)s"))
+    sh._speakloop_pron_debug = True  # type: ignore[attr-defined]
+    logger.addHandler(sh)
+    try:  # best-effort persistent log (nice for a bug report); never fatal
+        from speakloop.config import paths
+
+        log_dir = paths.ensure_dir(paths.logs_dir())
+        log_path = log_dir / "pronounce-debug.log"
+        fh = logging.FileHandler(log_path)
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        fh._speakloop_pron_debug = True  # type: ignore[attr-defined]
+        logger.addHandler(fh)
+        console.print(f"[dim]Debug logging on → {log_path}[/dim]")
+    except Exception:  # noqa: BLE001
+        console.print("[dim]Debug logging on (console only).[/dim]")
 
 
 def _gate_ok(console: Console, cfg, *, input_fn) -> bool:
@@ -41,16 +72,7 @@ def _gate_ok(console: Console, cfg, *, input_fn) -> bool:
         console.print(f"[cyan]Pronunciation practice[/cyan]: {decision.reason}")
         return True
     console.print(f"[yellow]Pronunciation practice skipped:[/yellow] {decision.reason}")
-    if not _is_interactive():
-        return False
-    try:
-        ans = input_fn("Load the pronunciation model anyway? This may freeze your machine. [y/N]: ").strip().lower()
-    except EOFError:
-        return False
-    if ans in {"y", "yes"}:
-        console.print("[red]Override accepted — loading the model despite the memory risk.[/red]")
-        return True
-    return False
+    return confirm_freeze_override(console, input_fn=input_fn, interactive=_is_interactive())
 
 
 def _provision(console: Console, *, input_fn) -> bool:
@@ -90,6 +112,7 @@ def _print_summary(console: Console, result: dict) -> None:
 def run(
     *,
     limit: int | None = None,
+    debug: bool = False,
     tts_engine=None,
     play_fn=None,
     record_fn=None,
@@ -103,6 +126,8 @@ def run(
 ) -> None:
     """Entry point for `speakloop pronounce`. Everything model/mic/tty is injectable for tests."""
     console = console or Console()
+    if debug:
+        _configure_debug_logging(console)
     from speakloop.config import loop_config, paths
 
     cfg = loop_config.load()
@@ -123,7 +148,9 @@ def run(
     if tts_engine is None:
         from speakloop.tts.kokoro_engine import KokoroEngine
 
-        tts_engine = KokoroEngine()
+        # Slower default cadence for the trainer — the learner reported the 1.0 rate read too
+        # fast to shadow (017 P2). Configurable via loop.yaml pronunciation_tts_speed.
+        tts_engine = KokoroEngine(speed=cfg.pronunciation_tts_speed)
     if play_fn is None:
         from speakloop.audio import playback
 
@@ -146,10 +173,21 @@ def run(
     scratch_dir.mkdir(parents=True, exist_ok=True)
 
     tts_on = bool(cfg.pronunciation_tts_playback) and tts_engine is not None and play_fn is not None
+    teach_speed = loop_config.teach_speed(cfg.pronunciation_tts_speed)
     early_exit_event = threading.Event()
 
     def speak(text: str) -> None:
         play_fn(tts_engine.synthesize(text))
+
+    def teach_speak(text: str) -> None:
+        # The focused per-sound teaching beat: play the flagged word ALONE, even slower than
+        # the drill cadence, to model the sound clearly. Falls back to normal synth if the
+        # injected engine has no per-call speed (a fake in tests).
+        try:
+            wav = tts_engine.synthesize(text, speed=teach_speed)
+        except TypeError:
+            wav = tts_engine.synthesize(text)
+        play_fn(wav)
 
     def record(wav_path: Path, label: str) -> None:
         early_exit_event.clear()
@@ -180,7 +218,7 @@ def run(
         items, quit_now = pronunciation.run_drill_block(
             base, bank=bank, scorer=scorer, speak=speak, record=record, key_reader=key_reader,
             console=console, scratch_dir=scratch_dir, retries=cfg.pronunciation_retries,
-            tts_on=tts_on, max_followons=_STANDALONE_FOLLOWONS,
+            tts_on=tts_on, max_followons=_STANDALONE_FOLLOWONS, teach_speak=teach_speak,
         )
         all_items.extend(items)
         if quit_now or not _is_interactive():

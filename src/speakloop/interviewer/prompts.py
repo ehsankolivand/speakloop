@@ -17,8 +17,4 @@ _DEFAULT = Path(__file__).parent / "followups_prompt_default.txt"
 
 def load_followups_prompt() -> tuple[str, Path]:
     """Return ``(prompt_text, user_path)``, seeding the user file if absent."""
-    target = paths.openrouter_followups_prompt_path()
-    if not target.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(_DEFAULT.read_text(encoding="utf-8"), encoding="utf-8")
-    return target.read_text(encoding="utf-8"), target
+    return paths.seed_and_read(paths.openrouter_followups_prompt_path(), _DEFAULT)

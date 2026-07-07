@@ -94,18 +94,40 @@ def _read_aloud(
         return
 
     from speakloop.debrief import audio_player
+    from speakloop.debrief.renderer import supports_live
 
     console.print(ANNOUNCEMENT_LINE, style="bold cyan")
 
-    def _on_section(section) -> None:
-        progress = f"Reading {section.index} of {model.audio_total} sections"
-        renderer.print_static(highlight_ref=section.highlight_ref, progress_text=progress)
+    def _run(on_section) -> None:
+        with audio_player.KeyboardSkip() as skip:
+            audio_player.read_aloud(
+                model.audio_sections,
+                tts_engine=tts_engine,
+                play_fn=play_fn,
+                on_section=on_section,
+                skip_check=skip.requested,
+            )
 
-    with audio_player.KeyboardSkip() as skip:
-        audio_player.read_aloud(
-            model.audio_sections,
-            tts_engine=tts_engine,
-            play_fn=play_fn,
-            on_section=_on_section,
-            skip_check=skip.requested,
-        )
+    if supports_live(console):
+        # US3 (FR-019): move the highlight IN PLACE via rich.Live instead of re-emitting the
+        # whole composed view per section — print_static stacks a fresh copy of the narrative,
+        # banner, table, every grammar card, and transcripts each time and scrolls the terminal.
+        # Non-terminals (StringIO test consoles) keep the print_static fallback below, so
+        # captured-output assertions stay valid.
+        with renderer.live() as live:
+
+            def _on_section(section) -> None:
+                progress = f"Reading {section.index} of {model.audio_total} sections"
+                live.update(
+                    renderer.build(highlight_ref=section.highlight_ref, progress_text=progress),
+                    refresh=True,
+                )
+
+            _run(_on_section)
+    else:
+
+        def _on_section(section) -> None:
+            progress = f"Reading {section.index} of {model.audio_total} sections"
+            renderer.print_static(highlight_ref=section.highlight_ref, progress_text=progress)
+
+        _run(_on_section)

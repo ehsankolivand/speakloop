@@ -18,8 +18,8 @@ from __future__ import annotations
 import re
 
 from speakloop.asr import Transcript
-from speakloop.feedback.grammar_analyzer import _extract_json
-from speakloop.llm import LLMEngine, LLMEngineError
+from speakloop.feedback.grammar_analyzer import generate_json
+from speakloop.llm import LLMEngine
 
 _FOLLOWUPS_MAX_TOKENS = 256
 _FOLLOWUPS_TEMPERATURE = 0.4
@@ -66,15 +66,14 @@ def generate_followups(
         "The candidate's spoken attempts:\n"
         + "\n".join(f"Attempt {i}: {t.text.strip()}" for i, t in enumerate(transcripts, start=1))
     )
-    raw = llm.generate(
+    data = generate_json(
+        llm,
         system_prompt,
         user_prompt,
         max_tokens=_FOLLOWUPS_MAX_TOKENS,
         temperature=_FOLLOWUPS_TEMPERATURE,
+        empty_message="Follow-up generator returned an empty response.",
     )
-    if not raw or not raw.strip():
-        raise LLMEngineError("Follow-up generator returned an empty response.")
-    data = _extract_json(raw)  # raises ValueError on terminal parse failure
 
     out: list[dict] = []
     for item in data.get("followups") or []:

@@ -138,11 +138,19 @@ def pronounce_cmd(
             "user-paced — press q to stop, or answer the 'practise another round?' prompt."
         ),
     ),
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        help=(
+            "Show + log the real reason a drill 'could not score' (microphone vs scoring-model "
+            "failure) instead of the vague message. Writes a log under the data dir."
+        ),
+    ),
 ) -> None:
     """Practise pronunciation standalone: hear → say → see → retry, outside an interview."""
     from speakloop.cli import pronounce as _pronounce  # local import; engine touch is deferred.
 
-    _pronounce.run(limit=limit)
+    _pronounce.run(limit=limit, debug=debug)
 
 
 @app.command("setup")

@@ -19,11 +19,7 @@ _CONSISTENCY_DEFAULT = Path(__file__).parent / "consistency_prompt_default.txt"
 
 def load_triage_prompt() -> tuple[str, Path]:
     """Return ``(prompt_text, user_path)`` for the mishearing prompt, seeding it."""
-    target = paths.openrouter_triage_prompt_path()
-    if not target.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(_TRIAGE_DEFAULT.read_text(encoding="utf-8"), encoding="utf-8")
-    return target.read_text(encoding="utf-8"), target
+    return paths.seed_and_read(paths.openrouter_triage_prompt_path(), _TRIAGE_DEFAULT)
 
 
 def load_consistency_prompt() -> str:

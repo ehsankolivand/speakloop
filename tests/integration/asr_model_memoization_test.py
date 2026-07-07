@@ -61,7 +61,11 @@ def test_model_loaded_once_across_attempts_and_replay(
 
     monkeypatch.setattr("speakloop.asr.selection.WhisperMLXEngine", CountingWhisper)
     monkeypatch.setattr(installer, "ensure_models", lambda *a, **k: None)
-    monkeypatch.setattr("speakloop.cli.practice._build_grammar_analyzer", lambda: None)
+    from speakloop.cli import practice as _practice
+
+    monkeypatch.setattr(
+        "speakloop.cli.practice._build_grammar_analyzer", lambda: _practice._NO_ANALYSIS
+    )
     monkeypatch.setattr(coordinator.recorder, "record", stub_record)
 
     listen_keys = iter([" "])

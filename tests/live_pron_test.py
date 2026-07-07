@@ -85,3 +85,63 @@ def test_every_bundled_drill_scores_clean_through_its_own_tts():
         "drills flagged their own clean TTS rendering (fix the canonical sequence / target "
         "index for each):\n  " + "\n  ".join(failures)
     )
+
+
+# IMP-024: the TRUE-POSITIVE axis. Each pair renders a minimal-pair CONFUSION word (the target
+# word with the target phone swapped for a competitor) and scores it against the TARGET word
+# drill's canonical — the target phone MUST flag. Together with the false-positive harness above
+# this pins BOTH directions: the loosened `_COMPETITOR_FLAG_MARGIN` (0.5→1.5) can no longer drift
+# into UNDER-flagging (a real /r/-for-/w/ error scored "clear ✓") without failing on real audio.
+_SUBSTITUTIONS = [
+    # (target word-drill id, confusion word Kokoro renders with the WRONG phone at the target)
+    ("west", "rest"),  # w_r:  /w/ → /ɹ/
+    ("vest", "west"),  # v_w:  /v/ → /w/
+    ("thin", "sin"),   # th_s: /θ/ → /s/
+    ("those", "doze"),  # th_d: /ð/ → /d/
+    ("sit", "seat"),   # ih_iy: /ɪ/ → /iː/
+]
+
+
+@pytest.mark.skipif(
+    not _models_ready(),
+    reason="pronunciation model + Kokoro TTS not downloaded — opt into drills first",
+)
+def test_a_deliberate_substitution_flags_the_target_phone():
+    pytest.importorskip("torch")
+    pytest.importorskip("transformers")
+    pytest.importorskip("kokoro_mlx")
+
+    from speakloop.pronunciation import build_scorer, load_drill_bank
+    from speakloop.tts.kokoro_engine import KokoroEngine
+
+    bank = load_drill_bank()
+    tts = KokoroEngine()
+    scorer = build_scorer()
+    drills = {d.id: d for d in bank.drills}
+
+    misses: list[str] = []
+    for drill_id, confusion in _SUBSTITUTIONS:
+        d = drills[drill_id]
+        c = bank.contrast(d.contrast_id)
+        wav = tts.synthesize(confusion)  # render the WRONG (competitor) word
+        result = scorer.score(
+            wav,
+            canonical=d.canonical,
+            targets=d.targets,
+            tip=c.tip if c else "",
+            competitors=c.competitors if c else [],
+            drill_id=d.id,
+            text=confusion,
+            contrast_id=d.contrast_id,
+        )
+        # A deliberate substitution MUST be caught: scored, with at least one flag on the target.
+        if result.status != "scored" or not result.flags:
+            misses.append(
+                f"{drill_id!r} scored against {confusion!r}: status={result.status} "
+                f"flags={[fl.expected for fl in (result.flags or [])]} {result.detail}"
+            )
+
+    assert not misses, (
+        "a deliberate substitution was NOT flagged (thresholds drifted into UNDER-flagging):\n  "
+        + "\n  ".join(misses)
+    )

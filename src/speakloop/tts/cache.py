@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import os
 import shutil
 from pathlib import Path
 
@@ -10,7 +12,8 @@ from speakloop.config import paths
 
 # Default size cap for the clip cache (012). The cache is content-addressed and grows
 # one WAV per unique (voice, speed, text); without a cap it accreted unboundedly (409
-# entries observed). Pruned LRU-by-mtime after each store, never evicting an in-use clip.
+# entries observed). Pruned LRU-by-mtime after each store, never evicting an in-use clip;
+# `lookup` bumps mtime on a hit so the ordering is a true access-time LRU (IMP-038).
 TTS_CACHE_MAX_BYTES = 512 * 1024 * 1024  # 512 MB
 
 
@@ -32,9 +35,17 @@ def cache_path(voice: str | None, text: str, speed: float = 1.0) -> Path:
 
 
 def lookup(voice: str | None, text: str, speed: float = 1.0) -> Path | None:
-    """Return the cached WAV path if present, else None."""
+    """Return the cached WAV path if present, else None.
+
+    On a hit, best-effort bump the file's mtime to now so `prune`'s "oldest mtime first"
+    ordering is a true access-time LRU (a frequently replayed prompt keeps its slot) rather than
+    LRU-by-creation — matching the `:13` comment (IMP-038). Failure to touch is non-fatal."""
     p = cache_path(voice, text, speed)
-    return p if p.exists() else None
+    if not p.exists():
+        return None
+    with contextlib.suppress(OSError):
+        os.utime(p, None)  # refresh access-time recency
+    return p
 
 
 def store(voice: str | None, text: str, source_wav: Path, speed: float = 1.0) -> Path:

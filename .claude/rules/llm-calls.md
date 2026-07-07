@@ -32,7 +32,7 @@ parameter; keep it that way when changing signatures:
 - Failure → raise/propagate `LLMEngineError` → the coordinator/CLI degrades that ONE
   call (per-call `*_error` frontmatter key, e.g. `phase_c_error`, `coach_error`, or a
   skipped stage) — never crash the session, never auto-fall-back to another engine.
-- JSON output recovery uses the shared ladder `feedback.grammar_analyzer._extract_json`
+- JSON output recovery uses the shared ladder `feedback.json_recovery.extract_json`
   (json-repair based; details owned by `src/speakloop/feedback/CLAUDE.md`). Do not
   hand-roll repair regexes in a caller.
 - Generation config (sampler, repetition penalty, stop tokens) is owned by the engine

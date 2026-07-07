@@ -118,7 +118,11 @@ def parse(doc: dict) -> QAFile:
             )
 
         difficulty = entry.get("difficulty")
-        if difficulty is not None and difficulty not in _VALID_DIFFICULTIES:
+        # `not isinstance(..., str)` short-circuits before the set-membership test so a
+        # list/dict value (unhashable) degrades to a warning + default instead of TypeError.
+        if difficulty is not None and (
+            not isinstance(difficulty, str) or difficulty not in _VALID_DIFFICULTIES
+        ):
             warnings.append(f"Question {qid!r}: unknown difficulty {difficulty!r}; ignored.")
             difficulty = None
 
@@ -133,7 +137,9 @@ def parse(doc: dict) -> QAFile:
             voice_override = str(voice_override)
 
         qtype = entry.get("type") or "definition"
-        if qtype not in _VALID_TYPES:
+        # Same guard as `difficulty`: a non-str (list/dict) `type` is unhashable, so
+        # short-circuit before the membership test → warning + "definition" default.
+        if not isinstance(qtype, str) or qtype not in _VALID_TYPES:
             warnings.append(f"Question {qid!r}: unknown type {qtype!r}; treated as definition.")
             qtype = "definition"
 

@@ -14,6 +14,14 @@ paths: ["tests/**"]
   loop take the real `play_interruptible` audio path and several integration tests fail
   with `PlaybackError` (green in CI/piped, red by hand). Don't undo it; tests needing raw
   behavior inject a `FakeKeyReader` (which overrides the fixture).
+- `tests/conftest.py` also pins terminal rendering suite-wide: an autouse
+  `_stable_terminal_rendering` fixture sets `COLUMNS=200` + `NO_COLOR=1` and removes
+  `GITHUB_ACTIONS`/`FORCE_COLOR`. click/typer + rich size CLI output from the ambient
+  terminal (`sys.__stdout__`, which survives pytest's stdout capture) AND force ANSI colour
+  under GitHub Actions — so CLI-content assertions (`"--cloud"`, `"2 question(s)"`) pass in a
+  wide, colourless Terminal by hand but in CI hard-wrap at the 80-col fallback and fragment
+  flags into colour spans (the inverse of the keyboard skew). Don't remove it; a test needing
+  narrow-wrap or ANSI output sets its own `COLUMNS`/colour env, which wins.
 - Inject fakes instead:
   - keyboard → `sessions.keyboard.FakeKeyReader` (list-queue or time-gated
     `schedule=`/`clock=` modes) or `NullKeyReader`;
@@ -29,6 +37,10 @@ paths: ["tests/**"]
   repro_gate_test.py`, `repro_fresh_5of5_test.py`) — do not "fix" their skips.
 - `-m live_asr` tests are deselected by default; run them only when touching
   torchaudio/silero (see root CLAUDE.md Traps).
+- `-m live_llm` (`tests/live_llm_test.py`) exercises the REAL local Qwen3-14B-4bit through
+  `QwenEngine` — the only default-engine real-model harness. It self-skips when the model is
+  absent and is excluded from the default suite (heavy ~8 GB load). Run it explicitly when
+  touching `llm/qwen_engine.py` or bumping `mlx_lm`: `uv run pytest -m live_llm`.
 - `tests/integration/test_help_without_models.py` and
   `tests/unit/asr/test_engine_import_isolation.py` guard engine-import isolation;
   `tests/integration/test_context_file_budget.py` guards CLAUDE.md line budgets.

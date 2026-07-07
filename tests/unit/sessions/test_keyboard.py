@@ -58,3 +58,29 @@ def test_fake_key_reader_schedule_mode():
 def test_fake_key_reader_is_a_keyreader():
     assert isinstance(keyboard.FakeKeyReader(), keyboard.KeyReader)
     assert isinstance(keyboard.NullKeyReader(), keyboard.KeyReader)
+
+
+def test_read_key_blocking_line_buffered_fallback(monkeypatch):
+    """IMP-016: with no tty, the shared reader falls to line_parse(input()) — decode is
+    never called (that path needs a real tty)."""
+    monkeypatch.setattr(keyboard.os, "isatty", lambda _fd: False)
+    monkeypatch.setattr(keyboard.os, "open", lambda *_a, **_k: (_ for _ in ()).throw(OSError()))
+    monkeypatch.setattr("builtins.input", lambda *_a, **_k: "REPLAY")
+
+    def _decode(_b):
+        raise AssertionError("decode must not run on the line-buffered path")
+
+    got = keyboard.read_key_blocking(
+        decode=_decode, line_parse=lambda s: f"parsed:{s.lower()}", read_bytes=1, eof_value="EOF",
+    )
+    assert got == "parsed:replay"
+
+
+def test_read_key_blocking_eof_returns_eof_value(monkeypatch):
+    monkeypatch.setattr(keyboard.os, "isatty", lambda _fd: False)
+    monkeypatch.setattr(keyboard.os, "open", lambda *_a, **_k: (_ for _ in ()).throw(OSError()))
+    monkeypatch.setattr("builtins.input", lambda *_a, **_k: (_ for _ in ()).throw(EOFError()))
+    got = keyboard.read_key_blocking(
+        decode=lambda _b: "x", line_parse=lambda s: s, read_bytes=3, eof_value="quit",
+    )
+    assert got == "quit"

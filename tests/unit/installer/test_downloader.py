@@ -253,3 +253,40 @@ def test_hard_failure_raises_without_respawn(monkeypatch, tmp_models_dir):
     assert aria_calls["n"] == 1
     # No retry sleep should have run.
     assert all(s != 10 for s in sleeps), f"unexpected retry sleep: {sleeps}"
+
+
+def _fetch_metadata_with_exit(monkeypatch, tmp_path, code):
+    import subprocess
+
+    from rich.console import Console
+
+    from speakloop.installer import downloader
+    from speakloop.installer.tokens import ResolvedToken
+
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda cmd, *a, **kw: subprocess.CompletedProcess(args=cmd, returncode=code, stdout="", stderr=""),
+    )
+    console = Console(record=True, width=240)
+    downloader._fetch_metadata(
+        local_dir=tmp_path,
+        base_url="https://example.test/repo/resolve/main",
+        token=ResolvedToken(value=None, source="anonymous"),
+        console=console,
+    )
+    return console.export_text()
+
+
+def test_fetch_metadata_network_error_is_distinct_from_absence(monkeypatch, tmp_path):
+    """IMP-028: a network-class curl exit (6 = couldn't resolve host) prints a distinct
+    'network error' warning, NOT the misleading 'not in repo, skipping' absence message."""
+    out = _fetch_metadata_with_exit(monkeypatch, tmp_path, 6)
+    assert "network error" in out
+    assert "not in repo, skipping" not in out
+
+
+def test_fetch_metadata_absent_file_still_skips_quietly(monkeypatch, tmp_path):
+    """A genuine absence (curl exit 22 = HTTP >= 400 under -f) keeps the quiet skip message."""
+    out = _fetch_metadata_with_exit(monkeypatch, tmp_path, 22)
+    assert "not in repo, skipping" in out
+    assert "network error" not in out

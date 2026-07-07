@@ -136,6 +136,52 @@ def test_drills_run_concurrently_with_feedback_and_merge_into_one_report(
     assert leftover == [], f"drill audio left on disk: {leftover}"
 
 
+def test_background_feedback_crash_surfaces_reason_instead_of_dropping_it(
+    tmp_sessions_dir, tmp_path, monkeypatch
+):
+    """IMP-010: when the backgrounded analysis crashes UNEXPECTEDLY in the drills path, the
+    session still degrades to a resumable pending report — but the reason is surfaced (printed
+    + threaded into phase_c_error), not silently dropped."""
+    import io as _io
+
+    from rich.console import Console
+
+    transcripts = [Transcript(text=f"attempt {i}", audio_duration_seconds=2.0) for i in (1, 2, 3)]
+
+    def boom(**_kwargs):
+        raise RuntimeError("unexpected analysis crash")
+
+    # Force an unexpected crash INSIDE _analyze (per-call LLM failures are handled within it).
+    monkeypatch.setattr(coordinator, "_analyze", boom)
+
+    buf = _io.StringIO()
+    console = Console(file=buf, force_terminal=False, width=200)
+    drills = coordinator.PronunciationDrills(
+        scorer=_FakeScorer(), bank=load_drill_bank(), engine_note="note"
+    )
+    q = Question(id="kotlin-coroutines-basics", question="Q", ideal_answer="A")
+    result = coordinator.run_session(
+        q,
+        asr_engine=_StubASR(transcripts),
+        record_fn=_stub_record,
+        sessions_dir=tmp_sessions_dir,
+        scratch_dir=tmp_path / "scratch",
+        grammar_analyzer=lambda ts: [],
+        pronunciation_drills=drills,
+        console=console,
+    )
+
+    # degrade-to-resumable-pending preserved
+    assert result.session.analysis_pending is True
+    # …but the diagnostic is no longer dropped: threaded into phase_c_error…
+    assert result.session.phase_c_error and "unexpected analysis crash" in result.session.phase_c_error
+    # …persisted into the report for `resume`…
+    assert "unexpected analysis crash" in result.report_path.read_text()
+    # …and surfaced live with a resume hint.
+    out = buf.getvalue()
+    assert "unexpected analysis crash" in out and "resume" in out
+
+
 def test_no_drills_bundle_keeps_today_inline_path(tmp_sessions_dir, tmp_path):
     # Without a bundle, analysis runs inline (main thread) — the byte-identical legacy path.
     transcripts = [Transcript(text=f"attempt {i}", audio_duration_seconds=2.0) for i in (1, 2, 3)]

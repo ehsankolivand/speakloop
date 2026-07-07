@@ -46,6 +46,17 @@ def test_eof_declines():
     assert result is False
 
 
+def test_human_size_uses_decimal_units_matching_the_label():
+    """IMP-041: GB/MB/KB labels must use decimal (1000-based) divisors so they match rich's
+    DownloadColumn + OS-reported free space, not binary GiB values under a GB label."""
+    from speakloop.installer.consent import _human_size
+
+    assert _human_size(8_000_000_000) == "8.0 GB"   # was "7.5 GB" under the binary divisor
+    assert _human_size(1_262_000_000) == "1.3 GB"    # ~1.26 GB
+    assert _human_size(170_000_000) == "170.0 MB"
+    assert _human_size(500) == "500 B"
+
+
 def test_output_includes_size_and_total():
     console_buf = io.StringIO()
     console = Console(file=console_buf, force_terminal=False, width=200)

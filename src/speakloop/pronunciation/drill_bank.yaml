@@ -4,6 +4,10 @@
 # `canonical` holds the model's espeak-IPA phoneme symbols (validated against the model
 # vocab.json — stress-less). The CTC blank is the model's <pad> token (id 0).
 #
+# `say_like` (017 P2): a short, readable ENGLISH respelling of the target word + a one-line
+#   articulation cue, CURATED here (never derived at runtime). Shown with the drill and,
+#   when the sound is flagged, with the focused per-sound teaching beat.
+#
 # 017 — SENTENCE base drills:
 #   * Base drills (`is_base: true`) are natural SENTENCES; the 016 minimal-pair WORDS are kept
 #     as `is_base: false` follow-ons, routed when a contrast is flagged.
@@ -14,10 +18,12 @@
 #   * The target contrast is placed at an UNAMBIGUOUS, usually SENTENCE-INITIAL position so its
 #     forced alignment is anchored and robust; `targets.index` points at that phone in the flat
 #     list (and `canonical[index] == contrast.expected`, enforced by test_drill_bank.py).
-#   * AUTHORING / VALIDATION: symbols were hand-authored from English→espeak-IPA and MUST be
+#   * AUTHORING / VALIDATION: symbols were hand-authored from English→espeak-IPA and ARE
 #     re-validated on a real run via the live harness `uv run pytest -m live_pron` (TTS each
 #     prompt → run the scorer → assert it scores clean). A drill that flags its own clean TTS
-#     rendering has a wrong canonical and must be fixed before shipping.
+#     rendering has a wrong canonical / target word and must be fixed before shipping — the
+#     calibration was done this way (e.g. "thick"/"ship" were dropped: Kokoro renders their
+#     target phone as /s//ɛ/, so they false-flagged; "thin"/"three"/"sit"/"kit" score clean).
 version: 1
 
 contrasts:
@@ -40,7 +46,7 @@ contrasts:
   - id: ih_iy
     expected: "ɪ"
     competitors: ["iː", "i"]
-    tip: "Short 'ɪ' (ship) is relaxed and quick — not the long 'ee' in 'sheep'."
+    tip: "Short 'ɪ' (sit) is relaxed and quick — not the long 'ee' in 'seat'."
   - id: l_r
     expected: "l"
     competitors: ["ɹ", "r"]
@@ -55,6 +61,7 @@ drills:
     canonical: ["w", "iː", "ɹ", "iː", "d", "ð", "ə", "l", "ɪ", "s", "t"]
     targets: [{index: 0, word: "we"}]
     is_base: true
+    say_like: "WE sounds like 'WEE' — round your lips for /w/, don't curl your tongue like /r/."
   # --- /v/ vs /w/ : "Verify the value." -----------------------------------------
   - id: vw-sentence
     contrast_id: v_w
@@ -62,13 +69,18 @@ drills:
     canonical: ["v", "ɛ", "ɹ", "ɪ", "f", "aɪ", "ð", "ə", "v", "æ", "l", "j", "uː"]
     targets: [{index: 0, word: "verify"}]
     is_base: true
-  # --- /θ/ vs /s/ : "Thick and thin." -------------------------------------------
+    say_like: "VERIFY sounds like 'VEH-ri-fy' — top teeth on your lip for /v/, lips don't round."
+  # --- /θ/ vs /s/ : "Thin and thick." -------------------------------------------
+  # NOTE: target the /θ/ of "thin" (index 0). "thick" is kept as the non-target second
+  # word — its Kokoro rendering scores as /s/, so it must NOT be a target (validated via
+  # the live harness; a word-initial /θ/ before /ɪ/ in "thin"/"think"/"three" scores clean).
   - id: ths-sentence
     contrast_id: th_s
-    prompt: "Thick and thin."
-    canonical: ["θ", "ɪ", "k", "æ", "n", "d", "θ", "ɪ", "n"]
-    targets: [{index: 0, word: "thick"}]
+    prompt: "Thin and thick."
+    canonical: ["θ", "ɪ", "n", "æ", "n", "d", "θ", "ɪ", "k"]
+    targets: [{index: 0, word: "thin"}]
     is_base: true
+    say_like: "THIN sounds like 'THIN' — tongue tip between your teeth and blow, not /s/ ('sin')."
   # --- /ð/ vs /d/ : "This is the thread." ---------------------------------------
   - id: thd-sentence
     contrast_id: th_d
@@ -76,13 +88,18 @@ drills:
     canonical: ["ð", "ɪ", "s", "ɪ", "z", "ð", "ə", "θ", "ɹ", "ɛ", "d"]
     targets: [{index: 0, word: "this"}]
     is_base: true
-  # --- /ɪ/ vs /iː/ : "Ship the sheet." (vowel target, index 1) -------------------
+    say_like: "THIS sounds like 'THISS' — tongue between your teeth with your voice ON, not /d/ ('dis')."
+  # --- /ɪ/ vs /iː/ : "Sit in the seat." (vowel target, index 1) ------------------
+  # NOTE: target the short /ɪ/ of "sit" (index 1); "seat" supplies the /iː/ contrast.
+  # Kokoro's "ship"/"fish"/"big" render their /ɪ/ as /ɛ/ (false flag), so the example
+  # words are the validated-clean "sit"/"bit"/"kit" (live-harness checked).
   - id: ihiy-sentence
     contrast_id: ih_iy
-    prompt: "Ship the sheet."
-    canonical: ["ʃ", "ɪ", "p", "ð", "ə", "ʃ", "iː", "t"]
-    targets: [{index: 1, word: "ship"}]
+    prompt: "Sit in the seat."
+    canonical: ["s", "ɪ", "t", "ɪ", "n", "ð", "ə", "s", "iː", "t"]
+    targets: [{index: 1, word: "sit"}]
     is_base: true
+    say_like: "SIT has a short, relaxed 'ih' — keep it quick, not the long 'ee' of 'seat'."
   # --- /l/ vs /r/ : "List the right files." -------------------------------------
   - id: lr-sentence
     contrast_id: l_r
@@ -90,6 +107,7 @@ drills:
     canonical: ["l", "ɪ", "s", "t", "ð", "ə", "ɹ", "aɪ", "t", "f", "aɪ", "l", "z"]
     targets: [{index: 0, word: "list"}]
     is_base: true
+    say_like: "LIST starts with /l/ — tongue tip on the ridge behind your top teeth, not /r/ ('rist')."
 
   # === WORD follow-ons (is_base: false) — routed when a contrast is flagged =======
   # --- /w/ vs /r/ ---------------------------------------------------------------
@@ -98,93 +116,111 @@ drills:
     prompt: "west"
     canonical: ["w", "ɛ", "s", "t"]
     targets: [{index: 0, word: "west"}]
+    say_like: "WEST — round your lips for /w/, not /r/ ('rest')."
   - id: wing
     contrast_id: w_r
     prompt: "wing"
     canonical: ["w", "ɪ", "ŋ"]
     targets: [{index: 0, word: "wing"}]
+    say_like: "WING — round your lips for /w/, not /r/ ('ring')."
   - id: weed
     contrast_id: w_r
     prompt: "weed"
     canonical: ["w", "iː", "d"]
     targets: [{index: 0, word: "weed"}]
+    say_like: "WEED — round your lips for /w/, not /r/ ('reed')."
   # --- /v/ vs /w/ ---------------------------------------------------------------
   - id: vest
     contrast_id: v_w
     prompt: "vest"
     canonical: ["v", "ɛ", "s", "t"]
     targets: [{index: 0, word: "vest"}]
+    say_like: "VEST — top teeth on your lip for /v/, not /w/ ('west')."
   - id: van
     contrast_id: v_w
     prompt: "van"
     canonical: ["v", "æ", "n"]
     targets: [{index: 0, word: "van"}]
+    say_like: "VAN — top teeth on your lip for /v/, not /w/ ('wan')."
   - id: vine
     contrast_id: v_w
     prompt: "vine"
     canonical: ["v", "aɪ", "n"]
     targets: [{index: 0, word: "vine"}]
+    say_like: "VINE — top teeth on your lip for /v/, not /w/ ('wine')."
   # --- /θ/ vs /s/ ---------------------------------------------------------------
   - id: thin
     contrast_id: th_s
     prompt: "thin"
     canonical: ["θ", "ɪ", "n"]
     targets: [{index: 0, word: "thin"}]
+    say_like: "THIN — tongue tip between your teeth and blow, not /s/ ('sin')."
   - id: think
     contrast_id: th_s
     prompt: "think"
     canonical: ["θ", "ɪ", "ŋ", "k"]
     targets: [{index: 0, word: "think"}]
-  - id: thick
+    say_like: "THINK — tongue tip between your teeth and blow, not /s/ ('sink')."
+  - id: three
     contrast_id: th_s
-    prompt: "thick"
-    canonical: ["θ", "ɪ", "k"]
-    targets: [{index: 0, word: "thick"}]
+    prompt: "three"
+    canonical: ["θ", "ɹ", "iː"]
+    targets: [{index: 0, word: "three"}]
+    say_like: "THREE — tongue between your teeth for 'th', then roll into /r/ ('th-ree')."
   # --- /ð/ vs /d/ ---------------------------------------------------------------
   - id: this
     contrast_id: th_d
     prompt: "this"
     canonical: ["ð", "ɪ", "s"]
     targets: [{index: 0, word: "this"}]
-  - id: they
+    say_like: "THIS sounds like 'THISS' — tongue between your teeth, voice ON, not /d/ ('dis')."
+  - id: those
     contrast_id: th_d
-    prompt: "they"
-    canonical: ["ð", "eɪ"]
-    targets: [{index: 0, word: "they"}]
+    prompt: "those"
+    canonical: ["ð", "oʊ", "z"]
+    targets: [{index: 0, word: "those"}]
+    say_like: "THOSE sounds like 'THOHZ' — tongue between your teeth, voice ON, not /d/ ('doze')."
   - id: that
     contrast_id: th_d
     prompt: "that"
     canonical: ["ð", "æ", "t"]
     targets: [{index: 0, word: "that"}]
+    say_like: "THAT — tongue between your teeth, voice ON, not /d/ ('dat')."
   # --- /ɪ/ vs /iː/ (vowel target, index 1) --------------------------------------
-  - id: ship
+  - id: kit
     contrast_id: ih_iy
-    prompt: "ship"
-    canonical: ["ʃ", "ɪ", "p"]
-    targets: [{index: 1, word: "ship"}]
+    prompt: "kit"
+    canonical: ["k", "ɪ", "t"]
+    targets: [{index: 1, word: "kit"}]
+    say_like: "KIT — short, relaxed 'ih', not the long 'ee' of 'keet'."
   - id: sit
     contrast_id: ih_iy
     prompt: "sit"
     canonical: ["s", "ɪ", "t"]
     targets: [{index: 1, word: "sit"}]
+    say_like: "SIT — short, relaxed 'ih', not the long 'ee' of 'seat'."
   - id: bit
     contrast_id: ih_iy
     prompt: "bit"
     canonical: ["b", "ɪ", "t"]
     targets: [{index: 1, word: "bit"}]
+    say_like: "BIT — short, relaxed 'ih', not the long 'ee' of 'beat'."
   # --- /l/ vs /r/ ---------------------------------------------------------------
   - id: light
     contrast_id: l_r
     prompt: "light"
     canonical: ["l", "aɪ", "t"]
     targets: [{index: 0, word: "light"}]
+    say_like: "LIGHT sounds like 'LYTE' — tongue tip behind your top teeth for /l/, not /r/ ('right')."
   - id: lead
     contrast_id: l_r
     prompt: "lead"
     canonical: ["l", "iː", "d"]
     targets: [{index: 0, word: "lead"}]
+    say_like: "LEAD sounds like 'LEED' — tongue tip behind your top teeth for /l/, not /r/ ('read')."
   - id: lice
     contrast_id: l_r
     prompt: "lice"
     canonical: ["l", "aɪ", "s"]
     targets: [{index: 0, word: "lice"}]
+    say_like: "LICE sounds like 'LYSS' — tongue tip behind your top teeth for /l/, not /r/ ('rice')."

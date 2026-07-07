@@ -123,7 +123,12 @@ def test_resume_clears_pending(tmp_sessions_dir, tmp_path, monkeypatch):
     markdown_writer.write_atomic(path, report_builder.build(pending))
 
     from speakloop.cli import practice, resume
-    monkeypatch.setattr(practice, "_build_grammar_analyzer", lambda: _grammar)  # no .runners attr → coverage skipped
+    # runners=None → the interview-loop coverage runner is absent, so coverage stays skipped.
+    monkeypatch.setattr(
+        practice,
+        "_build_grammar_analyzer",
+        lambda: practice.GrammarAnalysis(runner=_grammar, runners=None, engine=None, coach=None),
+    )
 
     resume.run(cloud=False)
 

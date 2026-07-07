@@ -2,20 +2,27 @@
 
 from __future__ import annotations
 
-import os
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
 
 from speakloop import installer
 from speakloop.audio import devices, playback
+from speakloop.cli.gate_prompt import confirm_freeze_override
+from speakloop.cli.gate_prompt import is_interactive as _is_interactive
 from speakloop.config import paths
 from speakloop.content import QALoadError, load
 from speakloop.sessions import keyboard as _keyboard
 from speakloop.sessions import session_ui
 from speakloop.sessions.session_ui import SessionState
+
+if TYPE_CHECKING:  # typing only — content is a leaf, but the type isn't needed at runtime
+    from speakloop.content import Question
 
 
 def _resolve_qa_file(console: Console) -> Path:
@@ -40,7 +47,7 @@ def _resolve_qa_file(console: Console) -> Path:
     return resolved
 
 
-def _pick_question(qa_file, console: Console) -> speakloop.content.Question | None:  # noqa: F821
+def _pick_question(qa_file, console: Console) -> Question | None:
     """Render a numbered picker and return the chosen Question (or None on cancel).
 
     Invalid/out-of-range input re-prompts; only Enter / q / quit / EOF cancels —
@@ -74,75 +81,21 @@ def _pick_question(qa_file, console: Console) -> speakloop.content.Question | No
 def _read_key() -> str:
     """Return a canonical command key: 'r', 'R', 'q', ' ' (space=next), or '' (Enter/EOF).
 
-    Two-tier strategy (the prior readchar path was observed to fall through
-    under some macOS terminal/`uv run` combos):
-
-      Tier 1 — raw single-byte read: try fd 0 first; if that isn't a tty,
-        try opening /dev/tty (handles cases where stdin was redirected but
-        the controlling terminal is still reachable). Uses termios+cbreak +
-        os.read(fd, 1) so we don't depend on Python-level line buffering.
-
-      Tier 2 — line-buffered input(): accepts the same commands as full
-        words for scripted/piped use ('r', 'R', 'space', 'q', 'quit', 'next').
-        Case is preserved so 'r' (lowercase replay question) and 'R' (replay
-        ideal answer) remain distinct.
+    Two-tier (raw cbreak on stdin then /dev/tty, else line-buffered input) via the shared
+    ``sessions.keyboard.read_key_blocking``. ``_decode_listen_key`` keeps this reader's
+    case-sensitive r/R table (lowercase r = replay question, R = replay ideal answer) distinct
+    from the debrief menu's; EOF on the input stream → '' (treated as "next").
     """
-    # Tier 1a: stdin.
-    fd: int | None = None
-    try:
-        fd = sys.stdin.fileno()
-    except (OSError, ValueError):
-        fd = None
-    if fd is not None and os.isatty(fd):
-        ch = _cbreak_read(fd)
-        if ch is not None:
-            return ch
-
-    # Tier 1b: controlling terminal even if stdin was redirected.
-    tty_fd: int | None = None
-    try:
-        tty_fd = os.open("/dev/tty", os.O_RDONLY)
-    except OSError:
-        tty_fd = None
-    if tty_fd is not None:
-        try:
-            ch = _cbreak_read(tty_fd)
-        finally:
-            try:
-                os.close(tty_fd)
-            except OSError:
-                pass
-        if ch is not None:
-            return ch
-
-    # Tier 2: line-buffered fallback (tests, piped input, last resort).
-    try:
-        line = input()
-    except EOFError:
-        return ""
-    return _parse_line_command(line)
+    return _keyboard.read_key_blocking(
+        decode=_decode_listen_key,
+        line_parse=_parse_line_command,
+        read_bytes=1,
+        eof_value="",
+    )
 
 
-def _cbreak_read(fd: int) -> str | None:
-    """Put `fd` into cbreak, read one byte, restore. Return canonical key or None on failure."""
-    import termios
-    import tty
-
-    try:
-        saved = termios.tcgetattr(fd)
-    except termios.error:
-        return None
-    try:
-        tty.setcbreak(fd, termios.TCSANOW)
-        try:
-            data = os.read(fd, 1)
-        except OSError:
-            return None
-    finally:
-        try:
-            termios.tcsetattr(fd, termios.TCSADRAIN, saved)
-        except termios.error:
-            pass
+def _decode_listen_key(data: bytes) -> str:
+    """Map one raw cbreak byte to a listen-loop command key (case-sensitive r/R)."""
     if not data:
         return ""  # EOF on the tty — treat as "next"
     try:
@@ -302,12 +255,6 @@ def resolve_engine_choice(engine: str | None, cloud: bool) -> str:
 # --- Pronunciation drills (016) --------------------------------------------
 
 
-def _is_interactive() -> bool:
-    """Whether we can prompt the user (a real terminal on stdin). Module-level so tests
-    can override it without touching the process's real stdin."""
-    return sys.stdin.isatty()
-
-
 def _resolve_pronunciation_drills(engine_choice: str, console: Console, *, drills_flag, input_fn=input):
     """Resolve whether to offer read-aloud pronunciation drills and, if so, build the bundle.
 
@@ -353,19 +300,10 @@ def _resolve_pronunciation_drills(engine_choice: str, console: Console, *, drill
 
     # Unsafe: warn + skip by default; offer the explicit freeze-warned override interactively.
     console.print(f"[yellow]Pronunciation drills skipped:[/yellow] {decision.reason}")
-    if interactive and setting in ("auto", "on"):
-        try:
-            ans = input_fn(
-                "Load the pronunciation model anyway? This may freeze your machine. [y/N]: "
-            ).strip().lower()
-        except EOFError:
-            return None
-        if ans in {"y", "yes"}:
-            console.print(
-                "[red]Override accepted — loading the pronunciation model despite the memory "
-                "risk.[/red]"
-            )
-            return _provision_and_build_drills(console, decision, cfg, input_fn=input_fn)
+    if setting in ("auto", "on") and confirm_freeze_override(
+        console, input_fn=input_fn, interactive=interactive
+    ):
+        return _provision_and_build_drills(console, decision, cfg, input_fn=input_fn)
     return None
 
 
@@ -402,6 +340,7 @@ def _provision_and_build_drills(console: Console, decision, cfg, *, input_fn=inp
         console.print(f"[yellow]Could not set up pronunciation drills ({e}); skipping.[/yellow]")
         return None
 
+    from speakloop.config import loop_config
     from speakloop.sessions.coordinator import PronunciationDrills
 
     return PronunciationDrills(
@@ -411,6 +350,8 @@ def _provision_and_build_drills(console: Console, decision, cfg, *, input_fn=inp
         # 017: hear-first playback toggle + bounded per-item retries from loop.yaml.
         tts_playback=cfg.pronunciation_tts_playback,
         retries=cfg.pronunciation_retries,
+        # 017 P2: slower rate for the focused per-sound teaching beat (word in isolation).
+        teach_speed=loop_config.teach_speed(cfg.pronunciation_tts_speed),
     )
 
 
@@ -470,39 +411,9 @@ def run(
             console.print("Bye.")
             return
 
-    # Required base models from the user's intent. --listen-only only needs Phase A
-    # (TTS); without it we need Phase B (TTS + ASR) to record attempts. These are
-    # required — declining aborts (you can't record without them).
-    base_phase = "A" if listen_only else "B"
-
-    try:
-        installer.ensure_models(base_phase, console=console)
-    except installer.InstallDeclinedError:
-        console.print("[yellow]Model download declined; nothing to do.[/yellow]")
-        raise typer.Exit(1)
-    except installer.InstallFailedError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1) from e
-
-    # 015: the large local feedback model (Phase C / Qwen) is provisioned ONLY when the
-    # local engine is the active feedback engine on a full session — a cloud engine never
-    # triggers it (FR-007). Declining or a failure degrades to a recorded, resumable
-    # session (no grammar feedback) rather than aborting (FR-009); `_build_grammar_analyzer`
-    # then sees the model absent and returns None.
-    if installer.engine_needs_local_llm(engine_choice, listen_only=listen_only):
-        try:
-            installer.ensure_models("C", console=console)
-        except installer.InstallDeclinedError:
-            console.print(
-                "[yellow]Local feedback model declined — this session will record but produce "
-                "no grammar feedback (finish later with `speakloop resume`, or use "
-                "--engine openrouter / --engine claude).[/yellow]"
-            )
-        except installer.InstallFailedError as e:
-            console.print(
-                f"[yellow]Local feedback model unavailable ({e}); recording without grammar "
-                "feedback (resumable with `speakloop resume`).[/yellow]"
-            )
+    # 015: provision exactly what this run needs — the required base phase (aborts on
+    # decline) plus the optional local Phase-C feedback model (degrades on decline).
+    _provision_models(engine_choice, listen_only=listen_only, console=console)
 
     if tts_engine is None:
         from speakloop.tts.kokoro_engine import KokoroEngine
@@ -561,25 +472,14 @@ def run(
             f"[yellow]ASR: requested engine unavailable "
             f"({selection.fallback_reason}); falling back to Parakeet.[/yellow]"
         )
-    # Engine selection (011): local Qwen (default, offline), OpenRouter (--cloud /
-    # --engine openrouter), or Claude Code (--engine claude). Cloud + Claude build
-    # the grammar analyzer AND the additive coaching runner over one shared engine;
-    # local keeps its byte-identical build and has no coach. Built once, before the
-    # loop, reused per session.
-    if engine_choice == "openrouter":
-        grammar_analyzer, coach_runner = _build_cloud_grammar_analyzer(console)
-    elif engine_choice == "claude":
-        grammar_analyzer, coach_runner = _build_claude_grammar_analyzer(console)
-    else:  # local
-        grammar_analyzer = _build_grammar_analyzer()
-        coach_runner = None
-    # 010: the Interview Loop runner bundle rides on the grammar-runner callable
-    # (None when no Phase-C model is installed → follow-ups/triage simply stay off).
-    runners = getattr(grammar_analyzer, "runners", None)
-    # 012/FR-026: the engine declares whether its analysis calls may run concurrently;
-    # the CLI reads that capability off the engine the analyzer was built over.
-    _analysis_engine = getattr(grammar_analyzer, "engine", None)
-    analysis_parallel_safe = bool(getattr(_analysis_engine, "parallel_safe", False))
+    # Engine selection (011/012): local Qwen (default, offline), OpenRouter, or Claude Code.
+    # Build the grammar analyzer + optional coach + runner bundle + concurrency capability
+    # ONCE, before the loop, reused per session (typed fields, IMP-017).
+    analysis = _build_analysis(engine_choice, console)
+    grammar_analyzer = analysis.runner
+    coach_runner = analysis.coach
+    runners = analysis.runners
+    analysis_parallel_safe = analysis.parallel_safe
 
     # 016: resolve the optional read-aloud pronunciation-drill capability ONCE, before the
     # timed loop (the model download/consent happens here, not mid-session). Returns a bundle
@@ -660,12 +560,90 @@ def run(
         return  # QUIT
 
 
-def _build_grammar_analyzer():
-    """Return a callable `(transcripts) -> patterns` if Phase C LLM is installed; else None."""
+def _provision_models(engine_choice: str, *, listen_only: bool, console: Console) -> None:
+    """Download exactly what this run needs (015).
+
+    The base phase is REQUIRED — `--listen-only` needs Phase A (TTS); a full session needs
+    Phase B (TTS + ASR) to record attempts — so a decline/failure raises `typer.Exit(1)`
+    (you can't record without them). The large local Phase-C feedback model (Qwen) is
+    provisioned ONLY when the local engine is active on a full session (FR-007); a cloud
+    engine never triggers it, and a decline/failure DEGRADES to a recorded, resumable
+    session with one notice rather than aborting (FR-009) — `_build_grammar_analyzer` then
+    sees the model absent and returns None.
+    """
+    base_phase = "A" if listen_only else "B"
+    try:
+        installer.ensure_models(base_phase, console=console)
+    except installer.InstallDeclinedError:
+        console.print("[yellow]Model download declined; nothing to do.[/yellow]")
+        raise typer.Exit(1)
+    except installer.InstallFailedError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+
+    if installer.engine_needs_local_llm(engine_choice, listen_only=listen_only):
+        try:
+            installer.ensure_models("C", console=console)
+        except installer.InstallDeclinedError:
+            console.print(
+                "[yellow]Local feedback model declined — this session will record but produce "
+                "no grammar feedback (finish later with `speakloop resume`, or use "
+                "--engine openrouter / --engine claude).[/yellow]"
+            )
+        except installer.InstallFailedError as e:
+            console.print(
+                f"[yellow]Local feedback model unavailable ({e}); recording without grammar "
+                "feedback (resumable with `speakloop resume`).[/yellow]"
+            )
+
+
+@dataclass(frozen=True)
+class GrammarAnalysis:
+    """The feedback-analysis bundle for one engine (011/012), returned by the three
+    ``_build_*_grammar_analyzer`` builders.
+
+    All fields are REQUIRED (no defaults) so a builder that forgets ``engine`` fails at
+    construction rather than silently degrading ``parallel_safe`` to serial — the blind spot
+    the old bolted-on ``.engine``/``.runners`` attributes hid (IMP-017). ``_NO_ANALYSIS``
+    (every field None) is the "no local model available" sentinel, so callers read typed
+    fields uniformly: ``runner is None`` ⇒ degrade, ``parallel_safe`` ⇒ False.
+    """
+
+    runner: Callable | None  # grammar analyzer (transcripts) -> patterns
+    runners: object | None  # coordinator.Runners bundle (interview loop), or None
+    engine: object | None  # the LLM engine the analyzer was built over
+    coach: Callable | None  # additive coaching runner (cloud/claude only), or None
+
+    @property
+    def parallel_safe(self) -> bool:
+        """Whether the engine's analysis calls may run concurrently (012/FR-026)."""
+        return bool(getattr(self.engine, "parallel_safe", False))
+
+
+_NO_ANALYSIS = GrammarAnalysis(runner=None, runners=None, engine=None, coach=None)
+
+
+def _build_analysis(engine_choice: str, console: Console) -> GrammarAnalysis:
+    """Build the feedback analysis bundle ONCE for the chosen engine (011/012).
+
+    Cloud + Claude build the grammar analyzer AND the additive coaching runner over one
+    shared engine; local keeps its byte-identical build and has no coach. Returns the null
+    ``_NO_ANALYSIS`` when no local Phase-C model is installed (so follow-ups/triage stay off
+    and the session degrades to a resumable pending report).
+    """
+    if engine_choice == "openrouter":
+        return _build_cloud_grammar_analyzer(console)
+    if engine_choice == "claude":
+        return _build_claude_grammar_analyzer(console)
+    return _build_grammar_analyzer()  # local — may be _NO_ANALYSIS
+
+
+def _build_grammar_analyzer() -> GrammarAnalysis:
+    """Return a `GrammarAnalysis` if the local Phase-C LLM is installed; else `_NO_ANALYSIS`."""
     from speakloop.installer import manifest, validator
 
     if not validator.validate(manifest.QWEN3_14B_4BIT).ok:
-        return None
+        return _NO_ANALYSIS
 
     from speakloop.feedback.grammar_analyzer import analyze
     from speakloop.llm.qwen_engine import QwenEngine
@@ -675,13 +653,9 @@ def _build_grammar_analyzer():
     def _runner(transcripts):
         return analyze(transcripts, qwen)
 
-    # 010: attach the Interview Loop runner bundle (mishearing/consistency/follow-ups)
-    # built over the SAME engine. Stored as an attribute so the return type stays a
-    # plain callable (existing callers/tests unaffected); run() reads it via getattr.
-    _runner.runners = _build_runners(qwen)
-    # 012/FR-026: expose the engine so run() can read its parallel_safe capability.
-    _runner.engine = qwen
-    return _runner
+    # 010: the Interview Loop runner bundle (mishearing/consistency/follow-ups) is built
+    # over the SAME engine; local has no coach (009 is cloud-only).
+    return GrammarAnalysis(runner=_runner, runners=_build_runners(qwen), engine=qwen, coach=None)
 
 
 # 011 P2 — the static call-site → model-tier assignment (documentation + single
@@ -826,8 +800,8 @@ def _validated_token(console: Console, token: str, model: str, *, input_fn=input
     raise typer.Exit(1)
 
 
-def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input):
-    """Return ``(grammar_runner, coach_runner)``, both backed by OpenRouter.
+def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input) -> GrammarAnalysis:
+    """Return a `GrammarAnalysis` (grammar + coach runners), both backed by OpenRouter.
 
     Resolves the token (env > stored file; first-run prompt + store + disclosure),
     validates it once up front, loads the dedicated cloud prompts, and builds ONE
@@ -877,18 +851,20 @@ def _build_cloud_grammar_analyzer(console: Console, *, input_fn=input):
             system_prompt=coach_system_prompt,
         )
 
-    # 010: the Interview Loop runners reuse the SAME OpenRouter engine (FR-039),
-    # attached to the grammar runner so the (grammar, coach) return type is unchanged.
-    _grammar_runner.runners = _build_runners(engine)
-    _grammar_runner.engine = engine  # 012/FR-026: expose parallel_safe to run()
-    return _grammar_runner, _coach_runner
+    # 010: the Interview Loop runners reuse the SAME OpenRouter engine (FR-039).
+    return GrammarAnalysis(
+        runner=_grammar_runner,
+        runners=_build_runners(engine),
+        engine=engine,  # 012/FR-026: exposes parallel_safe
+        coach=_coach_runner,
+    )
 
 
 # --- Claude Code mode (011) ------------------------------------------------
 
 
-def _build_claude_grammar_analyzer(console: Console):
-    """Return ``(grammar_runner, coach_runner)`` backed by the local Claude Code CLI.
+def _build_claude_grammar_analyzer(console: Console) -> GrammarAnalysis:
+    """Return a `GrammarAnalysis` (grammar + coach runners) backed by the local Claude Code CLI.
 
     Mirrors :func:`_build_cloud_grammar_analyzer` but drives the subscription-billed
     Claude Code product via subprocess (``ClaudeCodeEngine``). Reuses the SAME
@@ -918,15 +894,25 @@ def _build_claude_grammar_analyzer(console: Console):
     # hard timeout is also configurable (claude_timeout_seconds) — a strong model
     # like Opus running the full grammar prompt can exceed the engine's 90s baseline.
     timeout = float(cfg.claude_timeout_seconds)
-    strong = ClaudeCodeEngine(model=cfg.claude_strong_model, timeout=timeout)
-    fast = ClaudeCodeEngine(model=cfg.claude_fast_model, timeout=timeout)
+    strong = ClaudeCodeEngine(
+        model=cfg.claude_strong_model, effort=cfg.claude_strong_effort, timeout=timeout
+    )
+    fast = ClaudeCodeEngine(
+        model=cfg.claude_fast_model, effort=cfg.claude_fast_effort, timeout=timeout
+    )
 
     cloud_system_prompt, prompt_path = _cloud_prompt.load_cloud_prompt()
     coach_system_prompt, coach_prompt_path = _cloud_prompt.load_coach_prompt()
 
+    strong_label = cfg.claude_strong_model + (
+        f" @ {cfg.claude_strong_effort} effort" if cfg.claude_strong_effort else ""
+    )
+    fast_label = cfg.claude_fast_model + (
+        f" @ {cfg.claude_fast_effort} effort" if cfg.claude_fast_effort else ""
+    )
     console.print(
         f"[cyan]Claude Code engine[/cyan]: analysis runs through your local Claude Code "
-        f"(strong=[bold]{cfg.claude_strong_model}[/bold], fast=[bold]{cfg.claude_fast_model}"
+        f"(strong=[bold]{strong_label}[/bold], fast=[bold]{fast_label}"
         "[/bold]), billed to your subscription. Your attempt transcripts are sent to Claude "
         "Code (audio and reports stay local)."
     )
@@ -949,6 +935,9 @@ def _build_claude_grammar_analyzer(console: Console):
             question_text, transcripts, patterns, strong, system_prompt=coach_system_prompt
         )
 
-    _grammar_runner.runners = _build_runners(strong, fast_engine=fast)
-    _grammar_runner.engine = strong  # 012/FR-026: expose parallel_safe to run()
-    return _grammar_runner, _coach_runner
+    return GrammarAnalysis(
+        runner=_grammar_runner,
+        runners=_build_runners(strong, fast_engine=fast),
+        engine=strong,  # 012/FR-026: exposes parallel_safe
+        coach=_coach_runner,
+    )

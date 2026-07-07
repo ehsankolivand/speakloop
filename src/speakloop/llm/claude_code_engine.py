@@ -52,6 +52,11 @@ _FLAG_TOOLS = "--tools"
 _TOOLS_NONE = ""  # `--tools ""` disables all tools → guarantees a text-only response, no tool use
 _FLAG_NO_SESSION = "--no-session-persistence"  # don't litter session history
 _FLAG_SYSTEM_PROMPT = "--system-prompt"  # REPLACE the default system prompt with our analysis prompt
+_FLAG_EFFORT = "--effort"  # reasoning-effort level; emitted ONLY when configured (see __init__).
+#   Observed CLI levels: low | medium | high | xhigh | max. The flag is OPTIONAL and
+#   newer than the pinned baseline, so an unset effort emits nothing — keeping older
+#   `claude` builds working. Validation of the level lives config-side (config is a leaf,
+#   so it can't import this module); the engine emits whatever non-empty string it is given.
 
 # Success envelope fields (observed 2.1.170). Success is keyed on `is_error`,
 # NOT `subtype` (which stays "success" even on error).
@@ -171,7 +176,11 @@ class ClaudeCodeEngine:
 
     NOTE: the Claude Code CLI exposes neither a temperature nor a max-tokens flag,
     so ``generate()`` IGNORES both ``max_tokens`` and ``temperature`` (the engine
-    owns generation details — Principle V). Output quality relies on strict-JSON
+    owns generation details — Principle V). An optional ``effort`` (reasoning-effort
+    level — low|medium|high|xhigh|max) IS exposed by the CLI and, when set, is passed
+    through as ``--effort <level>``; left unset (the default) it emits no flag, so the
+    engine keeps working on CLI builds that predate the flag. Output quality relies on
+    strict-JSON
     prompting plus the caller's existing JSON-recovery ladder (which already strips
     markdown code fences). ``retry=True`` maps to one bounded re-invocation with a
     STRICT-JSON reminder appended to the USER prompt — the SYSTEM prompt is kept
@@ -186,17 +195,19 @@ class ClaudeCodeEngine:
         self,
         *,
         model: str,
+        effort: str | None = None,
         runner: Runner = default_runner,
         timeout: float = _DEFAULT_TIMEOUT,
         binary: str = _BINARY,
     ) -> None:
         self._model = model
+        self._effort = effort or None  # normalize "" → None so we never emit a bare --effort
         self._runner = runner
         self._timeout = timeout
         self._binary = binary
 
     def _argv(self, system_prompt: str) -> list[str]:
-        return [
+        argv = [
             self._binary,
             _FLAG_PRINT,
             _FLAG_OUTPUT_FORMAT,
@@ -210,6 +221,9 @@ class ClaudeCodeEngine:
             _FLAG_SYSTEM_PROMPT,
             system_prompt,
         ]
+        if self._effort:  # opt-in only; absent → flag omitted → older CLIs unaffected
+            argv[6:6] = [_FLAG_EFFORT, self._effort]  # insert right after `--model <id>`
+        return argv
 
     def generate(
         self,

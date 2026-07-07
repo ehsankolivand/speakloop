@@ -185,3 +185,32 @@ standalone activity. Decisions (full detail: `specs/017-pronunciation-trainer/re
 - **Weak-sound memory**: a rebuildable `pronunciation_contrasts` section in the derived store
   biases `select_drills`; standalone-only history is live (dropped on a manual `rebuild`, like the
   SRS `next_due` placeholder). `STORE_VERSION` + report `schema_version` both stay 1.
+## Post-ship hardening (feature 017 — 2026-06-12, after real-machine testing)
+
+Real-machine `pronounce` testing surfaced three issues; all fixed and re-validated on the live
+harness (the calibration oracle) + a live diagnostic (TTS-render → score → inspect per-phone GOP):
+
+- **Root cause of "could not score this one" (P0): the model load required espeak.**
+  `Wav2Vec2Processor.from_pretrained` eagerly constructs `Wav2Vec2PhonemeCTCTokenizer`, whose
+  `__init__` inits the **espeak phonemizer** (text→phoneme) — which the scorer never uses (it ships
+  bundled canonical phonemes) and which raises `RuntimeError: espeak not installed on your system`,
+  failing the WHOLE load before the model (no "Loading weights" line) → every drill errored. Fix:
+  load only `Wav2Vec2FeatureExtractor` + the CTC model and read `vocab.json` directly (`_read_vocab`).
+  This also makes the scorer genuinely offline (no system espeak), consistent with the g2p rejection.
+- **Observability**: the score path never raises into the session, so the real reason was flattened
+  to a vague message. `_score_once` now captures `DrillResult.detail` / the record exception, logs it
+  (DEBUG), and the live message is actionable (mic vs model); `pronounce --debug` / `SPEAKLOOP_DEBUG`
+  surfaces the raw reason. Report frontmatter unchanged (detail is runtime-only).
+- **Calibration (P1)**: validated every drill against the live model. A clean TTS rendering of the
+  target scores GOP ≳ -0.9 (competitor margin < 0); a deliberate substitution scores GOP ≲ -2.4
+  (margin ≳ +2.0). GOP alone separates the two, so `_COMPETITOR_FLAG_MARGIN` was raised 0.5→1.5
+  (in the gap) to stop over-flagging accented-but-acceptable sounds (the learner's /w/ symptom — the
+  clean /w/ renderings score fine, so a flagged /w/ is a real error, not a canonical bug). Drills
+  whose target phone Kokoro renders as the wrong phone false-flagged their own clean TTS and were
+  replaced: `thick`→/s/, `ship`/`fish`/`big`→/ɛ/, `they` borderline → `three`, `sit`/`kit`/`bit`,
+  `those`; base sentences now lead with a clean-scoring word.
+- **Teaching UX (P2)**: trainer plays slower (`pronunciation_tts_speed`, default 0.85, configurable);
+  on a flagged sound a focused teaching beat shows a curated English respelling (`say_like`) and
+  replays JUST the flagged word in isolation at a slower rate (`teach_speak`, one engine via per-call
+  `synthesize(speed=)`). Kokoro has no phoneme-stress control, so isolation + slower + respelling is
+  the documented approximation of emphasis. All offline, additive, byte-identical-when-absent.

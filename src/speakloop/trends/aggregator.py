@@ -18,6 +18,24 @@ METRIC_KEYS = (
     "self_corrections_count",
 )
 
+# Human labels + direction for the trends dashboard (IMP-042). `METRIC_KEYS` stays the single
+# source for ordering; these only affect display. `higher_is_better` drives the Δ annotation:
+# rising WPM is the desired trajectory, but more fillers/pauses/self-corrections is a regression.
+METRIC_LABELS = {
+    "speech_rate_wpm": "Speech rate (WPM)",
+    "filler_density_per_100_words": "Filler density (/100 words)",
+    "pauses_count": "Pauses",
+    "mean_pause_ms": "Mean pause (ms)",
+    "self_corrections_count": "Self-corrections",
+}
+METRIC_HIGHER_IS_BETTER = {
+    "speech_rate_wpm": True,
+    "filler_density_per_100_words": False,
+    "pauses_count": False,
+    "mean_pause_ms": False,
+    "self_corrections_count": False,
+}
+
 
 @dataclass(frozen=True)
 class PatternRankRow:

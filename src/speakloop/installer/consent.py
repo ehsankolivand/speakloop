@@ -12,7 +12,10 @@ from speakloop.installer.manifest import Model
 
 
 def _human_size(n: int) -> str:
-    for unit, divisor in [("GB", 1 << 30), ("MB", 1 << 20), ("KB", 1 << 10)]:
+    # DECIMAL units (1000-based) to MATCH the labels: rich's `DownloadColumn` shows decimal GB
+    # during the transfer and macOS reports free space in decimal GB, so an 8e9-byte model must
+    # read "8.0 GB" — not the "7.5 GB" a binary divisor under a GB label produced (IMP-041).
+    for unit, divisor in [("GB", 10**9), ("MB", 10**6), ("KB", 10**3)]:
         if n >= divisor:
             return f"{n / divisor:.1f} {unit}"
     return f"{n} B"

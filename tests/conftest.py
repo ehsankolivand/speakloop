@@ -143,6 +143,35 @@ def _isolate_keyboard(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _stable_terminal_rendering(monkeypatch):
+    """Pin a wide, colourless terminal for the whole suite (CI, IMP-004).
+
+    CLI-content tests assert on rendered output (``"--cloud"``, ``"2 question(s)"``), which
+    rich/typer format from the ambient terminal — so they were green by hand yet red in CI
+    (the inverse of the ``_isolate_keyboard`` skew). Two independent environment differences
+    caused it, both neutralised here:
+
+    * **Width.** click/typer (``shutil.get_terminal_size``) and rich read the launching
+      terminal via ``sys.__stdout__`` (which survives pytest's stdout capture). By hand that
+      is ~200 cols so output stays on one line; in CI / any piped run it falls back to 80,
+      rich hard-wraps, and e.g. ``"2 question(s)"`` splits across a line break. ``COLUMNS``
+      overrides both sizers.
+    * **Colour.** rich force-enables ANSI styling when ``GITHUB_ACTIONS``/``FORCE_COLOR`` is
+      set, so in CI a flag renders as colour-spanned fragments and ``"--cloud"`` is no longer
+      a clean substring — even at full width. ``NO_COLOR`` alone loses to that forcing, so the
+      forcing vars are removed as well as ``NO_COLOR`` set. Locally the suite already runs
+      colourless, so this only makes CI match by-hand behaviour.
+
+    A test that needs narrow-terminal wrapping or ANSI output sets its own ``COLUMNS`` /
+    colour env in its body, which runs after this fixture and overrides it.
+    """
+    monkeypatch.setenv("COLUMNS", "200")
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
 @pytest.fixture
 def wav_fixture():
     """Return a callable `(name) -> Path` that locates a fixture WAV.

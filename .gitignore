@@ -21,4 +21,8 @@ Thumbs.db
 .env.local
 *.token
 *.key
-*.pem.claude/scheduled_tasks.lock
+*.pem
+
+# claude code local scheduler state (machine-local, never shared)
+.claude/scheduled_tasks.lock
+.claude/scheduled_tasks.json

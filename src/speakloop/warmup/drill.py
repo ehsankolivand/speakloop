@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Literal
 
 from speakloop.config import paths
-from speakloop.feedback.grammar_analyzer import _extract_json
+from speakloop.feedback.json_recovery import extract_json
 from speakloop.llm import LLMEngine, LLMEngineError
 
 _DRILL_MAX_TOKENS = 512
@@ -38,11 +38,7 @@ class DrillItem:
 
 def load_drill_prompt() -> tuple[str, Path]:
     """Seed + read the editable drill prompt (~/.speakloop/openrouter_drill_prompt.txt)."""
-    target = paths.openrouter_drill_prompt_path()
-    if not target.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(_DEFAULT.read_text(encoding="utf-8"), encoding="utf-8")
-    return target.read_text(encoding="utf-8"), target
+    return paths.seed_and_read(paths.openrouter_drill_prompt_path(), _DEFAULT)
 
 
 def generate_drill(top_error_label: str, llm: LLMEngine, *, system_prompt: str) -> list[DrillItem]:
@@ -56,7 +52,7 @@ def generate_drill(top_error_label: str, llm: LLMEngine, *, system_prompt: str) 
     )
     if not raw or not raw.strip():
         raise LLMEngineError("Drill generator returned an empty response.")
-    data = _extract_json(raw)
+    data = extract_json(raw)
     items: list[DrillItem] = []
     for it in data.get("items") or []:
         if not isinstance(it, dict):

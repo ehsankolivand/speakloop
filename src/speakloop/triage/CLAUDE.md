@@ -26,8 +26,8 @@ against the ideal answer before the report is written (FR-027).
 ## Dependencies & consumers
 
 - Internal: `speakloop.asr` (`Transcript`/`SegmentMeta`), `speakloop.config` (paths),
-  `speakloop.llm` (`LLMEngine`/`LLMEngineError`). JSON recovery: shared `_extract_json` ladder
-  from `feedback.grammar_analyzer` (see `src/speakloop/feedback/CLAUDE.md`).
+  `speakloop.llm` (`LLMEngine`/`LLMEngineError`). JSON recovery: shared `feedback.json_recovery.extract_json`
+  ladder (IMP-034; see `src/speakloop/feedback/CLAUDE.md`).
 - `hallucination` imported at `sessions/coordinator.py` module level (line 33) — it is
   stdlib-only so this is a minor, intentional exception to the function-local pattern.
 - Consumers: `sessions` (hallucination filter before every transcript — including follow-up

@@ -16,8 +16,10 @@ single-key controls, background ASR worker, concurrent analysis executor, and cl
   Follow-up generation fires BEFORE heavy analysis the instant the final transcript lands
   (`coordinator.py:1048-1069`).
 - `coordinator.PronunciationDrills` (016, +017) — injected bundle (`scorer`, `bank`, `engine_note`,
-  `tts_playback`, `retries`), built by `cli/practice.py` ONLY after the safety gate permitted + the
-  user opted in. When passed, `run_session` runs `_analyze` in a BACKGROUND daemon thread
+  `tts_playback`, `retries`, `teach_speed`), built by `cli/practice.py` ONLY after the safety gate
+  permitted + the user opted in. `teach_speed` (P2) is the slower per-call rate for the focused
+  teaching beat; `_run_pronunciation_drills` builds a `teach_speak` closure (`synthesize(speed=…)`,
+  falling back when the engine has no per-call speed) and passes it to `run_drill_block`. When passed, `run_session` runs `_analyze` in a BACKGROUND daemon thread
   (`quiet=True`, to a discard console — two live `rich` displays must never collide) while
   `_run_pronunciation_drills` runs the user-paced read-aloud drill block on the main thread, then
   JOINs → one report waits for both (FR-002/003/004). No-op (None) when absent → byte-identical;
@@ -38,12 +40,16 @@ single-key controls, background ASR worker, concurrent analysis executor, and cl
 - `coordinator.FOLLOWUP_BUDGET_SECONDS = 60`, `coordinator.WARMUP_ITEM_BUDGET_SECONDS = 20`
   (`coordinator.py:36,538`).
 - `keyboard.KeyReader` (Protocol) + `RawKeyReader` / `NullKeyReader` / `FakeKeyReader` +
-  `make_key_reader()` (`keyboard.py:49-226`). The session-path key reader — stdlib
-  termios/tty/select only.
+  `make_key_reader()`. The session-path key reader — stdlib termios/tty/select only.
+- `keyboard.read_key_blocking(*, decode, line_parse, read_bytes=1, eof_value)` (IMP-016) — the
+  shared BLOCKING single-key reader for the listen loop + debrief menu (distinct from the
+  session-path `KeyReader`): stdin-then-`/dev/tty` cbreak read → caller's `decode(bytes)`, else
+  line-buffered `input()` → caller's `line_parse(str)`, `eof_value` on EOF.
   Key surface by stage:
   - Pre-session listen loop (driven by `cli/practice.py`, NOT this module): `space`/`enter`=skip,
-    `r`=replay, `q`=quit. `cli/practice.py:118` and `debrief/menu.py:34` keep their own cbreak
-    readers; see root CLAUDE.md Trap 6.
+    `r`=replay, `q`=quit. `cli/practice._read_key` and `debrief/menu.read_key` now share the
+    blocking `keyboard.read_key_blocking(*, decode, line_parse, read_bytes, eof_value)` (IMP-016);
+    see root CLAUDE.md Trap 6.
   - Recording stage (`_spawn_key_poller`): `space`/`enter`=stop recording early; `s`=skip
     follow-up (follow-up case only). `q` is NOT wired inside the recording loop.
   `RawKeyReader` has a re-entrancy depth guard (`keyboard.py:88`) so a shared reader
@@ -59,13 +65,19 @@ single-key controls, background ASR worker, concurrent analysis executor, and cl
   when `not parallel_safe` OR `concurrency <= 1` OR `len(jobs) <= 1`; otherwise
   `ThreadPoolExecutor(min(concurrency, len(jobs)))`. Results keyed by NAME (never completion
   order) so assembly is identical regardless of strategy (`analysis.py:48-73`).
-- `timer.run(budget_seconds, early_exit_event)` — `rich.progress` countdown.
+- `timer.time_budget_for(ordinal)` — the 4/3/2-minute per-attempt budgets (`BUDGETS`). The
+  recording countdown/progress is rendered by `session_ui.make_recording_progress` + the inline
+  `_ticker` in `coordinator._record_stage`; the old `timer.run` rich.progress countdown had no
+  caller and was removed (IMP-030).
 - `abort.install_signal_handler(sessions_dir)` — SIGINT handler: removes `*.tmp` under
-  `sessions_dir` and sets `abort_event` (`abort.py:26-37`). There is NO `sys.exit(130)` in
+  `sessions_dir` and sets `abort_event`. There is NO `sys.exit(130)` in
   the handler; the coordinator polls `abort_event` and raises `AbortedError`, which
   `cli/practice.py` catches (one yellow line, `typer.Exit(130)`, FR-016). An abort during
   the follow-up stage does NOT raise — the coordinator still writes a resumable
-  analysis-pending report (`coordinator.py:457`, `:1077`).
+  analysis-pending report (`coordinator.py:457`, `:1077`). `install_signal_handler` RETURNS
+  the prior SIGINT handler and `run_session` wraps its whole body in `try/finally` to call
+  `abort.restore_signal_handler(prev)` on every exit — otherwise the inert handler (it never
+  raises) stays live and silently swallows every later Ctrl-C in the process (IMP-001).
 
 ## O6 — serial == concurrent byte-identical report (owner)
 
@@ -98,14 +110,20 @@ a no-drills report is byte-identical (gate: `test_drills_additive_byte_identical
 
 ## File map
 
-- `coordinator.py` — 4/3/2 state machine + report assembly. `_BackgroundAsr`
-  (`coordinator.py:239-285`): a single queue-fed daemon thread (NOT a ThreadPoolExecutor);
-  one Whisper job at a time; daemon so a crash cannot hang exit. `Runners` + `SessionResult`
-  at `:40-78`. Follow-up reorder at `:1048-1069`. Store write at `:1110-1116`.
+- `coordinator.py` — 4/3/2 state machine + report assembly. `_BackgroundAsr`: a single
+  queue-fed daemon thread (NOT a ThreadPoolExecutor); one Whisper job at a time; daemon so a
+  crash cannot hang exit. `Runners` + `SessionResult` near the top. `run_session` orchestrates
+  named phase helpers (IMP-003): `_record_and_transcribe` (attempt loop + `_BackgroundAsr` +
+  abort cleanup → transcripts), `_run_analysis_phase` (the three analysis strategies incl. the
+  drills-concurrent background thread → `(outs, drills_result)`; an UNEXPECTED background crash
+  still degrades to a resumable pending report but surfaces the reason — one yellow line +
+  threaded into `phase_c_error`, never dropped, IMP-010), and `_persist_store` (SRS
+  advance + contrast tally + atomic save → next_due). All store mutations stay on the main
+  thread (O6). The Session-constructor assembly + report write stay inline in `run_session`.
 - `keyboard.py` — `KeyReader` seam; re-entrancy guard at `:88`; `FakeKeyReader` two modes.
 - `session_ui.py` — one-state-at-a-time display + countdown + closing summary.
 - `analysis.py` — serial/concurrent `run_group`; serial fallback logic at `:62`.
-- `timer.py` — per-attempt countdown.
+- `timer.py` — per-attempt time budgets (`time_budget_for`); recording UI lives in `session_ui`/`_record_stage`.
 - `abort.py` — SIGINT handler; sets `abort_event`; cleans `*.tmp`.
 
 ## Invariants & traps

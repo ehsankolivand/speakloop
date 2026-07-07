@@ -28,7 +28,9 @@ New engines MUST declare `parallel_safe` manually; omitting it causes `getattr(.
 ## Claude Code CLI contract (O13 — owned here)
 
 Pinned to observed `claude 2.1.170` (`claude_code_engine.py:39`). Flags (all named constants):
-`--print --output-format json --model <alias> --safe-mode --tools "" --no-session-persistence --system-prompt <prompt>`, user prompt on stdin.
+`--print --output-format json --model <alias> [--effort <level>] --safe-mode --tools "" --no-session-persistence --system-prompt <prompt>`, user prompt on stdin.
+
+- `--effort <level>` (low|medium|high|xhigh|max) is OPTIONAL and OPT-IN: emitted only when `ClaudeCodeEngine(effort=...)` is non-empty, inserted right after `--model`. Unset → no flag → behaviour unchanged and older CLI builds (pre-`--effort`) keep working. Level validation lives config-side (`loop_config._effort`, validated against `VALID_CLAUDE_EFFORT_LEVELS`); the engine emits whatever non-empty string it is handed. Wired per tier from `loop.yaml` `claude_strong_effort` / `claude_fast_effort` (`practice.py` builds `strong`/`fast` with each tier's effort).
 
 - Keys off envelope `is_error` (`claude_code_engine.py:58`), NOT `subtype` (stays "success" even on error).
 - `--safe-mode` NOT `--bare`: `--bare` forces `ANTHROPIC_API_KEY`/keychain auth and breaks subscription billing after the env strip.
@@ -57,7 +59,7 @@ All config lives in `qwen_engine.py`; the analyzer passes `temperature=0.3` and 
 
 - `interface.py` — `LLMEngine` Protocol + `LLMEngineError`.
 - `qwen_engine.py` — `QwenEngine`; the ONLY `import mlx_lm`; Qwen3-14B 4-bit; lazy load; thinking strip; `parallel_safe = False`.
-- `openrouter_engine.py` (008) — `OpenRouterEngine`; stdlib `urllib`; `OpenRouterAuthError`; `check_auth()`; `parallel_safe = True`.
+- `openrouter_engine.py` (008) — `OpenRouterEngine`; stdlib `urllib`; `OpenRouterAuthError`; `check_auth()`; `parallel_safe = True`. On an HTTP error, `_error_detail(e)` reads the response body and appends OpenRouter's `error.message` (or a truncated snippet) to the raised `LLMEngineError` for the 404/generic cases so the user can diagnose (credits/unsupported model/outage) — token-safe (it lives only in the request header, never the body) (IMP-013).
 - `openrouter_credentials.py` (008) — `resolve_token()` (env `OPENROUTER_API_KEY` > `~/.speakloop/openrouter_token` > None); `store_token()` (0600). No import-time I/O.
 - `openrouter_config.py` (008) — `resolve_model()` from `~/.speakloop/openrouter.yaml`; absent/malformed → default `qwen/qwen3.7-max`.
 - `claude_code_engine.py` (011) — `ClaudeCodeEngine`; the ONLY subprocess spawner of `claude`; `build_env()`; `doctor_probe()`; `parallel_safe = True`.

@@ -224,3 +224,75 @@ def make_key_reader() -> KeyReader:
         return RawKeyReader()
     except OSError:
         return NullKeyReader()
+
+
+def _cbreak_read_bytes(fd: int, read_bytes: int) -> bytes | None:
+    """Put `fd` into cbreak, block for up to `read_bytes`, restore. Returns the bytes read
+    (possibly empty on EOF), or None when the terminal can't be put into cbreak / the read
+    errors (so the caller falls through to the next tier)."""
+    import termios
+    import tty
+
+    try:
+        saved = termios.tcgetattr(fd)
+    except termios.error:
+        return None
+    try:
+        tty.setcbreak(fd, termios.TCSANOW)
+        try:
+            return os.read(fd, read_bytes)
+        except OSError:
+            return None
+    finally:
+        with contextlib.suppress(termios.error):
+            termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+
+
+def read_key_blocking(
+    *,
+    decode: Callable[[bytes], str],
+    line_parse: Callable[[str], str],
+    read_bytes: int = 1,
+    eof_value: str,
+) -> str:
+    """One blocking canonical-key read, shared by the pre-session listen loop and the
+    debrief menu (root CLAUDE.md Trap 6 — previously hand-reimplemented in each). Two tiers:
+
+      1. raw cbreak read — stdin if it is a tty, else a ``/dev/tty`` fallback (handles a
+         redirected stdin with a live controlling terminal). The raw bytes go through the
+         caller's own ``decode`` (practice keeps its case-sensitive r/R table; menu keeps its
+         3-byte arrow-escape table — hence ``read_bytes``).
+      2. line-buffered ``input()`` for piped/scripted use, mapped by ``line_parse``;
+         ``eof_value`` is returned when the input stream is exhausted (EOFError).
+    """
+    # Tier 1a: stdin.
+    fd: int | None = None
+    try:
+        fd = sys.stdin.fileno()
+    except (OSError, ValueError):
+        fd = None
+    if fd is not None and os.isatty(fd):
+        raw = _cbreak_read_bytes(fd, read_bytes)
+        if raw is not None:
+            return decode(raw)
+
+    # Tier 1b: controlling terminal even if stdin was redirected.
+    tty_fd: int | None = None
+    try:
+        tty_fd = os.open("/dev/tty", os.O_RDONLY)
+    except OSError:
+        tty_fd = None
+    if tty_fd is not None:
+        try:
+            raw = _cbreak_read_bytes(tty_fd, read_bytes)
+        finally:
+            with contextlib.suppress(OSError):
+                os.close(tty_fd)
+        if raw is not None:
+            return decode(raw)
+
+    # Tier 2: line-buffered fallback (tests, piped input, last resort).
+    try:
+        return line_parse(input())
+    except EOFError:
+        return eof_value

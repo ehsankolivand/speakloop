@@ -10,6 +10,7 @@ patterns gets an explicit "no patterns" line (FR-009/T040).
 from __future__ import annotations
 
 from speakloop.feedback import frontmatter
+from speakloop.feedback import narrative as _narrative
 from speakloop.feedback.frontmatter import OPEN_BUCKET_IMPACT_RANK
 
 # Exact body strings (also asserted by tests / T040).
@@ -35,26 +36,6 @@ def _attempts_table(attempts: list[frontmatter.Attempt]) -> str:
         "|-------|--------|------|-----|--------------|--------|",
     ] + [_attempt_row(a) for a in attempts]
     return "\n".join(rows)
-
-
-def _cross_attempt_paragraph(attempts: list[frontmatter.Attempt]) -> str:
-    """Fallback narrative when a session carries no persisted narrative."""
-    if len(attempts) < 3:
-        return ""
-    wpm1 = attempts[0].metrics.speech_rate_wpm
-    wpm3 = attempts[-1].metrics.speech_rate_wpm
-    fillers1 = attempts[0].metrics.filler_density_per_100_words
-    fillers3 = attempts[-1].metrics.filler_density_per_100_words
-    direction = "climbed" if wpm3 > wpm1 else "dropped" if wpm3 < wpm1 else "held steady at"
-    fillers_dir = (
-        "fell" if fillers3 < fillers1 else "rose" if fillers3 > fillers1 else "held steady"
-    )
-    return (
-        f"Your speech rate {direction} from {wpm1:.0f} to {wpm3:.0f} WPM across the three "
-        f"attempts. Filler density {fillers_dir} from {fillers1:.1f} to {fillers3:.1f} per "
-        "100 words. The 4/3/2 design intentionally compresses time on each round — "
-        "rising WPM and falling fillers together is the signature of successful proceduralization."
-    )
 
 
 def _rank_key(p: frontmatter.GrammarPattern):
@@ -184,19 +165,43 @@ def _warmup_section(session: frontmatter.Session) -> str | None:
 _COVERAGE_MARK = {"covered": "✓", "partial": "~", "missed": "✗"}
 
 
+def _coerce_int(value) -> int | None:
+    """`int(value)` or None — for coercing a per-point `id` that came from a hand-edited /
+    truncated pending report (`frontmatter.parse` is deliberately tolerant) without raising."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _coverage_section(session: frontmatter.Session) -> str | None:
-    """P3: per-attempt key-point coverage with the first→final delta (FR-020/SC-009)."""
+    """P3: per-attempt key-point coverage with the first→final delta (FR-020/SC-009).
+
+    Per-point dicts come straight from `frontmatter.parse` with no inner-key validation, and
+    `build()` runs OUTSIDE resume's per-report try/except — so a hand-edited/truncated report
+    missing a per-point `id`/`state` must render (skip the bad point / default to missed), not
+    raise `KeyError`/`ValueError` and abort the whole resume pass (IMP-026)."""
     records = session.coverage or []
     if not records:
         return None
     records = sorted(records, key=lambda r: r.get("attempt_ordinal", 0))
-    point_text = {}
+    point_text: dict[int, str] = {}
     if session.key_points:
         for p in session.key_points.get("points", []):
-            point_text[int(p["id"])] = str(p.get("text", "")).strip()
-    point_ids = [int(p["id"]) for p in (session.key_points or {}).get("points", [])]
+            pid = _coerce_int(p.get("id"))
+            if pid is not None:
+                point_text[pid] = str(p.get("text", "")).strip()
+    point_ids = [
+        pid
+        for p in (session.key_points or {}).get("points", [])
+        if (pid := _coerce_int(p.get("id"))) is not None
+    ]
     if not point_ids and records:
-        point_ids = [int(pp["id"]) for pp in records[0].get("per_point", [])]
+        point_ids = [
+            pid
+            for pp in records[0].get("per_point", [])
+            if (pid := _coerce_int(pp.get("id"))) is not None
+        ]
 
     ordinals = [r.get("attempt_ordinal") for r in records]
     goal_unit = "STAR components" if session.question_type == "behavioral" else "key points"
@@ -206,7 +211,14 @@ def _coverage_section(session: frontmatter.Session) -> str | None:
     header = "| Key point | " + " | ".join(f"R{o}" for o in ordinals) + " |"
     sep = "|" + "---|" * (len(ordinals) + 1)
     lines += [header, sep]
-    state_by_round = {r.get("attempt_ordinal"): {int(pp["id"]): pp["state"] for pp in r.get("per_point", [])} for r in records}
+    state_by_round = {
+        r.get("attempt_ordinal"): {
+            pid: pp.get("state", "missed")
+            for pp in r.get("per_point", [])
+            if (pid := _coerce_int(pp.get("id"))) is not None
+        }
+        for r in records
+    }
     for pid in point_ids:
         cells = [_COVERAGE_MARK.get(state_by_round.get(o, {}).get(pid, "missed"), "✗") for o in ordinals]
         label = point_text.get(pid, f"point {pid}")
@@ -375,7 +387,12 @@ def _transcripts_section(attempts: list[frontmatter.Attempt]) -> str:
 def build(session: frontmatter.Session, *, title: str | None = None) -> str:
     fm = frontmatter.dump(session)
     title = title or f"{session.question_id} — {session.started_at.date().isoformat()}"
-    narrative = session.cross_attempt_narrative or _cross_attempt_paragraph(session.attempts)
+    # Persisted narrative in production; fall back to the ONE canonical generator
+    # (`narrative.build_narrative`) for a Session built without it — no second divergent
+    # copy (IMP-032). `build_narrative` degrades gracefully for <3 attempts / no captured speech.
+    narrative = session.cross_attempt_narrative or _narrative.build_narrative(
+        session.attempts, session.grammar_patterns
+    )
 
     parts = [fm, f"# {title}", ""]
 

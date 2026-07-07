@@ -51,6 +51,10 @@ ARIA2_CONNECT_TIMEOUT_SEC = 30
 PYTHON_OUTER_RETRY_WAIT_SEC = 10
 CURL_RETRY_COUNT = 5
 CURL_RETRY_DELAY_SEC = 3
+# curl exit codes that mean a NETWORK-class failure (not an absent file): couldn't-resolve-host
+# (6), failed-to-connect (7), operation-timeout (28), TLS/SSL connect error (35), failure
+# receiving network data (56). Distinct from exit 22 (HTTP >= 400 under `-f` → file absent).
+_CURL_NETWORK_EXITS: frozenset[int] = frozenset({6, 7, 28, 35, 56})
 
 META_FILES: tuple[str, ...] = (
     "config.json",
@@ -260,8 +264,22 @@ def _fetch_metadata(
         proc = subprocess.run(cmd)
         if proc.returncode == 0:
             console.print(f"    {name} ... ok")
+        elif proc.returncode in _CURL_NETWORK_EXITS:
+            # A network-class curl failure (DNS/connect/timeout/TLS/recv) AFTER curl's own
+            # --retry attempts — NOT a missing file. Say so distinctly rather than the
+            # "not in repo, skipping" absence message: a swallowed blip on
+            # `model.safetensors.index.json` makes `discover_shards` fall back to a single
+            # `model.safetensors` that then 404s as "repo or shard filename is wrong", a
+            # misdiagnosis of a transient network error (IMP-028).
+            if out_path.exists():
+                with contextlib.suppress(OSError):
+                    out_path.unlink()
+            console.print(
+                f"    [yellow]{name} ... network error (curl exit {proc.returncode}); the "
+                "shard plan may be incomplete — check your connection and re-run.[/yellow]"
+            )
         else:
-            # Many HF repos omit some META_FILES; that's not an error.
+            # Many HF repos omit some META_FILES; a plain HTTP 404 (curl exit 22) is not an error.
             if out_path.exists():
                 with contextlib.suppress(OSError):
                     out_path.unlink()

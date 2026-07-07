@@ -69,13 +69,25 @@ class KokoroEngine:
             raise TTSEngineError(f"Kokoro load failed from {model_path}: {e}") from e
         return self._tts
 
-    def synthesize(self, text: str, voice: str | None = None) -> Path:
+    def synthesize(
+        self, text: str, voice: str | None = None, speed: float | None = None
+    ) -> Path:
+        """Render ``text`` to a cached WAV.
+
+        ``speed`` is an OPTIONAL per-call override of the instance default (``self._speed``).
+        Kokoro's ``save`` accepts a per-call speed natively, and the clip cache already keys
+        on speed, so a single engine instance can render the same text at several speeds
+        (e.g. the normal drill cadence and the slower focused teaching beat) without a second
+        model load and without clips at different speeds colliding. ``None`` ⇒ instance speed.
+        This is a backward-compatible superset of the ``TTSEngine`` Protocol (which other
+        modules call as ``synthesize(text)`` / ``synthesize(text, voice)``)."""
         text = (text or "").strip()
         if not text:
             raise TTSEngineError("Cannot synthesize empty text.")
         voice = voice or self._default_voice
+        eff_speed = self._speed if speed is None else float(speed)
 
-        cached = cache.lookup(voice, text, self._speed)
+        cached = cache.lookup(voice, text, eff_speed)
         if cached is not None:
             return cached
 
@@ -83,16 +95,16 @@ class KokoroEngine:
         # Write directly to the cache target using KokoroTTS.save (which
         # internally generates + writes a WAV file).
         cache_dir = paths.ensure_dir(paths.tts_cache_dir())
-        scratch = cache_dir / f".tmp-{cache.cache_key(voice, text, self._speed)}.wav"
+        scratch = cache_dir / f".tmp-{cache.cache_key(voice, text, eff_speed)}.wav"
         try:
-            tts.save(text, str(scratch), voice=voice, speed=self._speed)
+            tts.save(text, str(scratch), voice=voice, speed=eff_speed)
         except Exception as e:  # pragma: no cover — engine-specific failures
             if scratch.exists():
                 scratch.unlink()
             raise TTSEngineError(f"Kokoro synthesis failed: {e}") from e
 
         try:
-            stored = cache.store(voice, text, scratch, self._speed)
+            stored = cache.store(voice, text, scratch, eff_speed)
         finally:
             if scratch.exists():
                 scratch.unlink()

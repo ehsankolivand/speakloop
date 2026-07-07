@@ -29,9 +29,11 @@ on it (aggregator/renderer have intra-module imports only).
 
 ## Named constants
 
-- `aggregator.METRIC_KEYS` — 5-metric tuple: `speech_rate_wpm`,
-  `filler_density_per_100_words`, `pauses_count`, `mean_pause_ms`,
-  `self_corrections_count` (`aggregator.py:13-19`).
+- `aggregator.METRIC_KEYS` — 5-metric tuple (single source for ORDERING): `speech_rate_wpm`,
+  `filler_density_per_100_words`, `pauses_count`, `mean_pause_ms`, `self_corrections_count`.
+- `aggregator.METRIC_LABELS` (key → human label) + `METRIC_HIGHER_IS_BETTER` (key → bool) —
+  display metadata (IMP-042): the renderer shows the label, and `_delta_cell` annotates the Δ
+  `(better)`/`(worse)` per direction (WPM up good; fillers/pauses/self-corrections up = worse).
 
 ## Dependencies & consumers
 
@@ -58,8 +60,8 @@ on it (aggregator/renderer have intra-module imports only).
 
 ## Common modification patterns
 
-- Add a trend metric: extend `METRIC_KEYS` in `aggregator.py` + add column in
-  `renderer.render`.
+- Add a trend metric: extend `METRIC_KEYS` + add a `METRIC_LABELS`/`METRIC_HIGHER_IS_BETTER`
+  entry in `aggregator.py`; the renderer picks up the label + direction automatically.
 - Add a per-pattern series: extend `TrendsSummary.pattern_series` population in
   `aggregate`; render in the 4th table in `renderer.render`.
 

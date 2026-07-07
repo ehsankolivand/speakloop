@@ -61,6 +61,26 @@ def test_argv_carries_the_pinned_flags(fake_claude):
     assert "USER" not in argv
 
 
+def test_effort_omitted_by_default(fake_claude):
+    runner = fake_claude.Runner(fake_claude.success("{}"))
+    ClaudeCodeEngine(model="sonnet", runner=runner).generate("SYS", "USER")
+    assert "--effort" not in runner.calls[0].argv  # opt-in only; older CLIs unaffected
+
+
+def test_effort_flag_emitted_when_set(fake_claude):
+    runner = fake_claude.Runner(fake_claude.success("{}"))
+    ClaudeCodeEngine(model="opus", effort="low", runner=runner).generate("SYS", "USER")
+    argv = runner.calls[0].argv
+    assert argv[argv.index("--effort") + 1] == "low"
+    assert argv[argv.index("--model") + 1] == "opus"  # both flags coexist
+
+
+def test_blank_effort_normalizes_to_no_flag(fake_claude):
+    runner = fake_claude.Runner(fake_claude.success("{}"))
+    ClaudeCodeEngine(model="opus", effort="", runner=runner).generate("SYS", "USER")
+    assert "--effort" not in runner.calls[0].argv
+
+
 def test_max_tokens_and_temperature_are_ignored(fake_claude):
     runner = fake_claude.Runner(fake_claude.success("{}"))
     ClaudeCodeEngine(model="haiku", runner=runner).generate(

@@ -28,11 +28,14 @@ def _iter_sessions(sessions_dir: Path):
     """Yield parsed Sessions in chronological order, skipping unparseable files."""
     parsed = []
     for path in sorted(Path(sessions_dir).glob("*.md")):
-        text = path.read_text(encoding="utf-8")
         try:
+            # read inside the try so a non-UTF8 byte / unreadable file (UnicodeDecodeError,
+            # OSError) also hits the skip path — matching the docstring and trends.reader,
+            # so one corrupt sibling can't crash the very command meant to recover from it.
+            text = path.read_text(encoding="utf-8")
             session = frontmatter.parse(text)
         except Exception:
-            continue  # malformed / non-speakloop fixture → skip (cache is rebuildable)
+            continue  # unreadable / non-UTF8 / malformed / non-speakloop fixture → skip (cache is rebuildable)
         if not session.session_id:
             continue
         parsed.append(session)

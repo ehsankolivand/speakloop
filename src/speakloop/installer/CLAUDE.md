@@ -34,6 +34,10 @@ and download orchestration. Keeps the Mac awake via `caffeinate`. No engine pack
 - `validator.validate(model) -> ValidationResult`.
   `ValidationResult` fields: `ok: bool`, `reason: Reason`, `measured_bytes: int`,
   `expected_bytes: int` (validator.py:14-18). `SIZE_TOLERANCE = 0.25` (±25%; validator.py:22).
+  `reason` is one of `ok`/`missing`/`size_mismatch`/`incomplete`. `incomplete` (checked BEFORE
+  the size test) fires when a `*.aria2` control file or a `*.incomplete` marker remains under
+  `local_path` — a download killed past the tolerance would otherwise validate as complete and
+  never resume; not-ok re-queues it so aria2 `--continue`/snapshot `resume_download` finish it (IMP-002).
 
 ## Dependencies & consumers
 
@@ -49,7 +53,10 @@ and download orchestration. Keeps the Mac awake via `caffeinate`. No engine pack
 - `downloader.py` — per-model orchestrator: aria2 detection → curl metadata →
   `shards.discover_shards` → aria2 shard loop (retry `TRANSIENT_FAILURE`, raise
   `HARD_FAILURE`) → fallback `snapshot_download`. Also `spawn_caffeinate` /
-  `terminate_caffeinate`.
+  `terminate_caffeinate`. `_fetch_metadata` distinguishes a NETWORK-class curl exit
+  (`_CURL_NETWORK_EXITS` = 6/7/28/35/56 — DNS/connect/timeout/TLS/recv) with a distinct
+  warning from a genuinely-absent file (exit 22 → quiet "not in repo, skipping"), so a
+  transient blip on `model.safetensors.index.json` isn't misdiagnosed as absence (IMP-028).
 - `aria.py` — `subprocess.Popen` wrapper for `aria2c`. `Aria2Outcome` enum
   (SUCCESS / TRANSIENT_FAILURE / HARD_FAILURE). `Aria2Progress` dataclass:
   bytes_received, bytes_total, download_rate_bps, eta_seconds, shard_filename.

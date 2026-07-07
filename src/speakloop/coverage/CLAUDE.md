@@ -25,8 +25,9 @@ Coverage aggregate drives the answer-quality grade.
 ## Dependencies & consumers
 
 - Internal: `speakloop.asr` (`Transcript`), `speakloop.config` (paths via `prompts.py`),
-  `speakloop.llm` (`LLMEngine`/`LLMEngineError`). JSON recovery: shared `_extract_json` ladder
-  from `feedback.grammar_analyzer` (see `src/speakloop/feedback/CLAUDE.md`).
+  `speakloop.llm` (`LLMEngine`). JSON recovery: `score_coverage`/`derive_key_points` route through
+  the shared `feedback.grammar_analyzer.generate_json` (generate + `extract_json` + one bounded
+  regenerate on empty/parse-fail, IMP-011; see `src/speakloop/feedback/CLAUDE.md`).
 - `ideal_answer` is legitimately passed here (it is the reference); see `.claude/rules/llm-calls.md` O7.
 - Consumers: `sessions` (coordinator derives/caches key points + scores coverage),
   `cli/resume.py:133-143` (re-scores coverage on pending-report retry).
@@ -48,6 +49,11 @@ Coverage aggregate drives the answer-quality grade.
 - Key points are stored in the session report + derived store; they are never written back
   into the question bank.
 - `MIN_POINTS=5` is a prompt instruction, not a code guard — the code only enforces `MAX_POINTS=7`.
+- Per-item `int()` on LLM-supplied fields (`ordinal`/`id` in `scoring._coverage_records`,
+  `attempt_ordinal`/`key_point_id` in `content_errors.validate_content_errors`) is guarded:
+  a non-numeric value skips just that attempt/coverage entry (scoring) or drops just that
+  optional field (content_errors) — never raises, so one stray value can't discard the whole
+  coverage pass and flag the report pending (IMP-005, mirrors `grammar_analyzer._verify_and_enrich`).
 
 ## Common modification patterns
 

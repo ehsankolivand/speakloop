@@ -92,18 +92,19 @@ def run(*, cloud: bool = False, engine: str | None = None, timings: bool = False
         raise typer.Exit(2) from None
 
     if engine_choice == "openrouter":
-        grammar_analyzer, _coach = _practice._build_cloud_grammar_analyzer(console)
+        analysis = _practice._build_cloud_grammar_analyzer(console)
     elif engine_choice == "claude":
-        grammar_analyzer, _coach = _practice._build_claude_grammar_analyzer(console)
+        analysis = _practice._build_claude_grammar_analyzer(console)
     else:
-        grammar_analyzer = _practice._build_grammar_analyzer()
-    if grammar_analyzer is None:
+        analysis = _practice._build_grammar_analyzer()
+    if analysis.runner is None:
         console.print(
             "[red]No analysis model available.[/red] Install the local model or pass "
             "--engine openrouter / --engine claude."
         )
         raise typer.Exit(1)
-    runners = getattr(grammar_analyzer, "runners", None)
+    grammar_analyzer = analysis.runner
+    runners = analysis.runners
 
     from speakloop.asr import Transcript
 

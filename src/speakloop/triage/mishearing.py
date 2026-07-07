@@ -14,7 +14,7 @@ JSON recovery ladder (``grammar_analyzer._extract_json``).
 
 from __future__ import annotations
 
-from speakloop.feedback.grammar_analyzer import _extract_json
+from speakloop.feedback.json_recovery import extract_json
 from speakloop.llm import LLMEngine, LLMEngineError
 from speakloop.triage.hallucination import TriagedSpan
 
@@ -42,7 +42,7 @@ def detect_mishearings(
             max_tokens=_MISHEARING_MAX_TOKENS,
             temperature=_MISHEARING_TEMPERATURE,
         )
-        data = _extract_json(raw)
+        data = extract_json(raw)
     except (LLMEngineError, ValueError):
         return []  # no model / transient failure / unparseable → skip enrichment
 
