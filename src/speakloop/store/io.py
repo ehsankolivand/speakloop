@@ -26,7 +26,12 @@ def load(path: Path) -> Store:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return Store()  # corrupt → rebuildable, so just start fresh
-    store = Store.from_dict(data)
+    try:
+        store = Store.from_dict(data)
+    except (ValueError, TypeError, AttributeError, KeyError):
+        # Valid JSON but shape-corrupt (e.g. `schedule` a list, non-numeric
+        # `store_version`) → same rebuildable path as unparseable JSON above.
+        return Store()
     if store.store_version > STORE_VERSION:
         # a newer on-disk schema we don't understand → treat as empty + rebuild
         return Store()

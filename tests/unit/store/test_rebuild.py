@@ -92,3 +92,21 @@ def test_load_corrupt_returns_empty(tmp_path):
     bad = tmp_path / "store.json"
     bad.write_text("{not json", encoding="utf-8")
     assert store_io.load(bad).schedule == {}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '{"schedule": [1, 2, 3]}',  # schedule a list → .items() would AttributeError
+        '{"store_version": "abc"}',  # non-numeric version → int() would ValueError
+        '{"store_version": null}',  # explicit null version → int() would TypeError
+    ],
+)
+def test_load_valid_json_but_shape_corrupt_returns_empty(tmp_path, payload):
+    # A JSON-valid but wrong-shape store must degrade to an empty (rebuildable) Store,
+    # not crash the caller — the documented io.load contract.
+    bad = tmp_path / "store.json"
+    bad.write_text(payload, encoding="utf-8")
+    loaded = store_io.load(bad)
+    assert loaded.schedule == {}
+    assert loaded.to_dict() == store_io.Store().to_dict()
