@@ -29,6 +29,10 @@ paths: ["tests/**"]
   repro_gate_test.py`, `repro_fresh_5of5_test.py`) — do not "fix" their skips.
 - `-m live_asr` tests are deselected by default; run them only when touching
   torchaudio/silero (see root CLAUDE.md Traps).
+- `-m live_llm` (`tests/live_llm_test.py`) exercises the REAL local Qwen3-14B-4bit through
+  `QwenEngine` — the only default-engine real-model harness. It self-skips when the model is
+  absent and is excluded from the default suite (heavy ~8 GB load). Run it explicitly when
+  touching `llm/qwen_engine.py` or bumping `mlx_lm`: `uv run pytest -m live_llm`.
 - `tests/integration/test_help_without_models.py` and
   `tests/unit/asr/test_engine_import_isolation.py` guard engine-import isolation;
   `tests/integration/test_context_file_budget.py` guards CLAUDE.md line budgets.

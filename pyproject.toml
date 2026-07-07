@@ -113,9 +113,9 @@ markers = [
     "slow: long-running; opt-in",
     "repro: local-only acceptance gate against the user's own recordings; skips when audio is absent (FR-010)",
     "live_asr: thin smoke test exercising the REAL silero-vad + torchaudio audio I/O; skips when the deps are absent (catches transitive-dep breakage)",
-    "live_llm: on-device measurement exercising the REAL local Qwen3-8B model (mlx_lm); skips when the model/deps are absent; excluded from the default suite (Constitution Dev Guidelines, mirrors live_asr)",
+    "live_llm: on-device smoke exercising the REAL local Qwen3-14B-4bit model (mlx_lm) — validates the real make_sampler/make_logits_processors/generate API the unit-test fakes assume; skips when the model/deps are absent; excluded from the default suite (heavy: loads the ~8 GB model; mirrors live_pron)",
     "live_download: opt-in real-network smoke test for the aria2 downloader; mirrors live_asr / live_llm; excluded from the default suite",
     "live_cloud: opt-in real-network smoke test for the OpenRouter cloud engine (008); needs OPENROUTER_API_KEY; mirrors live_download; excluded from the default suite",
     "live_pron: opt-in correctness harness (017) rendering every bundled drill through the REAL Kokoro TTS + wav2vec2 scorer and asserting it scores clean; skips when the model/TTS are absent; excluded from the default suite (heavy: loads the ~1.3 GB pronunciation model)",
 ]
-addopts = "-ra -m 'not live_download and not live_cloud and not live_pron'"
+addopts = "-ra -m 'not live_download and not live_cloud and not live_pron and not live_llm'"
