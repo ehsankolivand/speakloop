@@ -34,6 +34,10 @@ and download orchestration. Keeps the Mac awake via `caffeinate`. No engine pack
 - `validator.validate(model) -> ValidationResult`.
   `ValidationResult` fields: `ok: bool`, `reason: Reason`, `measured_bytes: int`,
   `expected_bytes: int` (validator.py:14-18). `SIZE_TOLERANCE = 0.25` (±25%; validator.py:22).
+  `reason` is one of `ok`/`missing`/`size_mismatch`/`incomplete`. `incomplete` (checked BEFORE
+  the size test) fires when a `*.aria2` control file or a `*.incomplete` marker remains under
+  `local_path` — a download killed past the tolerance would otherwise validate as complete and
+  never resume; not-ok re-queues it so aria2 `--continue`/snapshot `resume_download` finish it (IMP-002).
 
 ## Dependencies & consumers
 

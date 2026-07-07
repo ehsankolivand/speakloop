@@ -42,3 +42,25 @@ def test_empty_dir_treated_as_missing(tmp_models_dir):
     result = validator.validate(manifest.KOKORO_82M)
     assert result.ok is False
     assert result.reason == "missing"
+
+
+def test_leftover_aria2_control_file_is_incomplete(tmp_models_dir):
+    """IMP-002: a download killed past the size tolerance still leaves a `.aria2`
+    control file — it must not validate as complete, or resume never runs."""
+    p = manifest.KOKORO_82M.local_path
+    # Enough bytes to clear the 25% floor, so only the sidecar reveals the truncation.
+    _write_n_bytes(p / "model.safetensors", manifest.KOKORO_82M.expected_size_bytes)
+    _write_n_bytes(p / "model.safetensors.aria2", 512)
+    result = validator.validate(manifest.KOKORO_82M)
+    assert result.ok is False
+    assert result.reason == "incomplete"
+
+
+def test_leftover_incomplete_marker_is_incomplete(tmp_models_dir):
+    """IMP-002: `snapshot_download`'s `*.incomplete` marker also blocks a false OK."""
+    p = manifest.KOKORO_82M.local_path
+    _write_n_bytes(p / "model.safetensors", manifest.KOKORO_82M.expected_size_bytes)
+    _write_n_bytes(p / ".cache" / "huggingface" / "download" / "weights.incomplete", 8)
+    result = validator.validate(manifest.KOKORO_82M)
+    assert result.ok is False
+    assert result.reason == "incomplete"
