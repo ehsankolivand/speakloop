@@ -96,3 +96,25 @@ def test_question_renders_as_block_scalar():
     text = frontmatter.dump(s)
     # PyYAML block scalar with `|` for multi-line question.
     assert "question: |" in text
+
+
+def test_horizontal_rule_in_block_scalar_does_not_truncate_parse():
+    """A standalone `---` line inside a block scalar (question / ideal_answer) is emitted
+    indented (`  ---`). The parser must anchor fences to whole lines so this indented rule
+    is NOT mistaken for the closing fence — otherwise every key after it is silently lost."""
+    s = _make_session(
+        "C",
+        patterns=[frontmatter.GrammarPattern(label="missing articles", occurrence_count=7)],
+    )
+    s.question_text = "Intro line\n---\nAfter the rule"
+    s.ideal_answer = "Reference intro\n---\nReference after the rule"
+    parsed = frontmatter.parse(frontmatter.dump(s))
+    # Everything serialized AFTER the offending block scalar must survive.
+    assert parsed.generated_by_phase == "C"
+    assert len(parsed.attempts) == 3
+    assert parsed.grammar_patterns and parsed.grammar_patterns[0].label == "missing articles"
+    # The block scalars themselves round-trip in full (not truncated at the rule).
+    assert parsed.question_text == "Intro line\n---\nAfter the rule"
+    assert parsed.ideal_answer == "Reference intro\n---\nReference after the rule"
+    # dump → parse → dump is idempotent for this content.
+    assert frontmatter.dump(parsed) == frontmatter.dump(s)
