@@ -270,13 +270,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution (source in commit 7e7b385; improvement.md note follow-up): Fixed GRAMMAR-ONLY — the shared `_extract_json` stays dict-only for the coverage/keypoints/followups callers. In `analyze`, a payload dict with no `errors` key but with `quote`/`attempt_ordinal` is wrapped `[payload]`; `_generate_and_parse` recovers a bare top-level list via a new `_extract_top_level_list` → `{"errors": [...]}`. Both flow through V1/V2/V3 so only real errors survive; a genuine 'no errors' dict still returns []. Documented in `feedback/CLAUDE.md`. Tests: unwrapped single object recovered, bare list recovered (2 labels), non-error dict stays empty. Verified: full suite 916 passed (+3), ruff clean (2 pre-existing findings only).
 
-- [ ] **IMP-028 — Distinguish a network failure from a genuinely absent metadata file**
+- [x] **IMP-028 — Distinguish a network failure from a genuinely absent metadata file**
   - Impact: Low
   - Area: Correctness
   - Where: `src/speakloop/installer/downloader.py:260` (`_fetch_metadata`); `shards.py:34` (fallback)
   - What & why: `_fetch_metadata` treats **every** non-zero curl exit as "not in repo, skipping" and deletes the target, without inspecting the code. Under `curl --fail`, exit 22 means HTTP≥400 (file legitimately absent) but 6/7/28/35/56 mean DNS/connect/timeout/TLS. A transient blip on `model.safetensors.index.json` is swallowed; `discover_shards` then falls back to `["model.safetensors"]`, which for a sharded repo (Qwen3-14B-4bit) 404s and surfaces `DownloadNotFoundError "repo or shard filename is wrong"` — a misdiagnosis of a network blip. (Narrow window: needs a transient failure hitting only the index.)
   - How to do it: Inspect `proc.returncode`: keep the silent "skipping" path only for `0`/`22`; for network-class exits print a distinct warning and either retry the metadata phase or raise a typed transient error rather than silently degrading the shard plan.
   - Effort: Small
+  - Resolution: `_fetch_metadata` now inspects `proc.returncode`: 0 → ok; `_CURL_NETWORK_EXITS` (6/7/28/35/56 — DNS/connect/timeout/TLS/recv, after curl's own `--retry`) → a DISTINCT yellow "network error (curl exit N); the shard plan may be incomplete — check your connection" warning; everything else incl. 22 → the quiet "not in repo, skipping" absence message. Chose the distinct-warning branch of the entry's "either/or" (over raising) to avoid changing the download flow/error contract on a path that can't be network-verified locally; the warning still corrects the misdiagnosis (a swallowed index blip no longer reads as absence). Documented in `installer/CLAUDE.md`. Tests: exit 6 → "network error" (not "skipping"); exit 22 → "skipping" (not "network error"). Verified: 6 passed, full suite 918 (+2), ruff clean.
 
 - [ ] **IMP-029 — Surface input-stream overflow instead of silently dropping it**
   - Impact: Low
