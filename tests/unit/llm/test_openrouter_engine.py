@@ -128,6 +128,55 @@ def test_http_500_maps_to_generic_error(monkeypatch):
     assert TOKEN not in str(exc.value)
 
 
+def test_error_body_message_is_surfaced(monkeypatch):
+    """IMP-013: OpenRouter's error.message is appended so the user can diagnose (credits,
+    unsupported model, provider outage) instead of seeing only a bare status code."""
+    body = b'{"error": {"message": "This model requires more credits than are available."}}'
+
+    def handler(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 402, "Payment Required", {}, io.BytesIO(body))
+
+    _install_urlopen(monkeypatch, handler)
+    eng = OpenRouterEngine(model="m", token=TOKEN)
+    with pytest.raises(LLMEngineError) as exc:
+        eng.generate("s", "u")
+    msg = str(exc.value)
+    assert "more credits than are available" in msg
+    assert "402" in msg
+    assert TOKEN not in msg  # token lives only in the request header, never echoed
+
+
+def test_error_body_appended_to_404(monkeypatch):
+    body = b'{"error": {"message": "No endpoints found for acme/does-not-exist."}}'
+
+    def handler(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, io.BytesIO(body))
+
+    _install_urlopen(monkeypatch, handler)
+    eng = OpenRouterEngine(model="acme/does-not-exist", token=TOKEN)
+    with pytest.raises(LLMEngineError) as exc:
+        eng.generate("s", "u")
+    msg = str(exc.value)
+    assert "acme/does-not-exist" in msg   # still names the model
+    assert "No endpoints found" in msg    # AND surfaces the body reason
+
+
+def test_non_json_error_body_surfaced_as_truncated_snippet(monkeypatch):
+    """A non-JSON error body (e.g. an HTML 502 page) is surfaced as a truncated snippet."""
+    body = b"upstream provider timed out after 30s " * 20  # long, non-JSON
+
+    def handler(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, 502, "Bad Gateway", {}, io.BytesIO(body))
+
+    _install_urlopen(monkeypatch, handler)
+    eng = OpenRouterEngine(model="m", token=TOKEN)
+    with pytest.raises(LLMEngineError) as exc:
+        eng.generate("s", "u")
+    msg = str(exc.value)
+    assert "upstream provider timed out" in msg
+    assert len(msg) < 300  # body detail is capped at ~200 chars
+
+
 def test_network_error_maps_to_llm_engine_error(monkeypatch):
     def handler(req, timeout=None):
         raise urllib.error.URLError("Name or service not known")

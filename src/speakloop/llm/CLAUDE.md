@@ -59,7 +59,7 @@ All config lives in `qwen_engine.py`; the analyzer passes `temperature=0.3` and 
 
 - `interface.py` — `LLMEngine` Protocol + `LLMEngineError`.
 - `qwen_engine.py` — `QwenEngine`; the ONLY `import mlx_lm`; Qwen3-14B 4-bit; lazy load; thinking strip; `parallel_safe = False`.
-- `openrouter_engine.py` (008) — `OpenRouterEngine`; stdlib `urllib`; `OpenRouterAuthError`; `check_auth()`; `parallel_safe = True`.
+- `openrouter_engine.py` (008) — `OpenRouterEngine`; stdlib `urllib`; `OpenRouterAuthError`; `check_auth()`; `parallel_safe = True`. On an HTTP error, `_error_detail(e)` reads the response body and appends OpenRouter's `error.message` (or a truncated snippet) to the raised `LLMEngineError` for the 404/generic cases so the user can diagnose (credits/unsupported model/outage) — token-safe (it lives only in the request header, never the body) (IMP-013).
 - `openrouter_credentials.py` (008) — `resolve_token()` (env `OPENROUTER_API_KEY` > `~/.speakloop/openrouter_token` > None); `store_token()` (0600). No import-time I/O.
 - `openrouter_config.py` (008) — `resolve_model()` from `~/.speakloop/openrouter.yaml`; absent/malformed → default `qwen/qwen3.7-max`.
 - `claude_code_engine.py` (011) — `ClaudeCodeEngine`; the ONLY subprocess spawner of `claude`; `build_env()`; `doctor_probe()`; `parallel_safe = True`.

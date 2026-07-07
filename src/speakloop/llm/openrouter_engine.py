@@ -64,12 +64,39 @@ class OpenRouterEngine:
             "X-Title": "speakloop",
         }
 
+    @staticmethod
+    def _error_detail(err: urllib.error.HTTPError) -> str:
+        """Best-effort human-readable detail from an OpenRouter error body.
+
+        OpenRouter returns a JSON body with `error.message` explaining the real cause
+        (unsupported model, insufficient credits, provider outage, moderation); without
+        it the caller sees only a bare status code and cannot diagnose. The token lives
+        ONLY in the request Authorization header, never in the response body, so echoing
+        a truncated body snippet does not violate the module's token-never-logged rule."""
+        try:
+            body = err.read().decode("utf-8", errors="replace")
+        except Exception:  # noqa: BLE001 — body already consumed / unreadable
+            return ""
+        if not body.strip():
+            return ""
+        try:
+            parsed = json.loads(body)
+            if isinstance(parsed, dict) and isinstance(parsed.get("error"), dict):
+                msg = parsed["error"].get("message")
+                if msg:
+                    return str(msg)[:200]
+        except json.JSONDecodeError:
+            pass
+        return body.strip()[:200]
+
     def _send(self, req: urllib.request.Request) -> dict:
         try:
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                 body = resp.read().decode("utf-8")
         except urllib.error.HTTPError as e:
             status = e.code
+            detail = self._error_detail(e)
+            suffix = f" {detail}" if detail else ""
             if status in (401, 403):
                 raise OpenRouterAuthError(
                     f"OpenRouter rejected the request (HTTP {status}); the API token "
@@ -78,9 +105,9 @@ class OpenRouterEngine:
             if status == 404:
                 raise LLMEngineError(
                     f"OpenRouter returned HTTP 404 for model {self._model!r}. "
-                    "Check the `model:` value in ~/.speakloop/openrouter.yaml."
+                    f"Check the `model:` value in ~/.speakloop/openrouter.yaml.{suffix}"
                 ) from None
-            raise LLMEngineError(f"OpenRouter request failed (HTTP {status}).") from None
+            raise LLMEngineError(f"OpenRouter request failed (HTTP {status}).{suffix}") from None
         except urllib.error.URLError as e:
             raise LLMEngineError(f"Could not reach OpenRouter: {e.reason}.") from None
         except (TimeoutError, OSError) as e:

@@ -132,13 +132,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Split the glued `*.pem.claude/scheduled_tasks.lock` into `*.pem` (credentials block) + a new "claude code local scheduler state" block with `.claude/scheduled_tasks.lock` and `.claude/scheduled_tasks.json` (both were only in the un-shared `.git/info/exclude`). Verified: `git check-ignore -v foo.pem` → `.gitignore:24:*.pem`, both scheduled_tasks files now ignored, and tracked `.claude/rules/` is NOT ignored. Path-portability audit passes.
 
-- [ ] **IMP-013 — Surface OpenRouter's error-response body**
+- [x] **IMP-013 — Surface OpenRouter's error-response body**
   - Impact: Medium
   - Area: UX
   - Where: `src/speakloop/llm/openrouter_engine.py:83` (`OpenRouterEngine._send`, `HTTPError` branch)
   - What & why: On `urllib.error.HTTPError` the handler raises "OpenRouter request failed (HTTP {status})." and drops `e` entirely — `e.read()` is never called for the generic/404/5xx cases. OpenRouter returns a JSON body with `error.message` explaining the real cause (unsupported model, insufficient credits, provider outage, moderation). Cloud analysis is opt-in and silent-fails into `phase_c_error`, so the user gets only a bare status code with no way to diagnose. The token lives only in the request `Authorization` header, never in the response body, so echoing a truncated body snippet does not violate the module's "token never logged" rule.
   - How to do it: In the `HTTPError` branch, read the body defensively (`detail = e.read().decode(errors="replace")[:200]` inside its own `try/except`), attempt `json.loads` to pull `error.message`, and append the truncated detail to the raised `LLMEngineError` for the generic/404/5xx cases (keep 401/403 → `OpenRouterAuthError`). Add a test that raises `HTTPError` with a non-empty JSON error body.
   - Effort: Small
+  - Resolution: Added `OpenRouterEngine._error_detail(e)` — reads the body defensively (`decode(errors="replace")`), pulls `error.message` when the body is JSON with an `error` dict, else a ≤200-char raw snippet. `_send` appends the detail to the 404 + generic `LLMEngineError` messages (401/403 stay a clean `OpenRouterAuthError`). Token-safe (it lives only in the request header). Documented in `llm/CLAUDE.md`. Tests: JSON `error.message` surfaced on a 402, appended to a 404 (still names the model), and a non-JSON 502 body surfaced as a truncated snippet; all assert the token never appears. Verified: llm suite 54 passed, full suite 888 passed (+3), ruff clean.
 
 - [ ] **IMP-014 — Repaint the debrief read-aloud in place via `rich.Live` instead of reprinting the whole view per section**
   - Impact: Medium
