@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -74,75 +73,21 @@ def _pick_question(qa_file, console: Console) -> speakloop.content.Question | No
 def _read_key() -> str:
     """Return a canonical command key: 'r', 'R', 'q', ' ' (space=next), or '' (Enter/EOF).
 
-    Two-tier strategy (the prior readchar path was observed to fall through
-    under some macOS terminal/`uv run` combos):
-
-      Tier 1 — raw single-byte read: try fd 0 first; if that isn't a tty,
-        try opening /dev/tty (handles cases where stdin was redirected but
-        the controlling terminal is still reachable). Uses termios+cbreak +
-        os.read(fd, 1) so we don't depend on Python-level line buffering.
-
-      Tier 2 — line-buffered input(): accepts the same commands as full
-        words for scripted/piped use ('r', 'R', 'space', 'q', 'quit', 'next').
-        Case is preserved so 'r' (lowercase replay question) and 'R' (replay
-        ideal answer) remain distinct.
+    Two-tier (raw cbreak on stdin then /dev/tty, else line-buffered input) via the shared
+    ``sessions.keyboard.read_key_blocking``. ``_decode_listen_key`` keeps this reader's
+    case-sensitive r/R table (lowercase r = replay question, R = replay ideal answer) distinct
+    from the debrief menu's; EOF on the input stream → '' (treated as "next").
     """
-    # Tier 1a: stdin.
-    fd: int | None = None
-    try:
-        fd = sys.stdin.fileno()
-    except (OSError, ValueError):
-        fd = None
-    if fd is not None and os.isatty(fd):
-        ch = _cbreak_read(fd)
-        if ch is not None:
-            return ch
-
-    # Tier 1b: controlling terminal even if stdin was redirected.
-    tty_fd: int | None = None
-    try:
-        tty_fd = os.open("/dev/tty", os.O_RDONLY)
-    except OSError:
-        tty_fd = None
-    if tty_fd is not None:
-        try:
-            ch = _cbreak_read(tty_fd)
-        finally:
-            try:
-                os.close(tty_fd)
-            except OSError:
-                pass
-        if ch is not None:
-            return ch
-
-    # Tier 2: line-buffered fallback (tests, piped input, last resort).
-    try:
-        line = input()
-    except EOFError:
-        return ""
-    return _parse_line_command(line)
+    return _keyboard.read_key_blocking(
+        decode=_decode_listen_key,
+        line_parse=_parse_line_command,
+        read_bytes=1,
+        eof_value="",
+    )
 
 
-def _cbreak_read(fd: int) -> str | None:
-    """Put `fd` into cbreak, read one byte, restore. Return canonical key or None on failure."""
-    import termios
-    import tty
-
-    try:
-        saved = termios.tcgetattr(fd)
-    except termios.error:
-        return None
-    try:
-        tty.setcbreak(fd, termios.TCSANOW)
-        try:
-            data = os.read(fd, 1)
-        except OSError:
-            return None
-    finally:
-        try:
-            termios.tcsetattr(fd, termios.TCSADRAIN, saved)
-        except termios.error:
-            pass
+def _decode_listen_key(data: bytes) -> str:
+    """Map one raw cbreak byte to a listen-loop command key (case-sensitive r/R)."""
     if not data:
         return ""  # EOF on the tty — treat as "next"
     try:

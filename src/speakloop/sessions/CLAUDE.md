@@ -40,12 +40,16 @@ single-key controls, background ASR worker, concurrent analysis executor, and cl
 - `coordinator.FOLLOWUP_BUDGET_SECONDS = 60`, `coordinator.WARMUP_ITEM_BUDGET_SECONDS = 20`
   (`coordinator.py:36,538`).
 - `keyboard.KeyReader` (Protocol) + `RawKeyReader` / `NullKeyReader` / `FakeKeyReader` +
-  `make_key_reader()` (`keyboard.py:49-226`). The session-path key reader — stdlib
-  termios/tty/select only.
+  `make_key_reader()`. The session-path key reader — stdlib termios/tty/select only.
+- `keyboard.read_key_blocking(*, decode, line_parse, read_bytes=1, eof_value)` (IMP-016) — the
+  shared BLOCKING single-key reader for the listen loop + debrief menu (distinct from the
+  session-path `KeyReader`): stdin-then-`/dev/tty` cbreak read → caller's `decode(bytes)`, else
+  line-buffered `input()` → caller's `line_parse(str)`, `eof_value` on EOF.
   Key surface by stage:
   - Pre-session listen loop (driven by `cli/practice.py`, NOT this module): `space`/`enter`=skip,
-    `r`=replay, `q`=quit. `cli/practice.py:118` and `debrief/menu.py:34` keep their own cbreak
-    readers; see root CLAUDE.md Trap 6.
+    `r`=replay, `q`=quit. `cli/practice._read_key` and `debrief/menu.read_key` now share the
+    blocking `keyboard.read_key_blocking(*, decode, line_parse, read_bytes, eof_value)` (IMP-016);
+    see root CLAUDE.md Trap 6.
   - Recording stage (`_spawn_key_poller`): `space`/`enter`=stop recording early; `s`=skip
     follow-up (follow-up case only). `q` is NOT wired inside the recording loop.
   `RawKeyReader` has a re-entrancy depth guard (`keyboard.py:88`) so a shared reader

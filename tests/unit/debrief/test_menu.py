@@ -84,7 +84,10 @@ def test_eof_on_input_returns_quit(monkeypatch):
         raise EOFError
 
     monkeypatch.setattr("builtins.input", lambda *_a, **_k: (_ for _ in ()).throw(EOFError()))
-    # Force the line-buffered path: pretend there is no tty.
-    monkeypatch.setattr(menu.os, "isatty", lambda _fd: False)
-    monkeypatch.setattr(menu.os, "open", lambda *_a, **_k: (_ for _ in ()).throw(OSError()))
+    # Force the line-buffered path: pretend there is no tty. The tty resolution now lives in
+    # the shared sessions.keyboard.read_key_blocking, so patch os there (same os singleton).
+    from speakloop.sessions import keyboard
+
+    monkeypatch.setattr(keyboard.os, "isatty", lambda _fd: False)
+    monkeypatch.setattr(keyboard.os, "open", lambda *_a, **_k: (_ for _ in ()).throw(OSError()))
     assert menu.read_key() == "quit"

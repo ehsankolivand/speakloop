@@ -12,12 +12,13 @@ re-renders in place, and keeps the menu open. Only replay/new/quit returns.
 
 from __future__ import annotations
 
-import os
 import sys
 from collections.abc import Callable
 from enum import Enum
 
 from rich.console import Console
+
+from speakloop.sessions import keyboard
 
 
 class DebriefChoice(str, Enum):
@@ -29,29 +30,6 @@ class DebriefChoice(str, Enum):
 
 
 _ORDER = (DebriefChoice.REPLAY, DebriefChoice.NEW, DebriefChoice.QUIT)
-
-
-def _cbreak_read_key(fd: int) -> str | None:
-    """Read one key (or arrow escape sequence) in cbreak mode. None on failure."""
-    import termios
-    import tty
-
-    try:
-        saved = termios.tcgetattr(fd)
-    except termios.error:
-        return None
-    try:
-        tty.setcbreak(fd, termios.TCSANOW)
-        try:
-            data = os.read(fd, 3)  # 1 byte for a normal key; 3 for an arrow (\x1b[A/B)
-        except OSError:
-            return None
-    finally:
-        try:
-            termios.tcsetattr(fd, termios.TCSADRAIN, saved)
-        except termios.error:
-            pass
-    return _decode_key(data)
 
 
 def _decode_key(data: bytes) -> str:
@@ -92,38 +70,14 @@ def _parse_line(line: str) -> str:
 def read_key() -> str:
     """Canonical key token: up/down/enter/r/n/q/t/quit, or a single char.
 
-    Two-tier: raw tty read (stdin, then /dev/tty), else line-buffered input.
+    Two-tier (raw cbreak on stdin then /dev/tty — 3 bytes for arrow escapes — else
+    line-buffered input) via the shared ``sessions.keyboard.read_key_blocking``; EOF on the
+    input stream → ``quit`` (the safest terminal choice). ``_decode_key``/``_parse_line`` keep
+    this menu's token table distinct from the listen loop's case-sensitive r/R table.
     """
-    fd: int | None = None
-    try:
-        fd = sys.stdin.fileno()
-    except (OSError, ValueError):
-        fd = None
-    if fd is not None and os.isatty(fd):
-        key = _cbreak_read_key(fd)
-        if key is not None:
-            return key
-
-    tty_fd: int | None = None
-    try:
-        tty_fd = os.open("/dev/tty", os.O_RDONLY)
-    except OSError:
-        tty_fd = None
-    if tty_fd is not None:
-        try:
-            key = _cbreak_read_key(tty_fd)
-        finally:
-            try:
-                os.close(tty_fd)
-            except OSError:
-                pass
-        if key is not None:
-            return key
-
-    try:
-        return _parse_line(input())
-    except EOFError:
-        return "quit"  # no input stream left → safest terminal choice
+    return keyboard.read_key_blocking(
+        decode=_decode_key, line_parse=_parse_line, read_bytes=3, eof_value="quit"
+    )
 
 
 def _prompt(console: Console, selection: int) -> None:

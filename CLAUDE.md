@@ -149,10 +149,13 @@ pre-existing findings — not a passing gate.
    env stripping, `is_error` keying) — owned by `src/speakloop/llm/CLAUDE.md`.
 5. **Grammar JSON recovery contract** (json-repair ladder, no hand-rolled regex,
    bounded regenerate) — owned by `src/speakloop/feedback/CLAUDE.md`.
-6. **Raw keyboard input is NOT fully consolidated**: `sessions/keyboard.py` is the
-   session-path reader (KeyReader Protocol + Raw/Null/Fake), but the pre-session
-   listen loop keeps its own `_cbreak_read` (`src/speakloop/cli/practice.py:118`) and
-   the debrief menu its own `_cbreak_read_key` (`src/speakloop/debrief/menu.py:34`).
+6. **Raw keyboard input**: `sessions/keyboard.py` owns BOTH the session-path reader
+   (KeyReader Protocol + Raw/Null/Fake) AND the shared blocking reader
+   `read_key_blocking(*, decode, line_parse, read_bytes, eof_value)` (IMP-016). The
+   pre-session listen loop (`cli/practice._read_key`) and the debrief menu
+   (`debrief/menu.read_key`) now both route through it, passing only their own
+   `decode`/`line_parse` tables (practice: case-sensitive r/R, 1 byte; menu: arrow
+   escapes, 3 bytes). The termios/`/dev/tty` cbreak ladder lives in one place.
 7. **No personal absolute paths** (`/Users/...`) in any committed file —
    `tests/integration/test_path_portability_audit.py` fails otherwise.
 8. **Q&A file precedence** is owned by `src/speakloop/config/CLAUDE.md`

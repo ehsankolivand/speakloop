@@ -45,15 +45,15 @@ and returns the user's next-step choice (replay / new / quit) [Phase C].
   `select`/`termios`, `audio_player.py:37`); `read_aloud(sections, *, tts_engine,
   play_fn, on_section, skip_check) -> AudioOutcome`.
 - `menu.py` — `DebriefChoice`, `run_menu(*, on_toggle, console, read_key, show_prompt)`;
-  `_cbreak_read_key(fd)` (raw tty reader at `menu.py:34`, stdin-then-/dev/tty two-tier,
-  with line-buffered `input()` fallback); handles `r/n/q` + `t` (transcript toggle,
-  invokes `on_toggle`, keeps menu open) + `↑/↓` arrows + `Enter` (default REPLAY).
+  `read_key()` routes through the shared `sessions.keyboard.read_key_blocking` (3-byte read for
+  arrow escapes) with its own `_decode_key`/`_parse_line` tables (IMP-016); handles `r/n/q` + `t`
+  (transcript toggle, invokes `on_toggle`, keeps menu open) + `↑/↓` arrows + `Enter` (default REPLAY).
 
 ## Invariants & traps
 
-- `debrief/menu.py:34` has its own `_cbreak_read_key`. This is NOT consolidated into
-  `sessions/keyboard.py` — the root CLAUDE.md Trap 0 / R2 documents the divergence;
-  do not merge without updating the listen-loop and sessions paths too.
+- `debrief/menu.read_key` shares `sessions.keyboard.read_key_blocking` with the listen loop
+  (IMP-016 — the previously-duplicated `_cbreak_read_key` cbreak ladder is gone). `menu.py`
+  keeps only its own `_decode_key` (arrow escapes) + `_parse_line` token tables.
 - `ANNOUNCEMENT_LINE` (`debrief.py:68`) is asserted verbatim by tests — do not rename
   or reword without updating those tests.
 - TTS/playback failure MUST still reach the menu: errors are swallowed inside

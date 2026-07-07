@@ -52,7 +52,7 @@ The `speakloop` console script (entry point) — no internal module imports `cli
 ## File map
 
 - `main.py` — `typer` app + command registrations (incl. `setup`, 015).
-- `practice.py` — full practice/debrief loop; `resolve_engine_choice`, `EngineSelectionError`, `CLAUDE_TIER_MAP`, `_build_runners`; engine-aware provisioning (015, see above); `_cbreak_read` at line 126 (listen-loop raw reader — divergence note: `sessions/keyboard.py` is the session-path key reader, but the listen loop keeps its own `_cbreak_read`; code fix pending). `_listen_loop` prints the question text + a dim "Preparing audio…" line BEFORE synthesizing (a TTS cache miss pays the lazy Kokoro load there — don't reorder it back behind the synth calls).
+- `practice.py` — full practice/debrief loop; `resolve_engine_choice`, `EngineSelectionError`, `CLAUDE_TIER_MAP`, `_build_runners`; engine-aware provisioning (015, see above); `_read_key` (listen-loop reader) now routes through the shared `sessions.keyboard.read_key_blocking`, passing only its own `_decode_listen_key` (case-sensitive r/R) + `_parse_line_command` (IMP-016 — the cbreak ladder is no longer duplicated). `_listen_loop` prints the question text + a dim "Preparing audio…" line BEFORE synthesizing (a TTS cache miss pays the lazy Kokoro load there — don't reorder it back behind the synth calls).
 - `pronounce.py` (017) — `run(*, limit, debug, …)`: RAM-only gate → provision (TTS + pronunciation
   model, no ASR) → build scorer/bank/tts(slower `pronunciation_tts_speed`)/play/record/key_reader +
   `teach_speak` (slower per-call synth) → user-paced rounds via `pronunciation.run_drill_block`
@@ -82,7 +82,7 @@ The `speakloop` console script (entry point) — no internal module imports `cli
 - `--cloud` + `--engine <non-openrouter>` raises `EngineSelectionError`; CLI prints it and exits 2.
 - Mid-session Ctrl-C: `run()` catches `coordinator.AbortedError` around `run_session`, prints one yellow "Session aborted" line, and exits 130 (FR-016) — never a traceback. Follow-up-stage aborts don't raise (the coordinator writes a resumable report instead).
 - `_pick_question` re-prompts on invalid/out-of-range input; only Enter / q / quit / EOF cancels (returns None → caller prints "Bye." and exits). A typo must never exit the program.
-- `_cbreak_read` in `practice.py:126` is separate from `sessions/keyboard.py`; do not remove it without also fixing the listen loop to use the `KeyReader` abstraction.
+- `_read_key` in `practice.py` shares `sessions.keyboard.read_key_blocking` with the debrief menu (IMP-016); its `_decode_listen_key`/`_parse_line_command` keep the listen loop's own case-sensitive r/R table.
 
 ## Pointers
 

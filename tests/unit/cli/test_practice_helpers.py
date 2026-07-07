@@ -75,3 +75,15 @@ def test_listen_only_provisions_phase_a_only(monkeypatch):
     phases = _record(monkeypatch)
     practice._provision_models("local", listen_only=True, console=_console())
     assert phases == ["A"]  # listen-only needs no ASR and no Phase-C model
+
+
+def test_decode_listen_key_case_sensitive_and_specials():
+    """IMP-016: the listen-loop decode keeps r/R distinct (replay question vs ideal answer)
+    and maps EOF/Enter → '' (next), Ctrl-C → 'q'."""
+    assert practice._decode_listen_key(b"") == ""       # EOF on tty → next
+    assert practice._decode_listen_key(b"\r") == ""      # Enter → next
+    assert practice._decode_listen_key(b"\n") == ""
+    assert practice._decode_listen_key(b"\x03") == "q"   # Ctrl-C → quit
+    assert practice._decode_listen_key(b" ") == " "      # space → next
+    assert practice._decode_listen_key(b"r") == "r"
+    assert practice._decode_listen_key(b"R") == "R"      # case preserved, distinct from menu
