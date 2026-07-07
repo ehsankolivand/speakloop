@@ -396,13 +396,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Switched `_human_size` to DECIMAL divisors (`10**9`/`10**6`/`10**3`) keeping the GB/MB/KB labels — chose decimal over relabeling-to-GiB because rich's `DownloadColumn(binary_units=False)` shows decimal GB during the transfer, macOS reports decimal free space, and the manifest values are decimal round numbers (`8_000_000_000`, `1_262_000_000`). Now the 8e9-byte Qwen reads "8.0 GB" (was "7.5 GB" under the binary divisor + GB label). Test: `test_human_size_uses_decimal_units_matching_the_label` (8e9→"8.0 GB", 1.262e9→"1.3 GB", 170e6→"170.0 MB", 500→"500 B"). Verified: consent suite 12 passed, full suite 920 (+1), ruff clean.
 
-- [ ] **IMP-042 — Show friendly, direction-aware metric labels in the trends dashboard**
+- [x] **IMP-042 — Show friendly, direction-aware metric labels in the trends dashboard**
   - Impact: Low
   - Area: UX
   - Where: `src/speakloop/trends/renderer.py:34-46` (metric table build)
   - What & why: The "Fluency metrics (attempt 3)" table renders the raw `METRIC_KEYS` strings as the visible Metric column, so users see internal snake_case identifiers — `speech_rate_wpm`, `filler_density_per_100_words`, `pauses_count`, `mean_pause_ms`, `self_corrections_count` — as row labels. Separately the delta column (`f"{delta:+.1f}"`) carries no direction meaning: for filler density / pauses / self-corrections (higher is worse) a `+2.0` reads like improvement but is a regression. The debrief renderer already models friendly labels; the trends dashboard is the one surface still leaking internal identifiers.
   - How to do it: Add a small `METRIC_LABELS` map (key → human label) plus a per-metric `higher_is_better` flag; render the label instead of the raw key, and annotate the delta based on whether it moved in the better direction. Keep `METRIC_KEYS` as the single source for ordering.
   - Effort: Small
+  - Resolution: Added `aggregator.METRIC_LABELS` (key → "Speech rate (WPM)"/"Filler density (/100 words)"/…) and `METRIC_HIGHER_IS_BETTER` (WPM True; fillers/pauses/mean-pause/self-corrections False). `renderer.render` now shows the label and `_delta_cell(name, delta)` annotates the Δ `(better)`/`(worse)` per direction (with green/red colour for a real terminal, the word surviving the plain-text capture). So a `+2.0` on pauses now reads "worse", not an apparent improvement. `METRIC_KEYS` stays the ordering source. Documented in `trends/CLAUDE.md`. Test: friendly labels present (snake_case absent), WPM↑→better, fillers↓→better, pauses↑→worse. Verified: trends suite 17 passed, full suite 921 (+1), ruff clean.
 
 - [ ] **IMP-043 — Add a cross-parser agreement test for the two frontmatter readers**
   - Impact: Low

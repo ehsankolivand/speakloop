@@ -64,3 +64,25 @@ def test_sc_008_line_count_for_10_sessions():
     summary = aggregator.aggregate(reports)
     out = renderer.render(summary)
     assert out.count("\n") <= 60
+
+
+def test_metric_labels_are_friendly_and_delta_is_direction_aware():
+    """IMP-042: raw METRIC_KEYS are replaced by human labels, and the Δ is annotated with the
+    better/worse direction (fewer fillers is better even as the number falls; more pauses is
+    worse even as the number rises)."""
+    from datetime import date
+
+    summary = aggregator.TrendsSummary(
+        total_sessions=2, date_range=("2026-05-01", "2026-05-02"),
+        metric_series={
+            "speech_rate_wpm": [(date(2026, 5, 1), 100.0), (date(2026, 5, 2), 120.0)],
+            "filler_density_per_100_words": [(date(2026, 5, 1), 5.0), (date(2026, 5, 2), 2.0)],
+            "pauses_count": [(date(2026, 5, 1), 8.0), (date(2026, 5, 2), 10.0)],
+        },
+        pattern_ranking=[], pattern_series={},
+    )
+    out = renderer.render(summary)
+    assert "Speech rate (WPM)" in out and "speech_rate_wpm" not in out  # friendly, not snake_case
+    assert "+20.0 (better)" in out   # WPM up = better
+    assert "-3.0 (better)" in out     # fillers down = better
+    assert "+2.0 (worse)" in out      # pauses up = worse (the fix — a +Δ that's a regression)

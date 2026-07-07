@@ -7,7 +7,23 @@ import io
 from rich.console import Console
 from rich.table import Table
 
-from speakloop.trends.aggregator import TrendsSummary, format_series
+from speakloop.trends.aggregator import (
+    METRIC_HIGHER_IS_BETTER,
+    METRIC_LABELS,
+    TrendsSummary,
+    format_series,
+)
+
+
+def _delta_cell(name: str, delta: float) -> str:
+    """The Δ cell: the signed change plus a direction word, since a bare ``+2.0`` is ambiguous
+    (fewer fillers/pauses is an improvement even though the number fell). Colour is a bonus in a
+    real terminal; the word survives the plain-text capture the tests read (IMP-042)."""
+    if delta == 0:
+        return f"{delta:+.1f}"
+    improved = (delta > 0) == METRIC_HIGHER_IS_BETTER.get(name, True)
+    word, colour = ("better", "green") if improved else ("worse", "red")
+    return f"[{colour}]{delta:+.1f} ({word})[/{colour}]"
 
 
 def render(summary: TrendsSummary, *, console: Console | None = None) -> str:
@@ -42,7 +58,8 @@ def render(summary: TrendsSummary, *, console: Console | None = None) -> str:
             first = series[0][1]
             latest_val = series[-1][1]
             delta = latest_val - first
-            metric_table.add_row(name, f"{first:.1f}", f"{latest_val:.1f}", f"{delta:+.1f}")
+            label = METRIC_LABELS.get(name, name)
+            metric_table.add_row(label, f"{first:.1f}", f"{latest_val:.1f}", _delta_cell(name, delta))
         console.print(metric_table)
 
     # 3. Top-N grammar pattern ranking.
