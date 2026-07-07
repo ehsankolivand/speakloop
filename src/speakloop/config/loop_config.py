@@ -98,6 +98,45 @@ def _effort(data: dict, key: str) -> str | None:
     return None
 
 
+def _int(data: dict, key: str, default: int, *, floor: int | None = None, ceil: int | None = None) -> int:
+    """Read an int scalar; a non-numeric value → ``default``. Clamp to ``[floor, ceil]``."""
+    try:
+        value = int(data.get(key, default))
+    except (TypeError, ValueError):
+        return default
+    if floor is not None:
+        value = max(floor, value)
+    if ceil is not None:
+        value = min(ceil, value)
+    return value
+
+
+def _float(data: dict, key: str, default: float, *, floor: float | None = None, ceil: float | None = None) -> float:
+    """Read a float scalar; a non-numeric value → ``default``. Clamp to ``[floor, ceil]``."""
+    try:
+        value = float(data.get(key, default))
+    except (TypeError, ValueError):
+        return default
+    if floor is not None:
+        value = max(floor, value)
+    if ceil is not None:
+        value = min(ceil, value)
+    return value
+
+
+def _bool(data: dict, key: str, default: bool) -> bool:
+    """Read a bool scalar; a non-bool value → ``default`` (isinstance, so ``0``/``"yes"`` do
+    NOT silently coerce — distinct from the `bool()`-cast `warmup_enabled`/`followups_enabled`)."""
+    value = data.get(key, default)
+    return value if isinstance(value, bool) else default
+
+
+def _choice(data: dict, key: str, default: str, valid: tuple[str, ...]) -> str:
+    """Read a string scalar restricted to ``valid``; anything else → ``default``."""
+    value = data.get(key, default)
+    return value if isinstance(value, str) and value in valid else default
+
+
 def teach_speed(drill_speed: float) -> float:
     """The slower playback speed for the focused per-sound TEACHING beat (017 P2), derived
     from the drill playback speed so it is always a step slower (clamped to the sane floor).
@@ -116,61 +155,39 @@ def load() -> LoopConfig:
         return LoopConfig()
     if not isinstance(data, dict):
         return LoopConfig()
-    cap = data.get("daily_capacity", DEFAULT_DAILY_CAPACITY)
-    try:
-        cap = max(1, int(cap))
-    except (TypeError, ValueError):
-        cap = DEFAULT_DAILY_CAPACITY
-    engine = data.get("engine", DEFAULT_ENGINE)
-    if not isinstance(engine, str) or engine not in VALID_ENGINES:
-        engine = DEFAULT_ENGINE
-    try:
-        timeout = max(1, int(data.get("claude_timeout_seconds", DEFAULT_CLAUDE_TIMEOUT_SECONDS)))
-    except (TypeError, ValueError):
-        timeout = DEFAULT_CLAUDE_TIMEOUT_SECONDS
-    try:
-        concurrency = max(1, int(data.get("analysis_concurrency", DEFAULT_ANALYSIS_CONCURRENCY)))
-    except (TypeError, ValueError):
-        concurrency = DEFAULT_ANALYSIS_CONCURRENCY
-    autoplay = data.get("autoplay_ideal_answer", DEFAULT_AUTOPLAY_IDEAL_ANSWER)
-    if not isinstance(autoplay, bool):
-        autoplay = DEFAULT_AUTOPLAY_IDEAL_ANSWER
-    drills = data.get("pronunciation_drills", DEFAULT_PRONUNCIATION_DRILLS)
-    if not isinstance(drills, str) or drills not in VALID_PRONUNCIATION_DRILLS:
-        drills = DEFAULT_PRONUNCIATION_DRILLS
-    try:
-        min_free_mb = max(0, int(data.get("pronunciation_min_free_mb", DEFAULT_PRONUNCIATION_MIN_FREE_MB)))
-    except (TypeError, ValueError):
-        min_free_mb = DEFAULT_PRONUNCIATION_MIN_FREE_MB
-    tts_playback = data.get("pronunciation_tts_playback", DEFAULT_PRONUNCIATION_TTS_PLAYBACK)
-    if not isinstance(tts_playback, bool):
-        tts_playback = DEFAULT_PRONUNCIATION_TTS_PLAYBACK
-    try:
-        retries = max(0, min(MAX_PRONUNCIATION_RETRIES, int(data.get("pronunciation_retries", DEFAULT_PRONUNCIATION_RETRIES))))
-    except (TypeError, ValueError):
-        retries = DEFAULT_PRONUNCIATION_RETRIES
-    try:
-        tts_speed = float(data.get("pronunciation_tts_speed", DEFAULT_PRONUNCIATION_TTS_SPEED))
-        tts_speed = max(MIN_PRONUNCIATION_TTS_SPEED, min(MAX_PRONUNCIATION_TTS_SPEED, tts_speed))
-    except (TypeError, ValueError):
-        tts_speed = DEFAULT_PRONUNCIATION_TTS_SPEED
     return LoopConfig(
-        daily_capacity=cap,
+        daily_capacity=_int(data, "daily_capacity", DEFAULT_DAILY_CAPACITY, floor=1),
         warmup_enabled=bool(data.get("warmup_enabled", True)),
         followups_enabled=bool(data.get("followups_enabled", True)),
-        engine=engine,
+        engine=_choice(data, "engine", DEFAULT_ENGINE, VALID_ENGINES),
         claude_fast_model=_model(data, "claude_fast_model", DEFAULT_CLAUDE_FAST_MODEL),
         claude_strong_model=_model(data, "claude_strong_model", DEFAULT_CLAUDE_STRONG_MODEL),
         claude_fast_effort=_effort(data, "claude_fast_effort"),
         claude_strong_effort=_effort(data, "claude_strong_effort"),
-        claude_timeout_seconds=timeout,
-        autoplay_ideal_answer=autoplay,
-        analysis_concurrency=concurrency,
-        pronunciation_drills=drills,
-        pronunciation_min_free_mb=min_free_mb,
-        pronunciation_tts_playback=tts_playback,
-        pronunciation_retries=retries,
-        pronunciation_tts_speed=tts_speed,
+        claude_timeout_seconds=_int(
+            data, "claude_timeout_seconds", DEFAULT_CLAUDE_TIMEOUT_SECONDS, floor=1
+        ),
+        autoplay_ideal_answer=_bool(data, "autoplay_ideal_answer", DEFAULT_AUTOPLAY_IDEAL_ANSWER),
+        analysis_concurrency=_int(
+            data, "analysis_concurrency", DEFAULT_ANALYSIS_CONCURRENCY, floor=1
+        ),
+        pronunciation_drills=_choice(
+            data, "pronunciation_drills", DEFAULT_PRONUNCIATION_DRILLS, VALID_PRONUNCIATION_DRILLS
+        ),
+        pronunciation_min_free_mb=_int(
+            data, "pronunciation_min_free_mb", DEFAULT_PRONUNCIATION_MIN_FREE_MB, floor=0
+        ),
+        pronunciation_tts_playback=_bool(
+            data, "pronunciation_tts_playback", DEFAULT_PRONUNCIATION_TTS_PLAYBACK
+        ),
+        pronunciation_retries=_int(
+            data, "pronunciation_retries", DEFAULT_PRONUNCIATION_RETRIES,
+            floor=0, ceil=MAX_PRONUNCIATION_RETRIES,
+        ),
+        pronunciation_tts_speed=_float(
+            data, "pronunciation_tts_speed", DEFAULT_PRONUNCIATION_TTS_SPEED,
+            floor=MIN_PRONUNCIATION_TTS_SPEED, ceil=MAX_PRONUNCIATION_TTS_SPEED,
+        ),
     )
 
 

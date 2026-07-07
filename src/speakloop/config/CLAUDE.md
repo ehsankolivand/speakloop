@@ -95,8 +95,9 @@ Two files with different stdlib footprints — see File map.
 ## Common modification patterns
 
 - **Add a path or constant**: add a function in `paths.py`; never hard-code a path elsewhere.
-- **Add a loop.yaml key**: add the field to `LoopConfig`, a default constant, and a
-  parse branch in `load()` in the same commit.
+- **Add a loop.yaml key**: add the field to `LoopConfig`, a default constant, and ONE
+  `_int`/`_float`/`_bool`/`_choice` helper call in `load()` (IMP-036 collapsed the copy-pasted
+  clamp/validate blocks into these) in the same commit.
 
 ## Pointers
 

@@ -342,13 +342,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Added `config.paths.seed_and_read(target, default_asset) -> (text, Path)` and routed all SIX seeding loaders through it — `coverage.load_keypoints/coverage_prompt` (deleted its local `_seed_and_read`), `interviewer.load_followups_prompt`, `triage.load_triage_prompt`, `warmup.load_drill_prompt`, `feedback.load_cloud_prompt`/`load_coach_prompt`. Left `triage.load_consistency_prompt` (reads its packaged default directly, no seeding). Public loader signatures unchanged. Documented in `config/CLAUDE.md` (+ fixed the "no I/O except ensure_dir" note). Verified: prompt-loader tests pass, full suite 918, ruff + mypy clean.
 
-- [ ] **IMP-036 — Collapse the repeated scalar-validation boilerplate in `loop_config.load()`**
+- [x] **IMP-036 — Collapse the repeated scalar-validation boilerplate in `loop_config.load()`**
   - Impact: Low
   - Area: Structure
   - Where: `src/speakloop/config/loop_config.py:119-156` (`load()`)
   - What & why: `load()` hand-rolls six near-identical `try: x = max(1, int(data.get(key, DEFAULT))) except (TypeError, ValueError): x = DEFAULT` blocks plus two copy-pasted bool checks and two enum-membership checks. The module CLAUDE.md lists "add a parse branch in `load()`" as a routine per-key modification, so the pattern is copied every feature (010/011/012/016/017 each added more). Consolidating cuts the copy-paste surface and gives the clamp logic one code path.
   - How to do it: Add small typed helpers next to the existing `_model`/`_effort`: `_int(data, key, default, *, floor=None, ceil=None)`, `_bool(data, key, default)`, `_choice(data, key, default, valid)`. Rewrite `load()` as a sequence of one-line helper calls; `LoopConfig` construction and behavior stay identical.
   - Effort: Small
+  - Resolution: Added `_int`/`_float`/`_bool`/`_choice(data, key, default, ...)` next to `_model`/`_effort` and rewrote `load()` as one helper call per key — the 5 int-clamps, 1 float-clamp, 2 bool-isinstance checks, and 2 enum checks collapsed into the `LoopConfig(...)` constructor. Left the `warmup_enabled`/`followups_enabled` `bool()` CASTS as-is (routing them through `_bool` would change behavior for non-bool values, e.g. `0`). Empirically spot-checked equivalence (retries 99→3, cap "abc"→5, cap 0→1, tts_speed 99→1.5, bogus engine/drills→defaults, non-bool autoplay→default). Documented in `config/CLAUDE.md`. Verified: loop_config suite 30 passed, full suite 918, ruff clean.
 
 - [ ] **IMP-037 — Archive the stale per-branch autonomous-run reports out of the repo root**
   - Impact: Low
