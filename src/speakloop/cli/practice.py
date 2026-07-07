@@ -473,39 +473,9 @@ def run(
             console.print("Bye.")
             return
 
-    # Required base models from the user's intent. --listen-only only needs Phase A
-    # (TTS); without it we need Phase B (TTS + ASR) to record attempts. These are
-    # required — declining aborts (you can't record without them).
-    base_phase = "A" if listen_only else "B"
-
-    try:
-        installer.ensure_models(base_phase, console=console)
-    except installer.InstallDeclinedError:
-        console.print("[yellow]Model download declined; nothing to do.[/yellow]")
-        raise typer.Exit(1)
-    except installer.InstallFailedError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1) from e
-
-    # 015: the large local feedback model (Phase C / Qwen) is provisioned ONLY when the
-    # local engine is the active feedback engine on a full session — a cloud engine never
-    # triggers it (FR-007). Declining or a failure degrades to a recorded, resumable
-    # session (no grammar feedback) rather than aborting (FR-009); `_build_grammar_analyzer`
-    # then sees the model absent and returns None.
-    if installer.engine_needs_local_llm(engine_choice, listen_only=listen_only):
-        try:
-            installer.ensure_models("C", console=console)
-        except installer.InstallDeclinedError:
-            console.print(
-                "[yellow]Local feedback model declined — this session will record but produce "
-                "no grammar feedback (finish later with `speakloop resume`, or use "
-                "--engine openrouter / --engine claude).[/yellow]"
-            )
-        except installer.InstallFailedError as e:
-            console.print(
-                f"[yellow]Local feedback model unavailable ({e}); recording without grammar "
-                "feedback (resumable with `speakloop resume`).[/yellow]"
-            )
+    # 015: provision exactly what this run needs — the required base phase (aborts on
+    # decline) plus the optional local Phase-C feedback model (degrades on decline).
+    _provision_models(engine_choice, listen_only=listen_only, console=console)
 
     if tts_engine is None:
         from speakloop.tts.kokoro_engine import KokoroEngine
@@ -564,25 +534,12 @@ def run(
             f"[yellow]ASR: requested engine unavailable "
             f"({selection.fallback_reason}); falling back to Parakeet.[/yellow]"
         )
-    # Engine selection (011): local Qwen (default, offline), OpenRouter (--cloud /
-    # --engine openrouter), or Claude Code (--engine claude). Cloud + Claude build
-    # the grammar analyzer AND the additive coaching runner over one shared engine;
-    # local keeps its byte-identical build and has no coach. Built once, before the
-    # loop, reused per session.
-    if engine_choice == "openrouter":
-        grammar_analyzer, coach_runner = _build_cloud_grammar_analyzer(console)
-    elif engine_choice == "claude":
-        grammar_analyzer, coach_runner = _build_claude_grammar_analyzer(console)
-    else:  # local
-        grammar_analyzer = _build_grammar_analyzer()
-        coach_runner = None
-    # 010: the Interview Loop runner bundle rides on the grammar-runner callable
-    # (None when no Phase-C model is installed → follow-ups/triage simply stay off).
-    runners = getattr(grammar_analyzer, "runners", None)
-    # 012/FR-026: the engine declares whether its analysis calls may run concurrently;
-    # the CLI reads that capability off the engine the analyzer was built over.
-    _analysis_engine = getattr(grammar_analyzer, "engine", None)
-    analysis_parallel_safe = bool(getattr(_analysis_engine, "parallel_safe", False))
+    # Engine selection (011/012): local Qwen (default, offline), OpenRouter, or Claude Code.
+    # Build the grammar analyzer + optional coach + runner bundle + concurrency capability
+    # ONCE, before the loop, reused per session.
+    grammar_analyzer, coach_runner, runners, analysis_parallel_safe = _build_analysis(
+        engine_choice, console
+    )
 
     # 016: resolve the optional read-aloud pronunciation-drill capability ONCE, before the
     # timed loop (the model download/consent happens here, not mid-session). Returns a bundle
@@ -661,6 +618,66 @@ def run(
             need_listen = True
             continue
         return  # QUIT
+
+
+def _provision_models(engine_choice: str, *, listen_only: bool, console: Console) -> None:
+    """Download exactly what this run needs (015).
+
+    The base phase is REQUIRED — `--listen-only` needs Phase A (TTS); a full session needs
+    Phase B (TTS + ASR) to record attempts — so a decline/failure raises `typer.Exit(1)`
+    (you can't record without them). The large local Phase-C feedback model (Qwen) is
+    provisioned ONLY when the local engine is active on a full session (FR-007); a cloud
+    engine never triggers it, and a decline/failure DEGRADES to a recorded, resumable
+    session with one notice rather than aborting (FR-009) — `_build_grammar_analyzer` then
+    sees the model absent and returns None.
+    """
+    base_phase = "A" if listen_only else "B"
+    try:
+        installer.ensure_models(base_phase, console=console)
+    except installer.InstallDeclinedError:
+        console.print("[yellow]Model download declined; nothing to do.[/yellow]")
+        raise typer.Exit(1)
+    except installer.InstallFailedError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+
+    if installer.engine_needs_local_llm(engine_choice, listen_only=listen_only):
+        try:
+            installer.ensure_models("C", console=console)
+        except installer.InstallDeclinedError:
+            console.print(
+                "[yellow]Local feedback model declined — this session will record but produce "
+                "no grammar feedback (finish later with `speakloop resume`, or use "
+                "--engine openrouter / --engine claude).[/yellow]"
+            )
+        except installer.InstallFailedError as e:
+            console.print(
+                f"[yellow]Local feedback model unavailable ({e}); recording without grammar "
+                "feedback (resumable with `speakloop resume`).[/yellow]"
+            )
+
+
+def _build_analysis(engine_choice: str, console: Console):
+    """Build the feedback analysis bundle ONCE for the chosen engine (011/012).
+
+    Returns ``(grammar_analyzer, coach_runner, runners, analysis_parallel_safe)``. Cloud +
+    Claude build the grammar analyzer AND the additive coaching runner over one shared
+    engine; local keeps its byte-identical build and has no coach. `runners` (the 010
+    Interview Loop bundle) rides on the grammar-runner callable — None when no Phase-C model
+    is installed, so follow-ups/triage simply stay off. `analysis_parallel_safe` reads the
+    concurrency capability off the engine the analyzer was built over (012/FR-026).
+    """
+    if engine_choice == "openrouter":
+        grammar_analyzer, coach_runner = _build_cloud_grammar_analyzer(console)
+    elif engine_choice == "claude":
+        grammar_analyzer, coach_runner = _build_claude_grammar_analyzer(console)
+    else:  # local
+        grammar_analyzer = _build_grammar_analyzer()
+        coach_runner = None
+    runners = getattr(grammar_analyzer, "runners", None)
+    analysis_engine = getattr(grammar_analyzer, "engine", None)
+    analysis_parallel_safe = bool(getattr(analysis_engine, "parallel_safe", False))
+    return grammar_analyzer, coach_runner, runners, analysis_parallel_safe
 
 
 def _build_grammar_analyzer():
