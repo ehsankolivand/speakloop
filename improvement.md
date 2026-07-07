@@ -123,13 +123,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Medium
   - Resolution: Added the shared PUBLIC `feedback.grammar_analyzer.generate_json(llm, system, user, *, max_tokens, temperature, empty_message)` — one `generate`+`_extract_json`, then exactly one `retry=True` regenerate on an empty OR unparseable first response (mirrors `analyze`). Terminal failure preserves each caller's contract: still-empty → `LLMEngineError(empty_message)`, still-unparseable → `_extract_json`'s `ValueError`. Routed `score_coverage`, `derive_key_points`, `generate_followups` through it (each now imports the public `generate_json` instead of the private `_extract_json`, shrinking IMP-034's blast radius). Documented in feedback/coverage/interviewer CLAUDE.md. Tests: 5 `generate_json` contract tests (no-retry-on-success, retry-recovers-parse-fail, retry-recovers-empty, terminal empty→LLMEngineError, terminal parse-fail→ValueError) + `test_coverage_recovers_after_one_bounded_retry`. Verified: full suite 885 passed (+6), ruff clean (2 findings in grammar_analyzer pre-exist, outside my additions).
 
-- [ ] **IMP-012 — Fix the broken `.gitignore` line that disables the `*.pem` credential safety net**
+- [x] **IMP-012 — Fix the broken `.gitignore` line that disables the `*.pem` credential safety net**
   - Impact: Medium
   - Area: Correctness
   - Where: `.gitignore` last lines — `*.pem` and `.claude/scheduled_tasks.lock` are glued into one pattern with no separating newline
   - What & why: Confirmed via `od -c`: the bytes are `*.key\n*.pem.claude/scheduled_tasks.lock\n`, so the `# credentials (safety net)` block's `*.pem` and the scheduled-tasks lock are concatenated into the single pattern `*.pem.claude/scheduled_tasks.lock`. As a result `*.pem` is **not** ignored (`git check-ignore foo.pem` exits 1), so a committed private key would slip past the stated safety net, and `.claude/scheduled_tasks.lock` is only excluded via the un-shared `.git/info/exclude`.
   - How to do it: Split into two lines — `*.pem` alone, then `.claude/scheduled_tasks.lock` (and likely `.claude/scheduled_tasks.json`). Verify with `git check-ignore -v foo.pem` returning a `.gitignore` rule.
   - Effort: Small
+  - Resolution: Split the glued `*.pem.claude/scheduled_tasks.lock` into `*.pem` (credentials block) + a new "claude code local scheduler state" block with `.claude/scheduled_tasks.lock` and `.claude/scheduled_tasks.json` (both were only in the un-shared `.git/info/exclude`). Verified: `git check-ignore -v foo.pem` → `.gitignore:24:*.pem`, both scheduled_tasks files now ignored, and tracked `.claude/rules/` is NOT ignored. Path-portability audit passes.
 
 - [ ] **IMP-013 — Surface OpenRouter's error-response body**
   - Impact: Medium
