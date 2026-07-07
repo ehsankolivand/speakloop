@@ -185,13 +185,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Medium
   - Resolution: Extracted `_open_with_recovery(data, sample_rate, *, blocking) -> int` in `audio/playback.py` — the 3-attempt open loop (`sd.PortAudioError` → `sd.stop` → `_reinitialize` → backoff) + native-rate resample fallback, `sd.wait`-ing only when `blocking`. `play` calls it `blocking=True`; `_start_nonblocking` delegates `blocking=False`. Removed the now-dead `_play_blocking` (subsumed). Documented in `audio/CLAUDE.md` (fixed the stale `:113`/`:156` two-handler refs). Verified the shared ladder preserves both paths: the existing `test_playback` (retry/resample/exhaustion) + `test_playback_interruptible` suites pass, plus a new `test_nonblocking_uses_the_shared_recovery_ladder_and_never_waits` (retries on a PortAudio failure, never `sd.wait`). Full suite 902 passed (+1), ruff clean.
 
-- [ ] **IMP-019 — Correct `AI_CONTEXT.md`, which actively denies the pronunciation-scoring feature exists**
+- [x] **IMP-019 — Correct `AI_CONTEXT.md`, which actively denies the pronunciation-scoring feature exists**
   - Impact: Medium
   - Area: Structure
   - Where: `AI_CONTEXT.md:60` and `AI_CONTEXT.md:449-450` (also spot-check `README.md:193-194`, cited as their source)
   - What & why: This 54 KB onboarding briefing (purpose: accurately describe the repo "as it is today") predates 016/017 and explicitly states phoneme-level pronunciation scoring is "Out of scope for v1" and "speakloop does not score pronunciation" — but 016/017 shipped exactly that (wav2vec2 CTC GOP scorer, `pronounce` command, drill trainer). An agent or contributor reading it forms a wrong mental model of a whole subsystem. (`AI_CONTEXT.md` is not a `specs/001`–`016` or constitution artifact, so editing it is allowed.)
   - How to do it: Regenerate `AI_CONTEXT.md` to include the pronunciation module (mirroring how root `CLAUDE.md` documents 016/017) and bump `last_updated`; or, if it is meant to be point-in-time, add a top banner pointing to `CLAUDE.md` as the live source. At minimum remove the two false "no pronunciation scoring" lines and fix the README source line if it carries the same stale claim.
   - Effort: Medium
+  - Resolution: `AI_CONTEXT.md` — removed the false "Phoneme-level pronunciation scoring | Out of scope for v1" exclusion-table row (line 60) and replaced the false "No phoneme-level pronunciation scoring … speakloop does not score pronunciation" bullet with an accurate one describing the 016/017 wav2vec2 CTC trainer + `speakloop pronounce`. Added a top banner noting the snapshot predates 016/017 and pointing to root/pronunciation `CLAUDE.md` as the live source; bumped `last_updated` 2026-05-25→2026-07-07 and `version` 4→5. README already documents the trainer correctly (its "read-aloud pronunciation trainer" section) — the AI_CONTEXT `README.md:193–194` citations were stale line refs, now removed. Verified: no denial phrases remain, path-portability audit passes, no test references AI_CONTEXT.md.
 
 - [ ] **IMP-020 — Add mypy on the pure-logic modules to the dev group (it finds real issues today)**
   - Impact: Medium

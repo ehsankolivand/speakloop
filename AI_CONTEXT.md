@@ -6,8 +6,8 @@ runtime: CLI (typer + rich), three local MLX AI models (TTS / ASR / LLM)
 platform: macOS on Apple Silicon (M-series)
 status: v1 (version 0.1.0)
 license: MIT
-last_updated: 2026-05-25
-version: 4
+last_updated: 2026-07-07
+version: 5
 generated_by: claude-code
 ---
 
@@ -17,6 +17,13 @@ generated_by: claude-code
 > Density over prose. Every architectural claim points at a real path. This file
 > describes the architecture **as it is today**, not as it should be — improvement
 > ideas belong to the conversation this file enables, not to the file itself.
+>
+> ⚠️ **This snapshot predates features 016/017.** speakloop NOW ships a read-aloud
+> **pronunciation trainer** (016 in-session drills + 017 the `speakloop pronounce`
+> command): a wav2vec2 CTC phoneme scorer (`src/speakloop/pronunciation/`) that scores a
+> spoken rendering of a known target against its canonical phonemes and gives segment-level
+> feedback. For that subsystem, root `CLAUDE.md` + `src/speakloop/pronunciation/CLAUDE.md`
+> are the live source; the pronunciation-scoring exclusions below are obsolete.
 
 ## Identity
 
@@ -57,7 +64,6 @@ unbuilt feature. Brainstorming should treat these as load-bearing constraints, n
 | A `pip install` workflow | `uv` is the only package manager; no pip-driven docs or scripts. | `constitution.md` "Non-Negotiable Constraints" (Package manager) |
 | TOML / JSON / `.env` user config | User config is YAML, full stop. | `constitution.md` "Non-Negotiable Constraints" (User configuration) |
 | External services beyond the HuggingFace download | The one allowed network dependency is the initial model fetch. | `constitution.md` "Non-Negotiable Constraints" (External services) |
-| Phoneme-level pronunciation scoring | Out of scope for v1; speakloop scores fluency + grammar, not pronunciation. | README.md:193–194 |
 | A "polished consumer app" experience | Deliberately a source-readable engineer's tool with honest edges. | README.md:30; `constitution.md` "User Context" (lines 263–266) |
 
 ## Quick Facts
@@ -446,8 +452,11 @@ Condensed from `README.md` "Known limitations" + "Troubleshooting" (this is v1).
   or errors, the session still completes with fluency metrics + a fluency narrative; the
   report's `phase_c_error` records why (absent = not installed; message = analyzer raised
   it). (README.md:189–192, 211–221)
-- **No phoneme-level pronunciation scoring.** You can replay the question/ideal answer
-  and hear feedback read aloud, but speakloop does not score pronunciation. (README.md:193–194)
+- **Read-aloud pronunciation trainer (016/017).** speakloop DOES score pronunciation at the
+  phoneme level: an optional wav2vec2 CTC scorer (`src/speakloop/pronunciation/`) grades a
+  spoken rendering of a known target against its canonical phonemes (hear → say → see → retry),
+  in-session (opt-in, engine/RAM-gated) or standalone via `speakloop pronounce`. (README.md
+  "read-aloud pronunciation trainer"; root `CLAUDE.md`)
 - **Recording loop can hang on the final 4/3/2 attempt.** Known v1 bug; interim fix is
   Ctrl-C (the SIGINT handler cleans partial temp files and exits). Underlying fix
   deferred. (README.md:251–258)
