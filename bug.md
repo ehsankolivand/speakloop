@@ -56,7 +56,7 @@ Method: ran `python -m compileall` (clean — no syntax errors), `ruff check` (1
 
 ## Low
 
-- [ ] **BUG-005 — Coverage state membership check is case-sensitive, silently downgrading a capitalized `Covered`/`Partial` to `missed`**
+- [x] **BUG-005 — Coverage state membership check is case-sensitive, silently downgrading a capitalized `Covered`/`Partial` to `missed`**
   - Severity: Low
   - Category: Logic
   - Location: src/speakloop/coverage/scoring.py:50-51 — `_coverage_records`
@@ -64,6 +64,7 @@ Method: ran `python -m compileall` (clean — no syntax errors), `ruff check` (1
   - Impact: If the coverage LLM returns a capitalized state, that key point is scored `missed` instead of covered/partial, lowering the attempt's coverage aggregate below what the model assigned and producing a wrong answer-quality grade (which drives SRS scheduling). Bounded to that attempt; no crash.
   - How to fix: Lowercase before the membership test — `state = str(c.get("state", "")).strip().lower()` — keeping the `state in _VALID_STATES else "missed"` check unchanged.
   - Confidence: Suspected — the code path and downgrade are confirmed by reading, but the trigger requires the model to deviate from the coverage prompt's explicit lowercase-JSON example (temperature 0.2); I could not confirm that capitalized states actually occur in practice.
+  - Resolution: Fixed (the code defect is real and confirmed even though the trigger is model-dependent, and the fix is safe/idempotent). Changed line 50 to `state = str(c.get("state", "")).strip().lower()` in `coverage.scoring._coverage_records` so a capitalized-but-valid state is normalized before the `in _VALID_STATES` test instead of coerced to `"missed"` — matching the sibling LLM-output handlers (`content_errors.py:21`, `triage/mishearing.py:56`, `warmup/drill.py:75`) (src/speakloop/coverage/scoring.py). Added a regression test `test_capitalized_states_are_normalized_not_downgraded` (tests/unit/coverage/test_scoring.py). commit 6f3a78b; verified by reproducing the downgrade ("Covered"/"Partial" → aggregate 0.0) then confirming the fix scores them correctly (0.75), lowercase input is unchanged (idempotent), mixed-case (`MISSED`/`cOvErEd`) normalizes, and genuinely-invalid states still fall back to `"missed"`; the coverage suite + the byte-identical analysis-equivalence invariant (27 passed) and an independent fresh-context investigator agent.
 
 ---
 
