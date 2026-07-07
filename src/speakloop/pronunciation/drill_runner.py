@@ -148,7 +148,7 @@ def select_drills(bank, *, weak_contrasts: list[str], max_base: int):
 def _hear_first(
     drill,
     *,
-    speak: Callable[[str], None],
+    speak: Callable[[str], None] | None,
     key_reader,
     console,
     tts_on: bool,

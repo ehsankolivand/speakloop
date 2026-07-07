@@ -110,10 +110,13 @@ uv run pytest               # full suite — re-measure pass count after each fe
 uv run pytest -m live_asr   # real silero+torchaudio smoke — run when touching torchaudio
 uv run pytest tests/integration/test_path_portability_audit.py  # no personal paths
 uv run pytest tests/integration/test_context_file_budget.py     # CLAUDE.md ≤200 lines
+uv run mypy                 # type-check the pure-logic modules — GREEN gate (in CI)
 ```
 
 `ruff` is configured (`pyproject.toml [tool.ruff]`) but `ruff check .` has known
-pre-existing findings — not a passing gate.
+pre-existing findings — not a passing gate. `mypy` (020) IS a passing gate, scoped in
+`[tool.mypy]` to the engine-free pure-logic modules (srs/store/coverage/metrics + the pure
+pronunciation GOP/drill loop); CI (`.github/workflows/ci.yml`) runs it alongside `uv run pytest`.
 
 ## Conventions
 

@@ -31,6 +31,12 @@ jobs:
       - name: Sync dependencies (project + dev group)
         run: uv sync
 
+      - name: Type-check the pure-logic modules
+        # mypy is scoped in [tool.mypy] to the engine-free modules (srs/store/coverage/metrics
+        # + the pure pronunciation GOP/drill loop); the version is lockfile-pinned so CI matches
+        # local. Green today (IMP-020) — a type regression in those modules fails the build.
+        run: uv run mypy
+
       - name: Run the default test suite
         # `addopts` already deselects live_download/live_cloud/live_pron; live_asr/live_llm
         # self-skip without models. No model download happens here, so the offline runtime

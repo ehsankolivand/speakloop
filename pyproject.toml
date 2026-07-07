@@ -63,10 +63,29 @@ dev = [
     "pytest>=8.0",
     "pytest-mock>=3.12",
     "ruff>=0.6",
+    "mypy>=1.11",
 ]
 
 [tool.uv]
 package = true
+
+# Static type-checking, scoped to the engine-free pure-logic modules (srs/store/coverage/
+# metrics + the pure-numpy pronunciation GOP + the UI-agnostic drill loop). These are the
+# Protocol-heavy, ~fully-annotated modules where mypy pays off; engine wrappers pull in
+# stub-less mlx/torch/transformers, so `follow_imports = silent` keeps errors to the listed
+# files and `ignore_missing_imports` swallows the absent third-party stubs.
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+follow_imports = "silent"
+files = [
+    "src/speakloop/srs",
+    "src/speakloop/store",
+    "src/speakloop/coverage",
+    "src/speakloop/metrics",
+    "src/speakloop/pronunciation/gop.py",
+    "src/speakloop/pronunciation/drill_runner.py",
+]
 
 [tool.ruff]
 target-version = "py312"

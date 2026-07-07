@@ -22,7 +22,7 @@ def validate_content_errors(raw) -> list[dict]:
         ideal = str(e.get("ideal_claim", "")).strip()
         if not learner or not ideal or learner.lower() == ideal.lower():
             continue  # not a mutually-exclusive contradiction
-        item = {"learner_claim": learner, "ideal_claim": ideal}
+        item: dict[str, object] = {"learner_claim": learner, "ideal_claim": ideal}
         # `attempt_ordinal`/`key_point_id` are optional LLM-supplied enrichment. A
         # non-numeric value ("attempt 3", "n/a") must not crash the whole coverage pass
         # (mirrors grammar_analyzer._verify_and_enrich): drop just the malformed field —

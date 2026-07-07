@@ -87,10 +87,11 @@ def due_queue(
     if not below_mastery:
         return DueQueue(items=[], carried_forward=0)  # everything mastered
 
-    # Strictly due today (arrived next_due, or a brand-new question).
+    # Strictly due today (arrived next_due, or a brand-new question). Bind the parsed date
+    # once (walrus) so it does not re-widen to `date | None` on the second reference.
     due_now = [
         it for it in below_mastery
-        if it.is_new or (_parse_date(it.next_due) is not None and _parse_date(it.next_due) <= today)
+        if it.is_new or ((nd := _parse_date(it.next_due)) is not None and nd <= today)
     ]
     # FR-013: never empty while anything is below mastery — if nothing is strictly
     # due, surface the soonest-due below-mastery questions instead.
