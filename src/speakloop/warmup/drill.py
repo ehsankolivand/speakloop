@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Literal
 
 from speakloop.config import paths
-from speakloop.feedback.grammar_analyzer import _extract_json
+from speakloop.feedback.json_recovery import extract_json
 from speakloop.llm import LLMEngine, LLMEngineError
 
 _DRILL_MAX_TOKENS = 512
@@ -56,7 +56,7 @@ def generate_drill(top_error_label: str, llm: LLMEngine, *, system_prompt: str) 
     )
     if not raw or not raw.strip():
         raise LLMEngineError("Drill generator returned an empty response.")
-    data = _extract_json(raw)
+    data = extract_json(raw)
     items: list[DrillItem] = []
     for it in data.get("items") or []:
         if not isinstance(it, dict):

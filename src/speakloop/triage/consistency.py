@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from speakloop.feedback.grammar_analyzer import _extract_json
+from speakloop.feedback.json_recovery import extract_json
 from speakloop.llm import LLMEngine, LLMEngineError
 
 _CONSISTENCY_MAX_TOKENS = 1024
@@ -50,7 +50,7 @@ def check_artifact(
             max_tokens=_CONSISTENCY_MAX_TOKENS,
             temperature=_CONSISTENCY_TEMPERATURE,
         )
-        data = _extract_json(raw)
+        data = extract_json(raw)
     except (LLMEngineError, ValueError):
         return ConsistencyVerdict(consistent=False, withheld=True)
 

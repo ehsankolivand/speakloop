@@ -29,7 +29,7 @@ judging is deterministic (no LLM).
 ## Dependencies & consumers
 
 - Depends on: `speakloop.config` (paths), `speakloop.llm` (`LLMEngine`,
-  `LLMEngineError`), `feedback.grammar_analyzer._extract_json` (shared JSON recovery).
+  `LLMEngineError`), `feedback.json_recovery.extract_json` (shared JSON recovery, IMP-034).
   No engine package imported at module level (Principle V).
 - Consumers: `sessions/coordinator.py` (runs warm-up before attempt 1, per-item
   budget `WARMUP_ITEM_BUDGET_SECONDS=20` at coordinator.py:538; 3 items × 20 s is

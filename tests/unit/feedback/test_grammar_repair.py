@@ -57,7 +57,7 @@ def test_golden_parses_with_zero_repair(monkeypatch):
         raise AssertionError("json_repair must NOT run on clean, well-formed JSON")
 
     monkeypatch.setattr(ga.json_repair, "loads", boom)
-    payload = ga._extract_json(GOLDEN)
+    payload = ga.extract_json(GOLDEN)
     assert payload["errors"][0]["error_type"] == "gerund/infinitive confusion"
 
 
@@ -75,7 +75,7 @@ def test_golden_yields_verified_pattern():
 @pytest.mark.parametrize("path", _fixtures(), ids=lambda p: p.stem)
 def test_fixture_parse_recovers_to_expected(path):
     fx = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert ga._extract_json(fx["raw"]) == fx["expected"], path.name
+    assert ga.extract_json(fx["raw"]) == fx["expected"], path.name
 
 
 @pytest.mark.parametrize("path", _fixtures(), ids=lambda p: p.stem)

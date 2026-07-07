@@ -324,13 +324,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Extracted `_attempt(drill, *, label, ...)` (the shared `_hear_first`+`_score_once` hear→score pass, used by both the first attempt and each retry) and `_run_bounded_retry(...)` (teaching beat + bounded loop + early-break outcomes + `DrillQuit` partial-item preservation → returns the `retry` sub-dict). `run_drill_item` shrank to first-attempt + optional retry-delegation. Behaviour-preserving. Documented in `pronunciation/CLAUDE.md`. Verified: pronunciation suite 63 + drill integration (hear-first/retry, concurrent) pass, mypy green (drill_runner is in scope), full suite 918, ruff clean.
 
-- [ ] **IMP-034 — Promote the shared `_extract_json` to public API**
+- [x] **IMP-034 — Promote the shared `_extract_json` to public API**
   - Impact: Low
   - Area: Structure
   - Where: `src/speakloop/feedback/grammar_analyzer.py:99` (`_extract_json`), imported by `coverage/scoring.py`, `coverage/keypoints.py`, `triage/mishearing.py`, `triage/consistency.py`, `interviewer/followups.py`, `warmup/drill.py`
   - What & why: Six analysis modules across four packages import the underscore-prefixed private symbol `feedback.grammar_analyzer._extract_json` as their JSON-recovery ladder. The "shared recovery ladder" is a documented cross-module contract (`llm-calls.md` O8, `feedback/CLAUDE.md` O4), yet is expressed as a private import — the leading underscore misleads the next reader, and a future refactor of `grammar_analyzer` internals could silently break five other modules.
   - How to do it: Expose it as public API — rename to `feedback.grammar_analyzer.extract_json` (thin private alias if needed) or, cleaner, lift it plus `_strip_code_fences` into a small `feedback/json_recovery.py` and re-export, then update the six importers. No behavior change; gives the shared contract a natural test home (pairs with IMP-011).
   - Effort: Small
+  - Resolution: Took the cleaner path — lifted `extract_json` + `strip_code_fences` (both now PUBLIC) into a new `feedback/json_recovery.py`. IMP-011 had already reduced the direct importers from six to three (coverage/keypoints/followups go via `generate_json`); re-pointed the remaining three (triage/mishearing, triage/consistency, warmup/drill) + `grammar_analyzer` itself at `json_recovery.extract_json`. `grammar_analyzer` re-exports it (so `ga.extract_json` still resolves for `test_grammar_repair`). Moved the dedicated `test_extract_json.py` to test `json_recovery.extract_json` (its natural home; kept a `ga` import for the SPEAKLOOP_DEBUG_LLM dump tests). No behavior change. Updated feedback O4 + triage/warmup/coverage/interviewer CLAUDE.md + `.claude/rules/llm-calls.md` O8. Verified: full suite 918, mypy green (coverage in scope imports it via generate_json), ruff clean (2 pre-existing findings in `_looks_like_repetition_loop`).
 
 - [ ] **IMP-035 — Consolidate the duplicated prompt seed-and-read helper**
   - Impact: Low

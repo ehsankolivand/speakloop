@@ -38,9 +38,10 @@ LLM grammar analysis, cloud coaching, timing instrumentation, and atomic file wr
 
 ## Owner O4 — JSON recovery ladder
 
-`grammar_analyzer._extract_json` (`grammar_analyzer.py:99-137`):
+`json_recovery.extract_json` (PUBLIC, in `feedback/json_recovery.py` — IMP-034 lifted it out of
+`grammar_analyzer` so the shared contract is an explicit public symbol, not a private cross-import):
 
-1. `_strip_code_fences` pre-step (`grammar_analyzer.py:89-96`).
+1. `strip_code_fences` pre-step (same module).
 2. `json.loads` strict on stripped text.
 3. `json.loads` strict on first `{...}` region (tolerates surrounding prose).
 4. `json_repair.loads` on full text.
@@ -52,7 +53,7 @@ regenerate (`retry=True`) on parse failure OR detected loop — these two paths 
 separate. `analyze` recovers two GRAMMAR-ONLY wrapper omissions before giving up (IMP-027):
 a dict that IS a single error object (has `quote`/`attempt_ordinal`, no `errors` key) → wrapped
 `[payload]`; a bare top-level JSON list → `_extract_top_level_list` → `{"errors": [...]}`. Both
-still pass through V1/V2/V3, and the shared `_extract_json` stays dict-only for the other callers. On terminal failure → raises `LLMEngineError` → coordinator records
+still pass through V1/V2/V3, and the shared `extract_json` stays dict-only for the other callers. On terminal failure → raises `LLMEngineError` → coordinator records
 `phase_c_error`; session never crashes.
 
 **013 note:** `openrouter_prompt_default.txt` output-format block hardened by commit
@@ -61,10 +62,10 @@ still pass through V1/V2/V3, and the shared `_extract_json` stays dict-only for 
 Never hand-roll repair regexes. `json-repair` handles truncated/unclosed objects.
 
 `grammar_analyzer.generate_json(llm, system, user, *, max_tokens, temperature, empty_message)`
-is the SHARED bounded-retry wrapper (IMP-011): one `generate` + `_extract_json`, then exactly one
+is the SHARED bounded-retry wrapper (IMP-011): one `generate` + `extract_json`, then exactly one
 `retry=True` regenerate on an empty OR unparseable first response (mirrors `analyze`'s retry).
 Terminal failure keeps each caller's contract — still-empty → `LLMEngineError(empty_message)`,
-still-unparseable → `_extract_json`'s `ValueError`. `coverage.score_coverage`,
+still-unparseable → `extract_json`'s `ValueError`. `coverage.score_coverage`,
 `coverage.derive_key_points`, and `interviewer.generate_followups` route through it.
 
 `SPEAKLOOP_DEBUG_LLM=1` dumps raw LLM output (first 8000 chars) to
@@ -92,6 +93,8 @@ still-unparseable → `_extract_json`'s `ValueError`. `coverage.score_coverage`,
   inside a short PHRASE (a few words), not a lone word, so a single-word L2 error ("childs",
   "goed") clears V2's `MIN_WORD_TOKENS`≥2 floor AND its `MAX_UNKNOWN_FRACTION`≤0.25 gate — one
   adjacent word is NOT enough (a lone unknown token is then 50% of a 2-word span) (IMP-009).
+- `json_recovery.py` — PUBLIC `extract_json` + `strip_code_fences` (the shared O4 ladder, IMP-034;
+  imported by grammar/triage/warmup and by `generate_json`).
 - `cloud_prompt.py` — `load_cloud_prompt()` / `load_coach_prompt()`.
 - `coach.py` — `build_user_prompt` + `coach(...)`. Cloud-only.
 - `coherence.py`, `narrative.py` — ASR-garble filter + cross-attempt narrative. `narrative.build_narrative`

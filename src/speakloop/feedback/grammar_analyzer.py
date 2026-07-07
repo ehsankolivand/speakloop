@@ -30,6 +30,7 @@ import json_repair
 from speakloop.asr import Transcript
 from speakloop.feedback import coherence
 from speakloop.feedback.frontmatter import GrammarPattern
+from speakloop.feedback.json_recovery import extract_json, strip_code_fences
 from speakloop.llm import LLMEngine, LLMEngineError
 
 # The grammar prompt is free-form: the model returns its own ``error_type``
@@ -89,57 +90,6 @@ def _user_prompt(transcripts: list[Transcript]) -> str:
     return "\n".join(parts)
 
 
-_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", flags=re.DOTALL | re.IGNORECASE)
-def _strip_code_fences(raw: str) -> str:
-    """Remove a surrounding markdown code fence (```json ... ``` or ``` ... ```)."""
-    m = _FENCE_RE.search(raw)
-    if m:
-        return m.group(1).strip()
-    # Fence markers without a clean closing pair: drop stray ``` lines.
-    return re.sub(r"```(?:json)?", "", raw, flags=re.IGNORECASE).strip()
-
-
-def _extract_json(raw: str) -> dict:
-    """Recover the grammar payload from the LLM response (recovery ladder —
-    contracts/grammar-output-schema.md §C; research Decision 3):
-
-    1. strict ``json.loads`` of the fence-stripped text,
-    2. strict parse of the first ``{...}`` region (tolerates surrounding prose),
-    3. ``json_repair`` on the full text — recovers single/bare-quoted keys,
-       trailing commas, junk-token-before-key, AND truncated/unclosed objects
-       (the case the old hand-rolled regex repair could not handle),
-    4. ``json_repair`` on just the ``{...}`` region as a last resort.
-
-    Raises ``ValueError`` only when nothing yields a JSON object (then analyze()
-    may bounded-regenerate once, else fall back gracefully)."""
-    raw = _strip_code_fences(raw.strip())
-    try:
-        obj = json.loads(raw)
-        if isinstance(obj, dict):
-            return obj
-    except json.JSONDecodeError:
-        pass
-
-    match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
-    if match:
-        try:
-            obj = json.loads(match.group(0))
-            if isinstance(obj, dict):
-                return obj
-        except json.JSONDecodeError:
-            pass
-
-    repaired = json_repair.loads(raw)
-    if isinstance(repaired, dict) and repaired:
-        return repaired
-    if match:
-        repaired = json_repair.loads(match.group(0))
-        if isinstance(repaired, dict) and repaired:
-            return repaired
-
-    raise ValueError(f"Could not extract JSON from LLM response: {raw[:200]}")
-
-
 def generate_json(
     llm: LLMEngine,
     system_prompt: str,
@@ -153,17 +103,17 @@ def generate_json(
 
     The shared recovery path for the non-grammar structured callers (coverage scoring,
     key-point derivation, follow-up generation): a single transient empty/JSON hiccup
-    should not discard the whole result (IMP-011). Runs one ``generate`` + ``_extract_json``;
+    should not discard the whole result (IMP-011). Runs one ``generate`` + ``extract_json``;
     on an empty response OR a parse failure it does exactly one ``retry=True`` regenerate,
     mirroring ``analyze``'s bounded retry. Terminal failure keeps each caller's existing
     contract: a still-empty response raises ``LLMEngineError(empty_message)``; a still-
-    unparseable response lets ``_extract_json``'s ``ValueError`` propagate — so the
+    unparseable response lets ``extract_json``'s ``ValueError`` propagate — so the
     coordinator degrades that ONE call gracefully rather than crashing the session.
     """
     raw = llm.generate(system_prompt, user_prompt, max_tokens=max_tokens, temperature=temperature)
     if raw and raw.strip():
         try:
-            return _extract_json(raw)
+            return extract_json(raw)
         except (ValueError, json.JSONDecodeError):
             pass  # transient parse hiccup → one bounded regenerate below
     raw = llm.generate(
@@ -171,7 +121,7 @@ def generate_json(
     )
     if not raw or not raw.strip():
         raise LLMEngineError(empty_message)
-    return _extract_json(raw)  # ValueError propagates on terminal parse failure
+    return extract_json(raw)  # ValueError propagates on terminal parse failure
 
 
 def _looks_like_repetition_loop(text: str) -> bool:
@@ -315,11 +265,11 @@ def _generate_and_parse(
         retry=retry,
     )
     try:
-        return _extract_json(raw), raw
+        return extract_json(raw), raw
     except (ValueError, json.JSONDecodeError):
-        # `_extract_json` only returns dicts, so a top-level JSON LIST of error objects (the
+        # `extract_json` only returns dicts, so a top-level JSON LIST of error objects (the
         # model omitted the `errors` wrapper entirely) otherwise hard-fails. Recover it under
-        # the wrapper key here — grammar-only, so the shared `_extract_json` stays dict-only
+        # the wrapper key here — grammar-only, so the shared `extract_json` stays dict-only
         # for the coverage/keypoints/followups callers (IMP-027).
         listed = _extract_top_level_list(raw)
         if listed is not None:
@@ -331,7 +281,7 @@ def _extract_top_level_list(raw: str) -> list | None:
     """Recover a top-level JSON list from ``raw`` (whole text, then the first ``[...]`` region),
     trying strict parse then ``json_repair``. Returns the list, or None when it is not a bare
     list. ``analyze`` wraps it as ``{"errors": [...]}``; V1/V2/V3 still filter the contents."""
-    stripped = _strip_code_fences(raw.strip())
+    stripped = strip_code_fences(raw.strip())
     candidates = [stripped]
     m = re.search(r"\[.*\]", stripped, flags=re.DOTALL)
     if m:

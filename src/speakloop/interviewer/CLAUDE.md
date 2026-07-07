@@ -25,7 +25,7 @@ transcripts — never from the question bank (FR-001).
 
 - Internal: `speakloop.asr` (`Transcript`), `speakloop.config` (paths via `prompts.py`),
   `speakloop.llm` (`LLMEngine`). JSON recovery: shared `grammar_analyzer.generate_json` wrapper
-  over the `_extract_json` ladder (see `src/speakloop/feedback/CLAUDE.md`).
+  over the `extract_json` ladder (see `src/speakloop/feedback/CLAUDE.md`).
 - `ideal_answer` is EXCLUDED from `generate_followups` (followups.py:47-53); see
   `.claude/rules/llm-calls.md` O7.
 - Consumers: `cli` (builds the follow-up runner over the shared engine),
