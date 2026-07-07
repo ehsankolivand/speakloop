@@ -221,13 +221,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Added `tests/unit/pronunciation/test_read_audio.py` (5 cases, no model): `attempt-silent.wav` (3s silence @22050 → resample → RMS gate → None), `attempt-3s.wav` (loud → 16 kHz float32 mono array), a synthesized <0.2 s loud clip (length gate → None), a synthesized 2-channel clip (averaged to mono), and a synthesized 8 kHz clip (resampled to ~16000 samples). Note: the committed `attempt-short.wav` is actually 5.1 s with content (not sub-min-length as the entry assumed), so I synthesized the too-short clip for the length gate instead — leaving `attempt-short.wav` unused rather than mis-asserting on it. Verified: 5 passed, full suite 907 passed (+5), ruff clean.
 
-- [ ] **IMP-023 — Cover `resume.py` corrupt-report / no-transcript / still-failing skip paths**
+- [x] **IMP-023 — Cover `resume.py` corrupt-report / no-transcript / still-failing skip paths**
   - Impact: Medium
   - Area: Testing
   - Where: `src/speakloop/cli/resume.py:73-77, 115-117, 128-130` + `tests/integration/test_daily_loop.py:103` (`test_resume_clears_pending`, the sole resume test)
   - What & why: `resume.run` has three robustness branches `cli/CLAUDE.md` explicitly calls load-bearing ("a corrupt pending report can't masquerade as nothing to resume"): unreadable frontmatter → warn-and-skip; pending report with no recoverable transcripts → warn-and-skip; analysis failing again → left pending (not falsely marked done). None of these messages appears in any resume test — the only resume test drives the happy path, and `_extract_attempt_transcripts` is exercised only transitively. A regression that made resume skip corrupt reports silently, or mark a still-failing report resolved, would pass green.
   - How to do it: Add resume tests: a pending `.md` with malformed frontmatter → assert the yellow "unreadable … skipping" line + file left pending; a pending report with an empty/garbled Transcripts section → assert the "no transcripts found" skip; inject a grammar analyzer that raises → assert `analysis_pending` stays `True`. Add a direct unit test for `_extract_attempt_transcripts` (the `_(silent)_`→"" mapping and section-boundary exit).
   - Effort: Medium
+  - Resolution: Added `tests/integration/test_resume_skip_paths.py` (4 tests, capture via `capsys` with whitespace-normalized matching to survive rich soft-wrapping): malformed-YAML frontmatter (`foo: [1, 2` → `ParserError`) → "unreadable report frontmatter … skipping" + "No analysis-pending sessions"; a report truncated before `## Transcripts` → "no transcripts found" + stays `analysis_pending`; a grammar runner that raises → "analysis still failing" + stays `analysis_pending`/phase B (not falsely resolved); and a direct `_extract_attempt_transcripts` test pinning the `_(silent)_`→"" mapping + `## Something After` boundary exit. Verified: 4 passed, full suite 911 passed (+4), ruff clean.
 
 - [ ] **IMP-024 — Add a substitution (true-positive) case to the live pronunciation calibration oracle**
   - Impact: Medium
