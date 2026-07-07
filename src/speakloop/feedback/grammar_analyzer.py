@@ -317,7 +317,36 @@ def _generate_and_parse(
     try:
         return _extract_json(raw), raw
     except (ValueError, json.JSONDecodeError):
+        # `_extract_json` only returns dicts, so a top-level JSON LIST of error objects (the
+        # model omitted the `errors` wrapper entirely) otherwise hard-fails. Recover it under
+        # the wrapper key here — grammar-only, so the shared `_extract_json` stays dict-only
+        # for the coverage/keypoints/followups callers (IMP-027).
+        listed = _extract_top_level_list(raw)
+        if listed is not None:
+            return {"errors": listed}, raw
         return None, raw
+
+
+def _extract_top_level_list(raw: str) -> list | None:
+    """Recover a top-level JSON list from ``raw`` (whole text, then the first ``[...]`` region),
+    trying strict parse then ``json_repair``. Returns the list, or None when it is not a bare
+    list. ``analyze`` wraps it as ``{"errors": [...]}``; V1/V2/V3 still filter the contents."""
+    stripped = _strip_code_fences(raw.strip())
+    candidates = [stripped]
+    m = re.search(r"\[.*\]", stripped, flags=re.DOTALL)
+    if m:
+        candidates.append(m.group(0))
+    for text in candidates:
+        try:
+            obj = json.loads(text)
+        except json.JSONDecodeError:
+            try:
+                obj = json_repair.loads(text)
+            except Exception:  # noqa: BLE001 — json_repair is best-effort; try the next candidate
+                continue
+        if isinstance(obj, list):
+            return obj
+    return None
 
 
 def analyze(
@@ -361,7 +390,14 @@ def analyze(
         # improve parseability — keep the original payload rather than discard
         # usable output.
 
-    errors_raw = payload.get("errors") or []
+    errors_raw = payload.get("errors")
+    if errors_raw is None and ("quote" in payload or "attempt_ordinal" in payload):
+        # The model returned ONE error object with no `errors` wrapper — recover it (IMP-027)
+        # rather than silently returning zero patterns ("no actionable grammar patterns"), which
+        # is worse than a graceful phase_c_error. V1/V2/V3 in _verify_and_enrich still discard
+        # anything that isn't a real, verbatim, coherent error.
+        errors_raw = [payload]
+    errors_raw = errors_raw or []
     if not isinstance(errors_raw, list):
         raise LLMEngineError("LLM response 'errors' must be a list.")
 

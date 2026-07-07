@@ -330,3 +330,30 @@ def test_generate_json_terminal_parse_failure_propagates_valueerror():
             llm, "sp", "up", max_tokens=64, temperature=0.2, empty_message="empty"
         )
     assert llm.calls == 2
+
+
+def test_unwrapped_single_error_object_is_recovered():
+    """IMP-027: a valid dict missing the `errors` wrapper (a bare single-error object) is
+    recovered, not silently reported as zero patterns."""
+    single = _err(1, "like to programming", "like programming", "gerund/infinitive",
+                  "Use -ing after 'like'.")
+    out = grammar_analyzer.analyze(TS, _StubLLM(json.dumps(single)))
+    assert [p.label for p in out] == ["gerund/infinitive"]
+
+
+def test_top_level_list_of_errors_is_recovered():
+    """IMP-027: a bare top-level JSON list (no `errors` wrapper at all) is recovered rather
+    than hard-failing to phase_c_error."""
+    listed = [
+        _err(1, "like to programming", "like programming", "gerund/infinitive", "Use -ing after 'like'."),
+        _err(3, "enjoy to build", "enjoy building", "verb pattern", "Use -ing after 'enjoy'."),
+    ]
+    out = grammar_analyzer.analyze(TS, _StubLLM(json.dumps(listed)))
+    assert {p.label for p in out} == {"gerund/infinitive", "verb pattern"}
+
+
+def test_dict_without_errors_or_error_fields_still_returns_zero():
+    """A dict that is neither an errors-wrapper NOR a single-error object stays empty (a real
+    'no errors' response must not be forced into a phantom pattern)."""
+    out = grammar_analyzer.analyze(TS, _StubLLM(json.dumps({"note": "all good", "summary": "ok"})))
+    assert out == []

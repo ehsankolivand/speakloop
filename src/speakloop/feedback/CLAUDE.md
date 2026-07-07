@@ -49,7 +49,10 @@ LLM grammar analysis, cloud coaching, timing instrumentation, and atomic file wr
 Raises `ValueError` only when all four rungs fail. Independently,
 `_looks_like_repetition_loop` (`grammar_analyzer.py:140-159`) triggers ONE bounded
 regenerate (`retry=True`) on parse failure OR detected loop — these two paths are
-separate. On terminal failure → raises `LLMEngineError` → coordinator records
+separate. `analyze` recovers two GRAMMAR-ONLY wrapper omissions before giving up (IMP-027):
+a dict that IS a single error object (has `quote`/`attempt_ordinal`, no `errors` key) → wrapped
+`[payload]`; a bare top-level JSON list → `_extract_top_level_list` → `{"errors": [...]}`. Both
+still pass through V1/V2/V3, and the shared `_extract_json` stays dict-only for the other callers. On terminal failure → raises `LLMEngineError` → coordinator records
 `phase_c_error`; session never crashes.
 
 **013 note:** `openrouter_prompt_default.txt` output-format block hardened by commit
