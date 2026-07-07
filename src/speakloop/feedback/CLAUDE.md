@@ -78,7 +78,10 @@ Never hand-roll repair regexes. `json-repair` handles truncated/unclosed objects
 - `grammar_analyzer.py` — the ONLY file touching `speakloop.llm` here. Free-form
   prompt: model's own `error_type` strings → `GrammarPattern.label`. V1 verbatim
   substring, V2 coherence filter, V3 no-op-fix suppression; sort `(-occurrence_count,
-  label)`; `impact_rank` 1..N.
+  label)`; `impact_rank` 1..N. The prompt's "minimal span" rule asks for the broken part
+  inside a short PHRASE (a few words), not a lone word, so a single-word L2 error ("childs",
+  "goed") clears V2's `MIN_WORD_TOKENS`≥2 floor AND its `MAX_UNKNOWN_FRACTION`≤0.25 gate — one
+  adjacent word is NOT enough (a lone unknown token is then 50% of a 2-word span) (IMP-009).
 - `cloud_prompt.py` — `load_cloud_prompt()` / `load_coach_prompt()`.
 - `coach.py` — `build_user_prompt` + `coach(...)`. Cloud-only.
 - `coherence.py`, `narrative.py` — ASR-garble filter + cross-attempt narrative.

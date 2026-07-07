@@ -59,6 +59,17 @@ def test_single_token_is_too_short():
     assert coherence.is_coherent("dispatcher", _transcripts()) is False
 
 
+def test_single_word_error_survives_when_quoted_as_a_phrase():
+    """IMP-009: a single-word L2 error (a malformed non-word like 'childs') is dropped as a
+    lone token AND as a bare two-word span (the unknown token is then 50% > MAX_UNKNOWN_FRACTION);
+    it survives only when quoted inside a short readable phrase. This is why the grammar prompt
+    now asks for the broken part plus enough neighbouring words to read as a phrase, not one word."""
+    ts = [Transcript(text="The childs are playing in the garden every day.", audio_duration_seconds=6.0)]
+    assert coherence.is_coherent("childs", ts) is False           # lone token → floor
+    assert coherence.is_coherent("two childs", ts) is False        # 1 unknown of 2 → 50% > 25%
+    assert coherence.is_coherent("The childs are playing", ts) is True  # phrase → 1 of 4 = 25%
+
+
 def test_attestation_requires_two_occurrences():
     # "widget" appears exactly once → not attested → treated as unknown.
     once = [

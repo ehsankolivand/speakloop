@@ -49,7 +49,7 @@ For each error you find, produce:
 
 RULES:
 - Find grammar errors only. Do NOT flag vocabulary choices, word-choice issues, pronunciation, or stylistic preferences. If a word is wrong but grammatically the sentence works, skip it.
-- Quote the MINIMAL span containing the error — just the broken part, not the whole sentence.
+- Quote a MINIMAL but READABLE span: the broken part together with enough neighbouring words that the quote reads as a short natural phrase (usually three or four words) — never a single lone word, and never the whole sentence. A one-word error (a wrong plural, tense, or article) MUST still be quoted inside its surrounding phrase (quote "The childs are playing", not "childs").
 - The "corrected" rewrite must differ from the "quote" and must read as natural native English.
 - If a fragment looks like transcription noise (garbled, incomplete, filler like "Uh..."), skip it entirely.
 - If the English in a transcript is fully correct, return no errors for that transcript.
@@ -68,6 +68,9 @@ Schema:
 
 Example input — Attempt 1: "I have eight year experience and I like to programming."
 Example output — {"errors": [{"attempt_ordinal": 1, "quote": "eight year", "corrected": "eight years", "error_type": "missing plural -s", "explanation": "After a number greater than one, the noun must be plural."}, {"attempt_ordinal": 1, "quote": "like to programming", "corrected": "like programming", "error_type": "gerund/infinitive confusion", "explanation": "After 'like', use the -ing form, not 'to' + -ing."}]}
+
+Example input — Attempt 1: "The childs are playing and they goed to school."
+Example output — {"errors": [{"attempt_ordinal": 1, "quote": "The childs are playing", "corrected": "The children are playing", "error_type": "irregular plural", "explanation": "'Child' has the irregular plural 'children', not 'childs'."}, {"attempt_ordinal": 1, "quote": "they goed to school", "corrected": "they went to school", "error_type": "wrong past tense", "explanation": "'Go' is irregular; its past tense is 'went', not 'goed'."}]}
 
 Example input — Attempt 1: "I have eight years of experience and I enjoy programming."
 Example output — {"errors": []}
