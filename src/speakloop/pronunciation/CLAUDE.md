@@ -86,7 +86,10 @@ enforced by `test_drill_bank.py`). The authoritative pre-ship validation is the 
 `tests/live_pron_test.py` (`uv run pytest -m live_pron`): it TTS-renders every drill, scores it, and
 asserts NO flag on a clean rendering — a flag means the canonical/target is wrong. It self-skips
 when the model/TTS are absent and is excluded from the default suite. **It is the calibration
-oracle**: drills whose target phone Kokoro renders as the wrong phone were DROPPED (`thick`→/s/,
+oracle** and guards BOTH directions on real audio: over-flagging (clean drill → no flag) AND
+under-flagging (IMP-024 — a deliberate minimal-pair substitution like `rest`/`doze`/`sin` scored
+against the target word's canonical MUST flag), so a loosened `_COMPETITOR_FLAG_MARGIN` can't drift
+into silently passing real errors. Drills whose target phone Kokoro renders as the wrong phone were DROPPED (`thick`→/s/,
 `ship`/`fish`/`big`→/ɛ/, `they` borderline) and replaced with validated-clean words (`three`,
 `sit`/`kit`/`bit`, `those`); the base sentences lead with a clean-scoring word (`Thin and thick.`,
 `Sit in the seat.`). Each drill carries a curated `say_like` English respelling (P2; bundled, never
