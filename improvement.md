@@ -351,13 +351,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Added `_int`/`_float`/`_bool`/`_choice(data, key, default, ...)` next to `_model`/`_effort` and rewrote `load()` as one helper call per key — the 5 int-clamps, 1 float-clamp, 2 bool-isinstance checks, and 2 enum checks collapsed into the `LoopConfig(...)` constructor. Left the `warmup_enabled`/`followups_enabled` `bool()` CASTS as-is (routing them through `_bool` would change behavior for non-bool values, e.g. `0`). Empirically spot-checked equivalence (retries 99→3, cap "abc"→5, cap 0→1, tts_speed 99→1.5, bogus engine/drills→defaults, non-bool autoplay→default). Documented in `config/CLAUDE.md`. Verified: loop_config suite 30 passed, full suite 918, ruff clean.
 
-- [ ] **IMP-037 — Archive the stale per-branch autonomous-run reports out of the repo root**
+- [x] **IMP-037 — Archive the stale per-branch autonomous-run reports out of the repo root**
   - Impact: Low
   - Area: Structure
   - Where: Repo root: `MORNING_REPORT.md` (011) and `RETURN_REPORT.md` (014), both git-tracked
   - What & why: Two point-in-time sprint reports sit at the repo root beside `README`/`CLAUDE.md`, each declaring its branch "NOT merged into main" — but per project memory 010–015 are now on main, so the top-level claims are stale and confusing to a new contributor. The project already established the archival pattern (`RETURN_REPORT.md` itself notes the 012 report was moved into `specs/012-responsive-session-flow/`).
   - How to do it: Move `MORNING_REPORT.md` into `specs/011-claude-code-engine/` and `RETURN_REPORT.md` into `specs/014-agent-context-overhaul/`, matching the existing convention (adding a new archived file is allowed; the constraint forbids editing existing `specs/001`–`016` artifacts, not adding one), leaving the root with only live docs.
   - Effort: Small
+  - Resolution: `git mv` MORNING_REPORT.md → `specs/011-claude-code-engine/` and RETURN_REPORT.md → `specs/014-agent-context-overhaul/` (pure move, content unchanged). Root now holds only live docs (AI_CONTEXT, CHANGELOG, CLAUDE, README, bug.md, improvement.md). The immutable spec references to these reports ("at repo root") are historical task records, left untouched (a move ADDS to the spec dir, which the constraint permits); no code/test references them. Verified: path-portability audit passes.
 
 - [ ] **IMP-038 — Refresh clip mtime on cache hit so prune is true LRU, not LRU-by-creation**
   - Impact: Low
