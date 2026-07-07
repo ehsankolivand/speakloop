@@ -38,3 +38,31 @@ def test_exit_code_constant_documented():
     # The CLI exit-code is documented in contracts/cli-commands.md.
     # No code constant exists, but we assert the value here for traceability.
     assert 128 + signal.SIGINT == 130
+
+
+def test_install_returns_prior_and_restore_reinstalls_it(tmp_path):
+    """IMP-001: install captures the prior handler; restore puts it back verbatim."""
+    def _sentinel(signum, frame):  # pragma: no cover - never fires here
+        raise KeyboardInterrupt
+
+    prior = signal.signal(signal.SIGINT, _sentinel)
+    try:
+        returned = abort.install_signal_handler(tmp_path)
+        assert returned is _sentinel
+        # Our inert handler is now live, not the sentinel.
+        assert signal.getsignal(signal.SIGINT) is not _sentinel
+        abort.restore_signal_handler(returned)
+        assert signal.getsignal(signal.SIGINT) is _sentinel
+    finally:
+        signal.signal(signal.SIGINT, prior)
+        abort.reset()
+
+
+def test_restore_none_is_a_noop(tmp_path):
+    """A None prior (handler set outside Python) must not raise on restore."""
+    prior = signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        abort.restore_signal_handler(None)  # no exception
+        assert signal.getsignal(signal.SIGINT) is signal.default_int_handler
+    finally:
+        signal.signal(signal.SIGINT, prior)

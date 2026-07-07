@@ -19,13 +19,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
 
 ## High
 
-- [ ] **IMP-001 — Restore the SIGINT handler after a session so Ctrl-C keeps working**
+- [x] **IMP-001 — Restore the SIGINT handler after a session so Ctrl-C keeps working**
   - Impact: High
   - Area: Correctness
   - Where: `src/speakloop/sessions/abort.py:26-37` (`install_signal_handler`); installed at `sessions/coordinator.py:1063`, `finally` at `:1178-1179` never restores it
   - What & why: `run_session` installs a process-global SIGINT handler that only sets `abort_event` + deletes `*.tmp` and never raises/exits, and it is never uninstalled (the only `finally` just closes the ASR worker). After `run_session` returns into the debrief cbreak menu (`debrief/menu.py:34`, `os.read` under `tty.setcbreak`, which leaves `ISIG` on) and then `_pick_question`'s `input()` loop, a Ctrl-C fires this inert handler and returns without raising, so PEP 475 restarts the blocking read and the keypress is swallowed. Before any session the same Ctrl-C raised `KeyboardInterrupt` and exited; after one completed session it is dead for the rest of the process — a silent robustness regression on the most-used flow. The `abort.py:1` docstring ("exit 130") is also stale.
   - How to do it: Have `install_signal_handler` capture `signal.getsignal(SIGINT)` and return it (or add `abort.restore_signal_handler(prev)`); wrap the `run_session` body in `try/finally` and restore the previous handler on the way out (it runs on the main thread, so `signal.signal` is legal). Add a regression test asserting the prior handler is reinstated after `run_session` returns. Fix the `abort.py:1` docstring.
   - Effort: Small
+  - Resolution: `abort.install_signal_handler` now returns the prior SIGINT handler and a new `abort.restore_signal_handler(prev)` reinstalls it; `run_session` captures `_prev_sigint` and wraps its whole body in `try/finally` to restore on both the normal-return and re-raised-`AbortedError` paths (`sessions/abort.py`, `sessions/coordinator.py`). Fixed the stale `abort.py` module docstring and the `sessions/CLAUDE.md` abort bullet. Tests: `tests/unit/sessions/test_abort.py` (install-returns-prior / restore round-trip, None-noop) + new `tests/integration/test_sigint_handler_restored.py` (normal + abort paths reinstate the prior handler). Verified by the full suite (870 passed, +4), `git diff -w` (body change is pure indentation), ruff clean on touched files, context-budget + byte-identical + phase-b-abort gates green.
 
 - [ ] **IMP-002 — Reject partial/interrupted downloads instead of validating them as complete**
   - Impact: High

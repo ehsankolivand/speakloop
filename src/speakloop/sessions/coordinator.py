@@ -1060,153 +1060,61 @@ def run_session(
     scratch_dir.mkdir(parents=True, exist_ok=True)
 
     abort.reset()
-    abort.install_signal_handler(sessions_dir)
-
-    # The in-session listen block is opt-in (``listen_in_session``). The CLI does
-    # its own listen loop before calling run_session and passes tts_engine/play_fn
-    # only to drive the follow-up stage, so it leaves this False to avoid a
-    # double-play. (010: gated; previously fired whenever tts_engine+play_fn were set.)
-    if listen_in_session and tts_engine is not None and play_fn is not None:
-        q_wav = tts_engine.synthesize(question.question, voice=question.voice_override)
-        a_wav = tts_engine.synthesize(question.ideal_answer, voice=question.voice_override)
-        console.print(f"\n[bold]Listening to question: {question.id}[/bold]")
-        play_fn(q_wav)
-        console.print("[bold]Ideal answer:[/bold]")
-        play_fn(a_wav)
-
-    if asr_engine is None:
-        from speakloop.asr.parakeet_engine import ParakeetEngine
-
-        asr_engine = ParakeetEngine()
-    if record_fn is None:
-        record_fn = recorder.record
-
-    # Per-session domain biasing (FR-003/FR-004): build once, inject into every
-    # transcription. Engines that can't use it (Parakeet) ignore it.
-    from speakloop.asr import domain_context
-
-    context = domain_context.build_context(question)
-
-    early_exit_event = threading.Event()
-
-    # 012: a single injectable key reader drives every single-key control (skip / replay
-    # / early-stop / skip-follow-up). Default resolves a real raw reader if a tty is
-    # reachable, else a NullKeyReader that no-ops so the session still runs on time
-    # budgets (FR-012). Tests inject a FakeKeyReader.
-    if key_reader is None:
-        key_reader = _keyboard.make_key_reader()
-
-    # 012/US3: always-on, cheap per-stage instrumentation. The timings are saved into the
-    # report frontmatter regardless of the flag; ``timings_display`` only controls the
-    # terminal print (FR-018).
-    stage_timer = StageTimer()
-
-    # 010 P2: load the derived store (top recurring error for the warm-up + the SRS
-    # schedule update after the session). Only when store_path is provided — the CLI
-    # passes one; tests omit it → no store I/O and no warm-up (legacy behavior).
-    store = None
-    if store_path is not None:
-        from speakloop.store import io as _store_io
-
-        store = _store_io.load(store_path)
-
-    warmup_result = _run_warmup(
-        question,
-        runners=runners,
-        store=store,
-        asr_engine=asr_engine,
-        record_fn=record_fn,
-        tts_engine=tts_engine,
-        play_fn=play_fn,
-        context=context,
-        scratch_dir=scratch_dir,
-        early_exit_event=early_exit_event,
-        console=console,
-        key_reader=key_reader,
-        ui_sleep=ui_sleep,
-    )
-
-    # 012/US3 (T026): a single background DAEMON ASR worker so attempt-N transcription
-    # overlaps attempt-(N+1) recording, while two Whisper jobs NEVER run at once (FR-022).
-    # The transcript values are identical to the serial path — only WHEN they are decoded
-    # changes — so the report is unaffected. Daemon so a Ctrl-C abort never blocks exit on
-    # an in-flight decode; the discarded mid-decode is harmless (the audio is thrown away).
-    transcripts: list[Transcript] = []
-    asr_worker = _BackgroundAsr(asr_engine, context)
+    _prev_sigint = abort.install_signal_handler(sessions_dir)
     try:
-        for ordinal in (1, 2, 3):
-            if abort.abort_event.is_set():
-                raise AbortedError()
-            if ordinal == 3:
-                # 010 P3/P5 (FR-022): state the final-round content goal before the
-                # last attempt — type-aware (STAR components for behavioral).
-                goal_unit = (
-                    "STAR components"
-                    if (getattr(question, "type", None) == "behavioral")
-                    else "key points"
-                )
-                console.print(
-                    f"[bold]Final round — goal: cover all {goal_unit} within the time budget.[/bold]"
-                )
-            early_exit_event.clear()
-            with stage_timer.stage(f"attempt_{ordinal}_record"):
-                wav_path, duration = _record_attempt(
-                    ordinal,
-                    record_fn=record_fn,
-                    early_exit_event=early_exit_event,
-                    console=console,
-                    scratch_dir=scratch_dir,
-                    key_reader=key_reader,
-                    ui_sleep=ui_sleep,
-                )
-            asr_worker.submit(ordinal, wav_path, duration)
-        # Wait for any still-running background transcription under a labeled state so the
-        # terminal never sits silently (FR-002); the early ones already finished overlapped.
-        with stage_timer.stage("transcribe_wait", overlapped=True), session_ui.working(
-            console, SessionState.TRANSCRIBING, "Transcribing your attempts…"
-        ):
-            transcripts = [asr_worker.result(o) for o in (1, 2, 3)]
-    except AbortedError:
-        # The daemon worker is abandoned (it dies with the interpreter); a mid-decode that
-        # races the cleanup below just errors harmlessly into a result we never read.
-        abort.cleanup_tmp_files(sessions_dir)
-        # FR-016: clear partial attempt-*.wav files so the abort leaves
-        # no intermediate audio on disk either.
-        if scratch_dir.exists():
-            shutil.rmtree(scratch_dir, ignore_errors=True)
-        raise
-    finally:
-        asr_worker.close()
 
-    started_at = now()
+        # The in-session listen block is opt-in (``listen_in_session``). The CLI does
+        # its own listen loop before calling run_session and passes tts_engine/play_fn
+        # only to drive the follow-up stage, so it leaves this False to avoid a
+        # double-play. (010: gated; previously fired whenever tts_engine+play_fn were set.)
+        if listen_in_session and tts_engine is not None and play_fn is not None:
+            q_wav = tts_engine.synthesize(question.question, voice=question.voice_override)
+            a_wav = tts_engine.synthesize(question.ideal_answer, voice=question.voice_override)
+            console.print(f"\n[bold]Listening to question: {question.id}[/bold]")
+            play_fn(q_wav)
+            console.print("[bold]Ideal answer:[/bold]")
+            play_fn(a_wav)
 
-    # 010 P4: deterministic ASR-hallucination triage BEFORE any analysis. Drops
-    # phantom/silence spans so no hallucination text reaches grammar evidence or
-    # metrics (SC-003/FR-028) — works offline, independent of the LLM. Real-speech
-    # regions feed metrics; mishearings (LLM enrichment) become pronunciation flags.
-    triaged = [_halluc.filter_hallucinations(t) for t in transcripts]
-    real_transcripts = [
-        Transcript(
-            text=tr.real_text,
-            words=t.words,
-            audio_duration_seconds=t.audio_duration_seconds,
-            vad_regions=tr.real_regions,
-        )
-        for t, tr in zip(transcripts, triaged, strict=True)
-    ]
-    attempts = _build_attempts(real_transcripts)
+        if asr_engine is None:
+            from speakloop.asr.parakeet_engine import ParakeetEngine
 
-    # 012/US3 (T030): ask the follow-ups the moment the final transcript lands — BEFORE
-    # the heavy analysis — so the gap from the last attempt to the first spoken follow-up
-    # is minimal (SC-002). Follow-up entries are independent of the main grammar pass, so
-    # the report is byte-identical regardless of this reordering. No-op unless a follow-up
-    # runner + TTS playback are injected (existing callers unaffected).
-    with stage_timer.stage("followups"):
-        follow_ups = _run_follow_ups(
+            asr_engine = ParakeetEngine()
+        if record_fn is None:
+            record_fn = recorder.record
+
+        # Per-session domain biasing (FR-003/FR-004): build once, inject into every
+        # transcription. Engines that can't use it (Parakeet) ignore it.
+        from speakloop.asr import domain_context
+
+        context = domain_context.build_context(question)
+
+        early_exit_event = threading.Event()
+
+        # 012: a single injectable key reader drives every single-key control (skip / replay
+        # / early-stop / skip-follow-up). Default resolves a real raw reader if a tty is
+        # reachable, else a NullKeyReader that no-ops so the session still runs on time
+        # budgets (FR-012). Tests inject a FakeKeyReader.
+        if key_reader is None:
+            key_reader = _keyboard.make_key_reader()
+
+        # 012/US3: always-on, cheap per-stage instrumentation. The timings are saved into the
+        # report frontmatter regardless of the flag; ``timings_display`` only controls the
+        # terminal print (FR-018).
+        stage_timer = StageTimer()
+
+        # 010 P2: load the derived store (top recurring error for the warm-up + the SRS
+        # schedule update after the session). Only when store_path is provided — the CLI
+        # passes one; tests omit it → no store I/O and no warm-up (legacy behavior).
+        store = None
+        if store_path is not None:
+            from speakloop.store import io as _store_io
+
+            store = _store_io.load(store_path)
+
+        warmup_result = _run_warmup(
             question,
-            real_transcripts,
             runners=runners,
-            grammar_analyzer=grammar_analyzer,
+            store=store,
             asr_engine=asr_engine,
             record_fn=record_fn,
             tts_engine=tts_engine,
@@ -1219,245 +1127,340 @@ def run_session(
             ui_sleep=ui_sleep,
         )
 
-    # 012/US3 (T028/T029): engine-capability-aware post-attempt analysis. A parallel-safe
-    # engine (Claude Code / OpenRouter) runs the independent calls concurrently (≥40%
-    # wall-clock reduction, SC-003); the local in-process model stays serial. Both paths
-    # yield a byte-identical report (FR-027). If the user aborted during the follow-ups,
-    # skip the (minute-long) analysis and write a resumable pending report rather than
-    # making them wait past their Ctrl-C (never lose the finished attempts).
-    pending_outs = _AnalysisOutputs(
-        grammar_patterns=[], phase="B", phase_c_error=None, analysis_pending=True,
-        pronunciation_flags=[], coverage_records=[], content_errors=[], key_points_set=None,
-        key_points_newly_derived=False, coverage_aggregate=None, coaching=None,
-        coach_error=None, analysis_mode="serial", analysis_wall_seconds=0.0,
-    )
-    drills_result: dict | None = None
-    if abort.abort_event.is_set():
-        outs = pending_outs
-    elif pronunciation_drills is not None:
-        # 016: run the text feedback in a BACKGROUND thread while the user does the user-paced
-        # read-aloud drill block on the main thread; the report waits for BOTH (FR-002/003/004).
-        # The backgrounded analysis is `quiet=True` and writes to a DISCARD console so two live
-        # `rich` displays never collide; any degradation is still captured in frontmatter. The
-        # drill block does not touch the store and _analyze's single store mutation stays on the
-        # main thread below, so concurrency never reorders persisted state (O6 holds).
-        holder: dict = {}
+        # 012/US3 (T026): a single background DAEMON ASR worker so attempt-N transcription
+        # overlaps attempt-(N+1) recording, while two Whisper jobs NEVER run at once (FR-022).
+        # The transcript values are identical to the serial path — only WHEN they are decoded
+        # changes — so the report is unaffected. Daemon so a Ctrl-C abort never blocks exit on
+        # an in-flight decode; the discarded mid-decode is harmless (the audio is thrown away).
+        transcripts: list[Transcript] = []
+        asr_worker = _BackgroundAsr(asr_engine, context)
+        try:
+            for ordinal in (1, 2, 3):
+                if abort.abort_event.is_set():
+                    raise AbortedError()
+                if ordinal == 3:
+                    # 010 P3/P5 (FR-022): state the final-round content goal before the
+                    # last attempt — type-aware (STAR components for behavioral).
+                    goal_unit = (
+                        "STAR components"
+                        if (getattr(question, "type", None) == "behavioral")
+                        else "key points"
+                    )
+                    console.print(
+                        f"[bold]Final round — goal: cover all {goal_unit} within the time budget.[/bold]"
+                    )
+                early_exit_event.clear()
+                with stage_timer.stage(f"attempt_{ordinal}_record"):
+                    wav_path, duration = _record_attempt(
+                        ordinal,
+                        record_fn=record_fn,
+                        early_exit_event=early_exit_event,
+                        console=console,
+                        scratch_dir=scratch_dir,
+                        key_reader=key_reader,
+                        ui_sleep=ui_sleep,
+                    )
+                asr_worker.submit(ordinal, wav_path, duration)
+            # Wait for any still-running background transcription under a labeled state so the
+            # terminal never sits silently (FR-002); the early ones already finished overlapped.
+            with stage_timer.stage("transcribe_wait", overlapped=True), session_ui.working(
+                console, SessionState.TRANSCRIBING, "Transcribing your attempts…"
+            ):
+                transcripts = [asr_worker.result(o) for o in (1, 2, 3)]
+        except AbortedError:
+            # The daemon worker is abandoned (it dies with the interpreter); a mid-decode that
+            # races the cleanup below just errors harmlessly into a result we never read.
+            abort.cleanup_tmp_files(sessions_dir)
+            # FR-016: clear partial attempt-*.wav files so the abort leaves
+            # no intermediate audio on disk either.
+            if scratch_dir.exists():
+                shutil.rmtree(scratch_dir, ignore_errors=True)
+            raise
+        finally:
+            asr_worker.close()
 
-        def _bg_analyze() -> None:
-            try:
-                holder["outs"] = _analyze(
-                    real_transcripts=real_transcripts, triaged=triaged, question=question,
-                    runners=runners, grammar_analyzer=grammar_analyzer, coach=coach, store=store,
-                    console=Console(file=io.StringIO(), force_terminal=False, width=200),
-                    parallel_safe=analysis_parallel_safe, concurrency=analysis_concurrency,
-                    stage_timer=stage_timer, quiet=True,
-                )
-            except Exception:  # noqa: BLE001 — degrade to a resumable pending report
-                holder["outs"] = None
+        started_at = now()
 
-        feedback_thread = threading.Thread(
-            target=_bg_analyze, name="speakloop-feedback", daemon=True
-        )
-        feedback_thread.start()
-        drills_result = _run_pronunciation_drills(
-            drills=pronunciation_drills,
-            record_fn=record_fn,
-            scratch_dir=scratch_dir,
-            early_exit_event=early_exit_event,
-            console=console,
-            key_reader=key_reader,
-            ui_sleep=ui_sleep,
-            # 017: hear-first plays the target with the SAME injected TTS used for the
-            # question/warm-up/follow-ups (no-op in tests that pass neither). weak_contrasts
-            # biases drill order toward the learner's historically weak sounds (US4).
-            tts_engine=tts_engine,
-            play_fn=play_fn,
-            weak_contrasts=_weak_contrasts_from_store(store),
-        )
-        # Wait for the feedback to finish — it may already be done; if not, show one live
-        # spinner now that the drills (and their live display) are finished.
-        if feedback_thread.is_alive():
-            with session_ui.working(console, SessionState.ANALYZING, "Finishing your feedback…"):
-                feedback_thread.join()
-        else:
-            feedback_thread.join()
-        outs = holder.get("outs")
-        if outs is None:
-            outs = pending_outs
-    else:
-        outs = _analyze(
-            real_transcripts=real_transcripts,
-            triaged=triaged,
-            question=question,
-            runners=runners,
-            grammar_analyzer=grammar_analyzer,
-            coach=coach,
-            store=store,
-            console=console,
-            parallel_safe=analysis_parallel_safe,
-            concurrency=analysis_concurrency,
-            stage_timer=stage_timer,
-        )
-    grammar_patterns = outs.grammar_patterns
-    phase = outs.phase
-    phase_c_error = outs.phase_c_error
-    analysis_pending = outs.analysis_pending
-    pronunciation_flags = outs.pronunciation_flags
-    coverage_records = outs.coverage_records
-    content_errors = outs.content_errors
-    key_points_set = outs.key_points_set
-    coverage_aggregate = outs.coverage_aggregate
-    coaching = outs.coaching
-    coach_error = outs.coach_error
-
-    # The ONLY store mutation from analysis: cache a newly-derived key-point set. Applied
-    # on the main thread after the group completes (jobs are pure), so concurrency never
-    # reorders persisted state (contract analysis-concurrency.md).
-    if outs.key_points_newly_derived and store is not None and key_points_set is not None:
-        store.key_points.setdefault(question.id, {})[
-            key_points_set["ideal_answer_hash"]
-        ] = key_points_set
-
-    triage_summary = {
-        "real": sum(len(tr.real_regions) for tr in triaged),
-        "mishearing": len(pronunciation_flags),
-        "hallucination_dropped": sum(len(tr.dropped) for tr in triaged),
-    }
-
-    # ASR provenance (FR-007), recorded additively only when the caller names the
-    # engine that ran (the CLI / engine selection supplies engine_name + model_id
-    # + fell_back). Legacy callers omit these → asr stays None → report unchanged.
-    asr_provenance = None
-    if asr_engine_name is not None:
-        asr_provenance = frontmatter.AsrProvenance(
-            engine=asr_engine_name,
-            model=asr_model_id or "",
-            initial_prompt=context.initial_prompt,
-            initial_prompt_sha256=context.initial_prompt_sha256,
-            vad=_vad_settings_for(asr_engine_name, context),
-            fell_back=asr_fell_back,
-        )
-
-    # 010 P2b: grade the session (only when grammar actually ran — a degraded /
-    # no-model session stays un-graded, FR-035a). Coverage-primary in P3; here the
-    # grade falls back to grammar severity.
-    from speakloop.srs import grade as _srs_grade
-
-    answer_grade = None
-    if phase == "C":
-        answer_grade = _srs_grade.grade_session(
-            coverage_aggregate=coverage_aggregate,  # None → grammar-severity fallback
-            content_error_count=len(content_errors),
-            grammar_patterns=grammar_patterns,
-        )
-
-    # 010 P2a: fold this session's patterns into the store and derive the trend
-    # lines for the patterns shown this session (FR-008).
-    pattern_trends: dict | None = None
-    if store is not None:
-        from speakloop.trends.aggregator import format_series
-
-        iso = started_at.date().isoformat()
-        for p in grammar_patterns:
-            label = (p.label or "").strip()
-            if label:
-                store.patterns.setdefault(label, []).append([iso, int(p.occurrence_count)])
-        trends = {
-            (p.label or "").strip(): format_series(store.patterns[(p.label or "").strip()], window=3)
-            for p in grammar_patterns
-            if (p.label or "").strip() and store.patterns.get((p.label or "").strip())
-        }
-        pattern_trends = trends or None
-
-    date_str = started_at.date().isoformat()
-    report_path = markdown_writer.next_available_path(sessions_dir, date_str, question.id)
-    session = frontmatter.Session(
-        session_id=f"{date_str}-{question.id}",
-        started_at=started_at,
-        question_id=question.id,
-        question_text=question.question,
-        ideal_answer=question.ideal_answer,
-        attempts=attempts,
-        grammar_patterns=grammar_patterns,
-        generated_by_phase=phase,
-        # Deterministic, persisted narrative + Top priority (FR-008). Computed
-        # for every phase: a Phase-B report still carries fluency-only guidance.
-        cross_attempt_narrative=narrative.build_narrative(attempts, grammar_patterns),
-        top_priority=narrative.select_top_priority(grammar_patterns, attempts),
-        asr=asr_provenance,
-        phase_c_error=phase_c_error,
-        coaching=coaching,
-        coach_error=coach_error,
-        # 010 additive: question type (P5), triage outputs (P4), follow-ups (P1),
-        # and the degradation flag. All default-empty for legacy/local callers.
-        question_type=getattr(question, "type", None) or "definition",
-        warmup=warmup_result,
-        answer_grade=answer_grade,
-        pattern_trends=pattern_trends,
-        coverage=coverage_records,
-        content_errors=content_errors,
-        key_points=key_points_set,
-        follow_ups=follow_ups,
-        pronunciation_flags=pronunciation_flags,
-        # Emit the triage summary only when there is something to summarize (a
-        # dropped hallucination or a pronunciation flag), so a clean session stays
-        # byte-identical (additive-optional key, SC-012).
-        triage_summary=(
-            triage_summary
-            if triage_summary.get("hallucination_dropped", 0) > 0 or pronunciation_flags
-            else None
-        ),
-        analysis_pending=analysis_pending,
-        # 012/US3: always-on per-stage timings (additive optional; schema_version stays 1).
-        timings=stage_timer.to_frontmatter(
-            analysis_mode=outs.analysis_mode,
-            analysis_concurrency=analysis_concurrency,
-            analysis_wall_seconds=outs.analysis_wall_seconds,
-        ),
-        # 016: read-aloud pronunciation drill results (additive optional; None ⇒ omitted,
-        # byte-identical). Distinct from `pronunciation_flags` (010 ASR mishearings).
-        pronunciation_drills=drills_result,
-    )
-    body = report_builder.build(session)
-    markdown_writer.write_atomic(report_path, body)
-    console.print(f"[green]Report written:[/green] {report_path}")
-
-    # 010 P2b: advance the SRS schedule in the store (only on a graded session) and
-    # persist the store atomically. The report (the source of truth) is already
-    # written, so a store-write failure never costs the session.
-    next_due: str | None = None
-    if store is not None and store_path is not None:
-        # Advance only on a graded, complete session — a degraded/analysis-pending
-        # session stays due and un-graded so `resume` can re-grade it (FR-035a).
-        if answer_grade is not None and not analysis_pending:
-            from speakloop.srs import schedule as _srs_schedule
-            from speakloop.store.model import ScheduleEntry
-
-            entry = store.schedule.get(question.id) or ScheduleEntry(question_id=question.id)
-            advanced = _srs_schedule.next_due(entry, answer_grade, today=started_at.date())
-            store.schedule[question.id] = advanced
-            next_due = advanced.next_due
-        # 017: fold this session's flagged pronunciation contrasts into the cross-session
-        # tally (main thread, after the join — like patterns; the drill block never mutates
-        # the store, so concurrency never reorders persisted state, O6). Only when drills ran.
-        if drills_result:
-            from speakloop.pronunciation import flagged_contrast_counts
-
-            store.record_contrasts(
-                flagged_contrast_counts(drills_result.get("items") or []),
-                date_iso=started_at.date().isoformat(),
+        # 010 P4: deterministic ASR-hallucination triage BEFORE any analysis. Drops
+        # phantom/silence spans so no hallucination text reaches grammar evidence or
+        # metrics (SC-003/FR-028) — works offline, independent of the LLM. Real-speech
+        # regions feed metrics; mishearings (LLM enrichment) become pronunciation flags.
+        triaged = [_halluc.filter_hallucinations(t) for t in transcripts]
+        real_transcripts = [
+            Transcript(
+                text=tr.real_text,
+                words=t.words,
+                audio_duration_seconds=t.audio_duration_seconds,
+                vad_regions=tr.real_regions,
             )
-        from speakloop.store import io as _store_io
+            for t, tr in zip(transcripts, triaged, strict=True)
+        ]
+        attempts = _build_attempts(real_transcripts)
 
-        _store_io.save_atomic(store_path, store)
+        # 012/US3 (T030): ask the follow-ups the moment the final transcript lands — BEFORE
+        # the heavy analysis — so the gap from the last attempt to the first spoken follow-up
+        # is minimal (SC-002). Follow-up entries are independent of the main grammar pass, so
+        # the report is byte-identical regardless of this reordering. No-op unless a follow-up
+        # runner + TTS playback are injected (existing callers unaffected).
+        with stage_timer.stage("followups"):
+            follow_ups = _run_follow_ups(
+                question,
+                real_transcripts,
+                runners=runners,
+                grammar_analyzer=grammar_analyzer,
+                asr_engine=asr_engine,
+                record_fn=record_fn,
+                tts_engine=tts_engine,
+                play_fn=play_fn,
+                context=context,
+                scratch_dir=scratch_dir,
+                early_exit_event=early_exit_event,
+                console=console,
+                key_reader=key_reader,
+                ui_sleep=ui_sleep,
+            )
 
-    # 012/US2: compact closing summary so opening the report file is optional (FR-015).
-    # Degrades honestly on an analysis-pending session (FR-016).
-    session_ui.render_summary(console, session, next_due=next_due)
+        # 012/US3 (T028/T029): engine-capability-aware post-attempt analysis. A parallel-safe
+        # engine (Claude Code / OpenRouter) runs the independent calls concurrently (≥40%
+        # wall-clock reduction, SC-003); the local in-process model stays serial. Both paths
+        # yield a byte-identical report (FR-027). If the user aborted during the follow-ups,
+        # skip the (minute-long) analysis and write a resumable pending report rather than
+        # making them wait past their Ctrl-C (never lose the finished attempts).
+        pending_outs = _AnalysisOutputs(
+            grammar_patterns=[], phase="B", phase_c_error=None, analysis_pending=True,
+            pronunciation_flags=[], coverage_records=[], content_errors=[], key_points_set=None,
+            key_points_newly_derived=False, coverage_aggregate=None, coaching=None,
+            coach_error=None, analysis_mode="serial", analysis_wall_seconds=0.0,
+        )
+        drills_result: dict | None = None
+        if abort.abort_event.is_set():
+            outs = pending_outs
+        elif pronunciation_drills is not None:
+            # 016: run the text feedback in a BACKGROUND thread while the user does the user-paced
+            # read-aloud drill block on the main thread; the report waits for BOTH (FR-002/003/004).
+            # The backgrounded analysis is `quiet=True` and writes to a DISCARD console so two live
+            # `rich` displays never collide; any degradation is still captured in frontmatter. The
+            # drill block does not touch the store and _analyze's single store mutation stays on the
+            # main thread below, so concurrency never reorders persisted state (O6 holds).
+            holder: dict = {}
 
-    # 012/US3: print the per-stage breakdown when requested (display-only; the timings are
-    # saved into the report regardless of the flag — instrumentation is always-on, FR-018).
-    if timings_display:
-        console.print(stage_timer.render())
+            def _bg_analyze() -> None:
+                try:
+                    holder["outs"] = _analyze(
+                        real_transcripts=real_transcripts, triaged=triaged, question=question,
+                        runners=runners, grammar_analyzer=grammar_analyzer, coach=coach, store=store,
+                        console=Console(file=io.StringIO(), force_terminal=False, width=200),
+                        parallel_safe=analysis_parallel_safe, concurrency=analysis_concurrency,
+                        stage_timer=stage_timer, quiet=True,
+                    )
+                except Exception:  # noqa: BLE001 — degrade to a resumable pending report
+                    holder["outs"] = None
 
-    return SessionResult(report_path=report_path, session=session)
+            feedback_thread = threading.Thread(
+                target=_bg_analyze, name="speakloop-feedback", daemon=True
+            )
+            feedback_thread.start()
+            drills_result = _run_pronunciation_drills(
+                drills=pronunciation_drills,
+                record_fn=record_fn,
+                scratch_dir=scratch_dir,
+                early_exit_event=early_exit_event,
+                console=console,
+                key_reader=key_reader,
+                ui_sleep=ui_sleep,
+                # 017: hear-first plays the target with the SAME injected TTS used for the
+                # question/warm-up/follow-ups (no-op in tests that pass neither). weak_contrasts
+                # biases drill order toward the learner's historically weak sounds (US4).
+                tts_engine=tts_engine,
+                play_fn=play_fn,
+                weak_contrasts=_weak_contrasts_from_store(store),
+            )
+            # Wait for the feedback to finish — it may already be done; if not, show one live
+            # spinner now that the drills (and their live display) are finished.
+            if feedback_thread.is_alive():
+                with session_ui.working(console, SessionState.ANALYZING, "Finishing your feedback…"):
+                    feedback_thread.join()
+            else:
+                feedback_thread.join()
+            outs = holder.get("outs")
+            if outs is None:
+                outs = pending_outs
+        else:
+            outs = _analyze(
+                real_transcripts=real_transcripts,
+                triaged=triaged,
+                question=question,
+                runners=runners,
+                grammar_analyzer=grammar_analyzer,
+                coach=coach,
+                store=store,
+                console=console,
+                parallel_safe=analysis_parallel_safe,
+                concurrency=analysis_concurrency,
+                stage_timer=stage_timer,
+            )
+        grammar_patterns = outs.grammar_patterns
+        phase = outs.phase
+        phase_c_error = outs.phase_c_error
+        analysis_pending = outs.analysis_pending
+        pronunciation_flags = outs.pronunciation_flags
+        coverage_records = outs.coverage_records
+        content_errors = outs.content_errors
+        key_points_set = outs.key_points_set
+        coverage_aggregate = outs.coverage_aggregate
+        coaching = outs.coaching
+        coach_error = outs.coach_error
+
+        # The ONLY store mutation from analysis: cache a newly-derived key-point set. Applied
+        # on the main thread after the group completes (jobs are pure), so concurrency never
+        # reorders persisted state (contract analysis-concurrency.md).
+        if outs.key_points_newly_derived and store is not None and key_points_set is not None:
+            store.key_points.setdefault(question.id, {})[
+                key_points_set["ideal_answer_hash"]
+            ] = key_points_set
+
+        triage_summary = {
+            "real": sum(len(tr.real_regions) for tr in triaged),
+            "mishearing": len(pronunciation_flags),
+            "hallucination_dropped": sum(len(tr.dropped) for tr in triaged),
+        }
+
+        # ASR provenance (FR-007), recorded additively only when the caller names the
+        # engine that ran (the CLI / engine selection supplies engine_name + model_id
+        # + fell_back). Legacy callers omit these → asr stays None → report unchanged.
+        asr_provenance = None
+        if asr_engine_name is not None:
+            asr_provenance = frontmatter.AsrProvenance(
+                engine=asr_engine_name,
+                model=asr_model_id or "",
+                initial_prompt=context.initial_prompt,
+                initial_prompt_sha256=context.initial_prompt_sha256,
+                vad=_vad_settings_for(asr_engine_name, context),
+                fell_back=asr_fell_back,
+            )
+
+        # 010 P2b: grade the session (only when grammar actually ran — a degraded /
+        # no-model session stays un-graded, FR-035a). Coverage-primary in P3; here the
+        # grade falls back to grammar severity.
+        from speakloop.srs import grade as _srs_grade
+
+        answer_grade = None
+        if phase == "C":
+            answer_grade = _srs_grade.grade_session(
+                coverage_aggregate=coverage_aggregate,  # None → grammar-severity fallback
+                content_error_count=len(content_errors),
+                grammar_patterns=grammar_patterns,
+            )
+
+        # 010 P2a: fold this session's patterns into the store and derive the trend
+        # lines for the patterns shown this session (FR-008).
+        pattern_trends: dict | None = None
+        if store is not None:
+            from speakloop.trends.aggregator import format_series
+
+            iso = started_at.date().isoformat()
+            for p in grammar_patterns:
+                label = (p.label or "").strip()
+                if label:
+                    store.patterns.setdefault(label, []).append([iso, int(p.occurrence_count)])
+            trends = {
+                (p.label or "").strip(): format_series(store.patterns[(p.label or "").strip()], window=3)
+                for p in grammar_patterns
+                if (p.label or "").strip() and store.patterns.get((p.label or "").strip())
+            }
+            pattern_trends = trends or None
+
+        date_str = started_at.date().isoformat()
+        report_path = markdown_writer.next_available_path(sessions_dir, date_str, question.id)
+        session = frontmatter.Session(
+            session_id=f"{date_str}-{question.id}",
+            started_at=started_at,
+            question_id=question.id,
+            question_text=question.question,
+            ideal_answer=question.ideal_answer,
+            attempts=attempts,
+            grammar_patterns=grammar_patterns,
+            generated_by_phase=phase,
+            # Deterministic, persisted narrative + Top priority (FR-008). Computed
+            # for every phase: a Phase-B report still carries fluency-only guidance.
+            cross_attempt_narrative=narrative.build_narrative(attempts, grammar_patterns),
+            top_priority=narrative.select_top_priority(grammar_patterns, attempts),
+            asr=asr_provenance,
+            phase_c_error=phase_c_error,
+            coaching=coaching,
+            coach_error=coach_error,
+            # 010 additive: question type (P5), triage outputs (P4), follow-ups (P1),
+            # and the degradation flag. All default-empty for legacy/local callers.
+            question_type=getattr(question, "type", None) or "definition",
+            warmup=warmup_result,
+            answer_grade=answer_grade,
+            pattern_trends=pattern_trends,
+            coverage=coverage_records,
+            content_errors=content_errors,
+            key_points=key_points_set,
+            follow_ups=follow_ups,
+            pronunciation_flags=pronunciation_flags,
+            # Emit the triage summary only when there is something to summarize (a
+            # dropped hallucination or a pronunciation flag), so a clean session stays
+            # byte-identical (additive-optional key, SC-012).
+            triage_summary=(
+                triage_summary
+                if triage_summary.get("hallucination_dropped", 0) > 0 or pronunciation_flags
+                else None
+            ),
+            analysis_pending=analysis_pending,
+            # 012/US3: always-on per-stage timings (additive optional; schema_version stays 1).
+            timings=stage_timer.to_frontmatter(
+                analysis_mode=outs.analysis_mode,
+                analysis_concurrency=analysis_concurrency,
+                analysis_wall_seconds=outs.analysis_wall_seconds,
+            ),
+            # 016: read-aloud pronunciation drill results (additive optional; None ⇒ omitted,
+            # byte-identical). Distinct from `pronunciation_flags` (010 ASR mishearings).
+            pronunciation_drills=drills_result,
+        )
+        body = report_builder.build(session)
+        markdown_writer.write_atomic(report_path, body)
+        console.print(f"[green]Report written:[/green] {report_path}")
+
+        # 010 P2b: advance the SRS schedule in the store (only on a graded session) and
+        # persist the store atomically. The report (the source of truth) is already
+        # written, so a store-write failure never costs the session.
+        next_due: str | None = None
+        if store is not None and store_path is not None:
+            # Advance only on a graded, complete session — a degraded/analysis-pending
+            # session stays due and un-graded so `resume` can re-grade it (FR-035a).
+            if answer_grade is not None and not analysis_pending:
+                from speakloop.srs import schedule as _srs_schedule
+                from speakloop.store.model import ScheduleEntry
+
+                entry = store.schedule.get(question.id) or ScheduleEntry(question_id=question.id)
+                advanced = _srs_schedule.next_due(entry, answer_grade, today=started_at.date())
+                store.schedule[question.id] = advanced
+                next_due = advanced.next_due
+            # 017: fold this session's flagged pronunciation contrasts into the cross-session
+            # tally (main thread, after the join — like patterns; the drill block never mutates
+            # the store, so concurrency never reorders persisted state, O6). Only when drills ran.
+            if drills_result:
+                from speakloop.pronunciation import flagged_contrast_counts
+
+                store.record_contrasts(
+                    flagged_contrast_counts(drills_result.get("items") or []),
+                    date_iso=started_at.date().isoformat(),
+                )
+            from speakloop.store import io as _store_io
+
+            _store_io.save_atomic(store_path, store)
+
+        # 012/US2: compact closing summary so opening the report file is optional (FR-015).
+        # Degrades honestly on an analysis-pending session (FR-016).
+        session_ui.render_summary(console, session, next_due=next_due)
+
+        # 012/US3: print the per-stage breakdown when requested (display-only; the timings are
+        # saved into the report regardless of the flag — instrumentation is always-on, FR-018).
+        if timings_display:
+            console.print(stage_timer.render())
+
+        return SessionResult(report_path=report_path, session=session)
+    finally:
+        abort.restore_signal_handler(_prev_sigint)
