@@ -84,6 +84,20 @@ def test_json_save_load_round_trip(tmp_path):
     assert loaded.to_dict() == store.to_dict()
 
 
+def test_rebuild_skips_non_utf8_report_and_folds_valid_siblings(tmp_path):
+    """IMP-006: a non-UTF8 `.md` in the sessions dir must not crash the rebuild — the
+    read is inside the try, so it is skipped and valid siblings still fold."""
+    _sessions(tmp_path)
+    # A binary/non-UTF8 file that read_text(encoding="utf-8") cannot decode.
+    (tmp_path / "2026-06-06-corrupt.md").write_bytes(b"\xff\xfe\x00\x01 not utf-8 \x80\x81")
+    store = store_rebuild.rebuild(tmp_path)
+    # The valid siblings folded exactly as before, despite the corrupt file.
+    assert store.patterns["verb tense"] == [
+        ["2026-06-01", 10], ["2026-06-05", 4], ["2026-06-10", 1]
+    ]
+    assert store.schedule["q1"].total_reviews == 3
+
+
 def test_load_missing_returns_empty(tmp_path):
     assert store_io.load(tmp_path / "nope.json").to_dict()["patterns"] == {}
 

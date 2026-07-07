@@ -68,13 +68,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Resolution: `content_errors.validate_content_errors` now drops just a malformed `attempt_ordinal`/`key_point_id` via `contextlib.suppress(TypeError, ValueError)` (keeping the contradiction); `scoring._coverage_records` skips just the malformed attempt (non-numeric `ordinal`) or coverage entry (non-numeric `id`) — so one stray LLM value can't discard the whole coverage pass and flag the report pending. Documented in `coverage/CLAUDE.md`. Tests: `test_content_errors.py` (non-numeric optional fields dropped) + `test_scoring.py` (non-numeric ordinal/id skipped, valid parts survive). Verified: coverage suite 15 passed, full suite 874 passed (+2), ruff clean (used `contextlib.suppress` to avoid a new SIM105).
   - Effort: Small
 
-- [ ] **IMP-006 — Guard the session-file read in store rebuild against unreadable/non-UTF8 files**
+- [x] **IMP-006 — Guard the session-file read in store rebuild against unreadable/non-UTF8 files**
   - Impact: Medium
   - Area: Correctness
   - Where: `src/speakloop/store/rebuild.py:27-40` (`_iter_sessions`), read at `:31`
   - What & why: `_iter_sessions` is documented to skip unparseable files and wraps `frontmatter.parse(text)` in `try/except Exception: continue` — but `text = path.read_text(encoding="utf-8")` at `:31` sits **outside** the try. A single non-UTF8 byte, a `.md` with restrictive permissions, or a transient OS read error raises `UnicodeDecodeError`/`OSError` and crashes the whole `rebuild` run before any report is folded — the one command whose purpose is to recover from corruption. `trends/reader.py:60` handles the same corpus without this hole because `frontmatter.load` reads inside its guarded try.
   - How to do it: Move `path.read_text(...)` inside the `try` block so `UnicodeDecodeError`/`OSError` also hit the `continue` skip path, matching the docstring and the `reader.py` precedent. Add a regression test that drops a non-UTF8/binary `.md` into the sessions dir and asserts rebuild still returns and folds the valid siblings.
   - Effort: Small
+  - Resolution: Moved `path.read_text(encoding="utf-8")` inside the `try` in `store/rebuild._iter_sessions`, so a non-UTF8 byte / unreadable file (`UnicodeDecodeError`/`OSError`) now hits the same `continue` skip path as a malformed frontmatter — matching the docstring and `trends.reader`. No CLAUDE.md change needed (store/CLAUDE.md already documents rebuild as skipping unparseable files / always recoverable). Test: `test_rebuild_skips_non_utf8_report_and_folds_valid_siblings` drops `\xff\xfe...` bytes into the sessions dir and asserts the valid siblings still fold. Verified: store suite 15 passed, full suite 875 passed (+1), ruff clean.
 
 - [ ] **IMP-007 — Fail loudly when a target phone is out-of-vocab instead of a silent "clear ✓"**
   - Impact: Medium
