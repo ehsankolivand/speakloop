@@ -87,3 +87,23 @@ def test_capitalized_states_are_normalized_not_downgraded():
     states = {pp["id"]: pp["state"] for pp in result.attempt_records[0]["per_point"]}
     assert states == {1: "covered", 2: "partial"}
     assert result.attempt_records[0]["aggregate"] == 0.75  # (1 + 0.5) / 2, not 0.0
+
+
+def test_non_numeric_ordinal_or_id_skipped_not_crashing():
+    """IMP-005: a non-numeric attempt ordinal / coverage id from the model must not crash
+    the whole coverage pass — skip just the malformed attempt / coverage entry."""
+    llm = _FakeLLM(
+        '{"attempts": ['
+        '{"ordinal": 1, "coverage": [{"id": 1, "state": "covered"}, {"id": "oops", "state": "covered"}]},'
+        '{"ordinal": "n/a", "coverage": [{"id": 1, "state": "covered"}]}'
+        '], "content_errors": []}'
+    )
+    result = scoring.score_coverage(
+        [{"id": 1, "text": "a"}, {"id": 2, "text": "b"}],
+        [Transcript(text="t")], "ideal", llm, system_prompt="sp", version=1,
+    )
+    # The non-numeric-ordinal attempt is dropped; the valid one survives.
+    assert [r["attempt_ordinal"] for r in result.attempt_records] == [1]
+    states = {pp["id"]: pp["state"] for pp in result.attempt_records[0]["per_point"]}
+    # Point 1 scored covered; the malformed-id entry was skipped so point 2 stays missed.
+    assert states == {1: "covered", 2: "missed"}

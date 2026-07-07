@@ -59,12 +59,13 @@ review is forward-looking (structure, robustness gaps in untested branches, test
 
 ## Medium
 
-- [ ] **IMP-005 — Guard untrusted `int()` conversions in coverage scoring**
+- [x] **IMP-005 — Guard untrusted `int()` conversions in coverage scoring**
   - Impact: Medium
   - Area: Correctness
   - Where: `src/speakloop/coverage/content_errors.py:25,27` (`validate_content_errors`); `coverage/scoring.py:46,54` (`_coverage_records`)
   - What & why: Four `int()` calls run directly on LLM-supplied fields with no guard (`int(e["attempt_ordinal"])`, `int(e["key_point_id"])`, `int(att.get("ordinal",0))`, `states[int(c["id"])]`). The model is untrusted output; one non-numeric value ("attempt 3", "n/a") raises `ValueError`. Worse, `score_coverage` builds the valid per-attempt records at `scoring.py:97` and only then calls `validate_content_errors` at `:98`, so a single stray content-error ordinal discards the already-computed valid coverage too — the job fails in `run_group`, flags the report analysis-pending, and `resume.py:137-146` swallows it silently. This is inconsistent with `grammar_analyzer.py:194-196`, which already defends the identical field per-item with `try/except (TypeError, ValueError): continue`.
   - How to do it: Wrap each per-item `int()` in `try/except (TypeError, ValueError)` and skip just that item (or drop just the malformed optional field), mirroring `grammar_analyzer._verify_and_enrich`. Add a unit test with a non-numeric `attempt_ordinal`/`id` (current `test_content_errors.py` only covers non-dict items).
+  - Resolution: `content_errors.validate_content_errors` now drops just a malformed `attempt_ordinal`/`key_point_id` via `contextlib.suppress(TypeError, ValueError)` (keeping the contradiction); `scoring._coverage_records` skips just the malformed attempt (non-numeric `ordinal`) or coverage entry (non-numeric `id`) — so one stray LLM value can't discard the whole coverage pass and flag the report pending. Documented in `coverage/CLAUDE.md`. Tests: `test_content_errors.py` (non-numeric optional fields dropped) + `test_scoring.py` (non-numeric ordinal/id skipped, valid parts survive). Verified: coverage suite 15 passed, full suite 874 passed (+2), ruff clean (used `contextlib.suppress` to avoid a new SIM105).
   - Effort: Small
 
 - [ ] **IMP-006 — Guard the session-file read in store rebuild against unreadable/non-UTF8 files**

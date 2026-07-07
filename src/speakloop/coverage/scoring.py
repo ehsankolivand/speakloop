@@ -43,15 +43,25 @@ def _coverage_records(raw: dict, key_points: list[dict], *, version: int) -> lis
     for att in raw.get("attempts") or []:
         if not isinstance(att, dict):
             continue
-        ordinal = int(att.get("ordinal", 0))
+        # `ordinal`/`id` come straight from the model; a non-numeric value must not crash
+        # the whole coverage pass (which would discard every valid attempt too and flag the
+        # report pending). Skip just the malformed attempt / coverage entry instead.
+        try:
+            ordinal = int(att.get("ordinal", 0))
+        except (TypeError, ValueError):
+            continue
         states = {}
         for c in att.get("coverage") or []:
             if isinstance(c, dict) and "id" in c:
+                try:
+                    cid = int(c["id"])
+                except (TypeError, ValueError):
+                    continue  # skip this coverage entry; the point defaults to "missed"
                 # Lowercase before the membership test (mirroring the sibling LLM-output
                 # handlers) so a capitalized-but-valid state ("Covered"/"Partial") is not
                 # silently downgraded to "missed" and dropped from the aggregate.
                 state = str(c.get("state", "")).strip().lower()
-                states[int(c["id"])] = state if state in _VALID_STATES else "missed"
+                states[cid] = state if state in _VALID_STATES else "missed"
         per_point = [{"id": pid, "state": states.get(pid, "missed")} for pid in point_ids]
         records.append(
             {

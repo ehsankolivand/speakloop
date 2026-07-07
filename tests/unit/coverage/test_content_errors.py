@@ -33,3 +33,17 @@ def test_handles_none_and_non_dicts():
     assert validate_content_errors(["nonsense", 5, {"learner_claim": "a", "ideal_claim": "b"}]) == [
         {"learner_claim": "a", "ideal_claim": "b"}
     ]
+
+
+def test_non_numeric_optional_fields_dropped_not_crashing():
+    """IMP-005: a non-numeric attempt_ordinal/key_point_id from the model must not raise —
+    drop just the malformed optional field and keep the valid contradiction."""
+    out = validate_content_errors([
+        {
+            "learner_claim": "Android 11",
+            "ideal_claim": "Android 12",
+            "attempt_ordinal": "attempt 3",  # non-numeric
+            "key_point_id": "n/a",           # non-numeric
+        }
+    ])
+    assert out == [{"learner_claim": "Android 11", "ideal_claim": "Android 12"}]

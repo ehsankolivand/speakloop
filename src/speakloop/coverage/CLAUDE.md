@@ -48,6 +48,11 @@ Coverage aggregate drives the answer-quality grade.
 - Key points are stored in the session report + derived store; they are never written back
   into the question bank.
 - `MIN_POINTS=5` is a prompt instruction, not a code guard — the code only enforces `MAX_POINTS=7`.
+- Per-item `int()` on LLM-supplied fields (`ordinal`/`id` in `scoring._coverage_records`,
+  `attempt_ordinal`/`key_point_id` in `content_errors.validate_content_errors`) is guarded:
+  a non-numeric value skips just that attempt/coverage entry (scoring) or drops just that
+  optional field (content_errors) — never raises, so one stray value can't discard the whole
+  coverage pass and flag the report pending (IMP-005, mirrors `grammar_analyzer._verify_and_enrich`).
 
 ## Common modification patterns
 
