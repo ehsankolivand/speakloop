@@ -387,13 +387,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: `run()`'s non-JSON path now emits ONE representation: `if Console().is_terminal` → `_render_rich` (table sized to the actual terminal, dropping the hardcoded `width=200`); else → the flat untruncated `[STATUS] Section: label` lines (scripting/piped/tests). `--json` untouched. Chose flat lines for non-TTY because the rich table can wrap/truncate cells (e.g. the `speakloop practice` remediation the tests assert on). Documented in `cli/CLAUDE.md`. Verified: all 16 doctor tests pass (non-TTY → flat lines carry every asserted substring); a forced-terminal check confirms the TTY path renders one table and NO flat lines; full suite 919, ruff clean (1 pre-existing UP034 in `_pronunciation`, outside my edit).
 
-- [ ] **IMP-041 — Label the consent disk figures GiB (or divide by decimal units)**
+- [x] **IMP-041 — Label the consent disk figures GiB (or divide by decimal units)**
   - Impact: Low
   - Area: UX
   - Where: `src/speakloop/installer/consent.py:14` (`_human_size`)
   - What & why: `_human_size` divides by binary powers (`1<<30`, `1<<20`, `1<<10`) but labels the result GB/MB/KB. On the consent screen — the one place the user decides whether to spend gigabytes — an 8 GiB total renders as "8.0 GB", overstating relative to decimal GB and to the free space the OS reports.
   - How to do it: Relabel units to GiB/MiB/KiB to match the binary divisors, or switch divisors to `1e9`/`1e6`/`1e3` to match the GB label; pick whichever matches the mixed "GiB"/"GB" comments on `manifest.expected_size_bytes` and stays consistent with the `DownloadColumn` units shown during transfer.
   - Effort: Small
+  - Resolution: Switched `_human_size` to DECIMAL divisors (`10**9`/`10**6`/`10**3`) keeping the GB/MB/KB labels — chose decimal over relabeling-to-GiB because rich's `DownloadColumn(binary_units=False)` shows decimal GB during the transfer, macOS reports decimal free space, and the manifest values are decimal round numbers (`8_000_000_000`, `1_262_000_000`). Now the 8e9-byte Qwen reads "8.0 GB" (was "7.5 GB" under the binary divisor + GB label). Test: `test_human_size_uses_decimal_units_matching_the_label` (8e9→"8.0 GB", 1.262e9→"1.3 GB", 170e6→"170.0 MB", 500→"500 B"). Verified: consent suite 12 passed, full suite 920 (+1), ruff clean.
 
 - [ ] **IMP-042 — Show friendly, direction-aware metric labels in the trends dashboard**
   - Impact: Low
