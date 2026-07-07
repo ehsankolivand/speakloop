@@ -47,7 +47,10 @@ def _coverage_records(raw: dict, key_points: list[dict], *, version: int) -> lis
         states = {}
         for c in att.get("coverage") or []:
             if isinstance(c, dict) and "id" in c:
-                state = str(c.get("state", "")).strip()
+                # Lowercase before the membership test (mirroring the sibling LLM-output
+                # handlers) so a capitalized-but-valid state ("Covered"/"Partial") is not
+                # silently downgraded to "missed" and dropped from the aggregate.
+                state = str(c.get("state", "")).strip().lower()
                 states[int(c["id"])] = state if state in _VALID_STATES else "missed"
         per_point = [{"id": pid, "state": states.get(pid, "missed")} for pid in point_ids]
         records.append(

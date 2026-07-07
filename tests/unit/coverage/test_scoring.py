@@ -71,3 +71,19 @@ def test_missing_ids_default_to_missed():
     )
     states = {pp["id"]: pp["state"] for pp in result.attempt_records[0]["per_point"]}
     assert states == {1: "covered", 2: "missed"}
+
+
+def test_capitalized_states_are_normalized_not_downgraded():
+    """A capitalized-but-valid state (e.g. the model emits "Covered"/"Partial") must be
+    normalized, not silently coerced to "missed" (which would drop it from the aggregate)."""
+    llm = _FakeLLM(
+        '{"attempts": [{"ordinal": 1, "coverage": '
+        '[{"id": 1, "state": "Covered"}, {"id": 2, "state": "Partial"}]}], "content_errors": []}'
+    )
+    result = scoring.score_coverage(
+        [{"id": 1, "text": "a"}, {"id": 2, "text": "b"}],
+        [Transcript(text="t")], "ideal", llm, system_prompt="sp", version=1,
+    )
+    states = {pp["id"]: pp["state"] for pp in result.attempt_records[0]["per_point"]}
+    assert states == {1: "covered", 2: "partial"}
+    assert result.attempt_records[0]["aggregate"] == 0.75  # (1 + 0.5) / 2, not 0.0
