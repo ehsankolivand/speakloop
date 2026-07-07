@@ -142,6 +142,9 @@ accented-but-acceptable sound is NOT over-flagged (0.5 over-flagged /w/ — the 
 
 - `score()` and the gate NEVER raise into the session; failures degrade (`error`/skip) — but the
   REAL reason is captured into `detail` + logged + surfaced under `SPEAKLOOP_DEBUG` (never silently lost).
+- An out-of-vocab TARGET phone → `error` (detail names the phone), NOT a false `scored`/"clear ✓":
+  if NO target survived the vocab map, the model never evaluated the sound being taught (IMP-007).
+  The `not canon_ids` guard (whole canonical unknown) still fires first.
 - No runtime g2p/NLTK/network/**espeak** (Constitution II); the load reads `vocab.json` directly and
   must stay processor-free. Drill audio is scratch, discarded after scoring.
 - CPU inference + `torch.no_grad()`; deterministic given the same audio + canonical.

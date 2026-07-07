@@ -194,9 +194,17 @@ class Wav2Vec2Scorer:
         comp_ids = {id_of[c] for c in competitors if c in id_of}
 
         flags: list[PhoneFlag] = []
+        unscored_targets: list[str] = []
         for t in targets:
             old_idx = int(t["index"])
             if old_idx not in old_to_new:
+                # The target phone itself is out-of-vocab: the model never evaluated the very
+                # sound this drill teaches, so we must NOT return `scored` (empty flags renders
+                # as a false "clear ✓"). Remember it; if NO target survived the vocab map, route
+                # to the actionable `error` outcome the runner already surfaces/logs (IMP-007).
+                unscored_targets.append(
+                    canonical[old_idx] if 0 <= old_idx < len(canonical) else str(old_idx)
+                )
                 continue
             ni = old_to_new[old_idx]
             expected_sym = canonical[old_idx]
@@ -223,6 +231,14 @@ class Wav2Vec2Scorer:
                     confident_diagnosis=confident,
                     tip=tip,
                 )
+            )
+        if unscored_targets and len(unscored_targets) == len(targets):
+            return DrillResult(
+                drill_id,
+                text,
+                contrast_id,
+                "error",
+                detail=f"target phone(s) {unscored_targets!r} not in model vocab",
             )
         return DrillResult(drill_id, text, contrast_id, "scored", flags=flags)
 

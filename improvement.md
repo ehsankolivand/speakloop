@@ -77,13 +77,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Moved `path.read_text(encoding="utf-8")` inside the `try` in `store/rebuild._iter_sessions`, so a non-UTF8 byte / unreadable file (`UnicodeDecodeError`/`OSError`) now hits the same `continue` skip path as a malformed frontmatter — matching the docstring and `trends.reader`. No CLAUDE.md change needed (store/CLAUDE.md already documents rebuild as skipping unparseable files / always recoverable). Test: `test_rebuild_skips_non_utf8_report_and_folds_valid_siblings` drops `\xff\xfe...` bytes into the sessions dir and asserts the valid siblings still fold. Verified: store suite 15 passed, full suite 875 passed (+1), ruff clean.
 
-- [ ] **IMP-007 — Fail loudly when a target phone is out-of-vocab instead of a silent "clear ✓"**
+- [x] **IMP-007 — Fail loudly when a target phone is out-of-vocab instead of a silent "clear ✓"**
   - Impact: Medium
   - Area: Correctness
   - Where: `src/speakloop/pronunciation/wav2vec2_engine.py:197-227` (`Wav2Vec2Scorer._score_against_canonical`), the `if old_idx not in old_to_new: continue` at `:199-201`
   - What & why: `old_to_new` is built only for canonical symbols present in the model vocab; the `not canon_ids` guard returns `error` only when **all** phones are unknown. When just the **target** phone is out-of-vocab, the target loop `continue`s past it and the drill returns status `scored` with empty `flags` — which the runner renders as `clear ✓`, telling the learner they nailed a sound the model never evaluated. This is the last silent false-positive on the core teaching flow, and the only guards (`test_drill_bank.py`, the live oracle) both SKIP when `vocab.json` is absent, so a model swap, truncated/older vocab, or a misauthored symbol ships green and mis-teaches at runtime.
   - How to do it: In `_score_against_canonical`, track whether each requested target survived the vocab map; when a target's `old_idx` is not in `old_to_new`, return `DrillResult(..., "error", detail=f"target phone {sym!r} not in model vocab")` (error if none of the drill's targets survived), routing it to the same actionable `error` outcome the runner already surfaces/logs under `SPEAKLOOP_DEBUG`. Keep the existing `not canon_ids` guard.
   - Effort: Small
+  - Resolution: `_score_against_canonical` now collects out-of-vocab targets into `unscored_targets`; if NO target survived the vocab map it returns `DrillResult(..., "error", detail="target phone(s) [...] not in model vocab")` instead of `scored`+empty flags (a false "clear ✓"). The existing `not canon_ids` guard (whole canonical unknown) still fires first; a drill with some targets surviving still scores those. Documented in `pronunciation/CLAUDE.md`. Test: `test_out_of_vocab_target_errors_instead_of_false_clear` (synthetic `_sym2id` lacking the target /w/, no model) asserts `status=="error"` and the phone is named. Verified: pronunciation suite 58 passed, full suite 876 passed (+1), ruff clean.
 
 - [ ] **IMP-008 — Implement the specced last-practiced tiebreak in the due queue**
   - Impact: Medium

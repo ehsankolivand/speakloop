@@ -128,6 +128,24 @@ def test_competitor_margin_exactly_at_threshold_does_not_flag_but_just_above_doe
     assert _raw_score(w_logp=w, comp_logp=w + m + 0.05).flags
 
 
+def test_out_of_vocab_target_errors_instead_of_false_clear():
+    """IMP-007: when the TARGET phone is absent from the model vocab, the model never
+    evaluated the very sound being taught — the drill must report `error` (actionable),
+    NOT `scored` with empty flags (which the runner renders as a false "clear ✓")."""
+    s = Wav2Vec2Scorer()
+    # Vocab lacks the target /w/ but has the rest of the canonical (/iː/) + competitor.
+    s._sym2id = {"<pad>": 0, "ɹ": 1, "iː": 2}
+    s._blank_id = 0
+    logp = _logp([[0.02, 0.02, 0.96]] * 3 + [[0.02, 0.02, 0.96]] * 3)
+    res = s._score_against_canonical(
+        logp, _CANON, _TARGETS, tip="t", competitors=_COMPETS,
+        drill_id="d", text="we", contrast_id="w_r",
+    )
+    assert res.status == "error"
+    assert res.detail and "not in model vocab" in res.detail
+    assert "w" in res.detail  # names the out-of-vocab target phone
+
+
 def test_read_vocab_reads_json_without_a_tokenizer(tmp_path):
     # The espeak-free load path reads vocab.json DIRECTLY (no Wav2Vec2Processor / phonemizer).
     (tmp_path / "vocab.json").write_text('{"<pad>": 0, "w": 1, "\\u0279": 2}', encoding="utf-8")
