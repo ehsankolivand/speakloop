@@ -243,13 +243,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
 
 ## Low
 
-- [ ] **IMP-025 — Fix the broken `_pick_question` return annotation**
+- [x] **IMP-025 — Fix the broken `_pick_question` return annotation**
   - Impact: Low
   - Area: Correctness
   - Where: `src/speakloop/cli/practice.py:43` (`_pick_question`)
   - What & why: The return annotation is `speakloop.content.Question | None` with `# noqa: F821` suppressing the undefined-name warning. The module never binds the name `speakloop` (it does `from speakloop.content import ...` and `from speakloop import installer`), so the annotation only survives because `from __future__ import annotations` stringizes it — `typing.get_type_hints()` on this function raises `NameError` (reproduced). It's a misleading, non-resolvable hint kept alive by a `noqa`.
   - How to do it: Import the type properly — `from speakloop.content import Question` (under `TYPE_CHECKING`), annotate `-> Question | None`, and drop the `# noqa: F821`.
   - Effort: Small
+  - Resolution: Added a `TYPE_CHECKING` block importing `Question` from `speakloop.content` and changed the annotation `speakloop.content.Question | None` → `Question | None`, dropping the `# noqa: F821` (the name `speakloop` was never bound). No runtime import added (only used in the annotation, which `from __future__ import annotations` stringizes). Verified: ruff clean (F821/F401 both satisfied), help-isolation + cli suites pass, full suite 911.
 
 - [ ] **IMP-026 — Harden `_coverage_section` against missing per-point keys**
   - Impact: Low

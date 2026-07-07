@@ -6,6 +6,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
@@ -17,6 +18,9 @@ from speakloop.content import QALoadError, load
 from speakloop.sessions import keyboard as _keyboard
 from speakloop.sessions import session_ui
 from speakloop.sessions.session_ui import SessionState
+
+if TYPE_CHECKING:  # typing only — content is a leaf, but the type isn't needed at runtime
+    from speakloop.content import Question
 
 
 def _resolve_qa_file(console: Console) -> Path:
@@ -41,7 +45,7 @@ def _resolve_qa_file(console: Console) -> Path:
     return resolved
 
 
-def _pick_question(qa_file, console: Console) -> speakloop.content.Question | None:  # noqa: F821
+def _pick_question(qa_file, console: Console) -> Question | None:
     """Render a numbered picker and return the chosen Question (or None on cancel).
 
     Invalid/out-of-range input re-prompts; only Enter / q / quit / EOF cancels —
