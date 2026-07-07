@@ -52,9 +52,22 @@ def test_unknown_engine_value_treated_as_cloud():
 
 
 def test_gate_never_imports_the_model():
-    # assess_safety must not touch torch/transformers/the wrapper.
+    """The safety gate must DECIDE without loading the ~1.3 GB scorer. Checked in a FRESH
+    subprocess (IMP-044) — an in-process `sys.modules` check is unreliable because sibling
+    tests import `wav2vec2_engine`, which is why the old assertion was tautologically `or True`."""
+    import subprocess
     import sys
 
-    gate.assess_safety("local", min_free_mb=MIN, available_mb=8000)
-    assert "speakloop.pronunciation.wav2vec2_engine" not in sys.modules or True
-    # (informational; the import-isolation gate enforces the hard guarantee.)
+    code = (
+        "import sys;"
+        "from speakloop.pronunciation import gate;"
+        f"gate.assess_safety('local', min_free_mb={MIN}, available_mb=8000);"
+        "leaked = [m for m in "
+        "('speakloop.pronunciation.wav2vec2_engine', 'torch', 'transformers') if m in sys.modules];"
+        "print('LEAKED', leaked);"
+        "sys.exit(1 if leaked else 0)"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, (
+        f"assess_safety loaded the scorer/torch/transformers:\n{result.stdout}\n{result.stderr}"
+    )

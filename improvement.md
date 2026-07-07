@@ -414,13 +414,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: Added `tests/integration/test_frontmatter_cross_parser.py` — dumps a Session with a standalone `---` inside both `question_text` and `ideal_answer` (the BUG-001 case), then reads it via BOTH the custom `feedback.frontmatter.parse` AND the third-party `trends.reader.read_reports`, asserting both recover 3 attempts, phase C, and the `missing articles` grammar pattern, the trends `Report.schema_version == 1`, and `result.skipped == []`. Note: the custom `Session` has no `schema_version` field (it's a dump constant), so schema_version is asserted on the trends `Report`. Testing-only (no behavior change). Verified: 1 passed, full suite 922 (+1), ruff clean.
 
-- [ ] **IMP-044 — Replace the tautological `assert ... or True` in the gate test**
+- [x] **IMP-044 — Replace the tautological `assert ... or True` in the gate test**
   - Impact: Low
   - Area: Testing
   - Where: `tests/unit/pronunciation/test_gate.py:59` (`test_gate_never_imports_the_model`)
   - What & why: Line 59 is `assert "speakloop.pronunciation.wav2vec2_engine" not in sys.modules or True` — the `or True` makes it unconditionally true, so the test asserts nothing and would stay green even if `assess_safety` DID import the ~1.3 GB scorer. The test name promises it guards the RAM/engine gate against loading the model; the trailing comment (`:60`) concedes it is "informational". A misleading green that inflates perceived coverage of a constitution-critical import-isolation guarantee. (Ruff SIM222 already flags it — see IMP-004/IMP-020 for gating lint.)
   - How to do it: Drop the `or True` (`assert "…wav2vec2_engine" not in sys.modules`, plus torch/transformers), or — since the comment concedes the hard guarantee lives in `test_engine_import_isolation.py` — delete this stub. If keeping a real check, verify in a fresh subprocess (as `test_help_without_models.py` does) rather than an unreliable in-process `sys.modules` snapshot.
   - Effort: Small
+  - Resolution: Chose the fresh-subprocess option (a MEANINGFUL check, not deletion) — simply dropping `or True` would FAIL, because sibling tests (`test_scorer_thresholds`, `test_read_audio`) import `wav2vec2_engine`, contaminating the in-process `sys.modules` (exactly why the `or True` was there). The test now runs `from speakloop.pronunciation import gate; gate.assess_safety('local', ...)` in a fresh interpreter and asserts none of `wav2vec2_engine`/`torch`/`transformers` leaked into `sys.modules` — verifying the gate DECIDES without loading the ~1.3 GB scorer, a check distinct from the module-load isolation guards. Also clears the ruff SIM222 tautology finding. Verified: gate suite 7 passed, full suite 922, ruff clean.
 
 - [ ] **IMP-045 — Add a retry `not_captured` test to close the drill_runner retry-outcome matrix**
   - Impact: Low
