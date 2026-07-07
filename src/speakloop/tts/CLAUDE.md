@@ -17,7 +17,8 @@ Stable `TTSEngine` Protocol lets the engine be swapped by touching one file.
 - `cache.cache_key(voice, text, speed=1.0) -> str` — sha256(voice|[speed|]text);
   speed folded into key only when ≠ 1.0 (cache.py:17-26).
 - `cache.cache_path(voice, text, speed=1.0) -> Path`.
-- `cache.lookup(voice, text, speed=1.0) -> Path | None`.
+- `cache.lookup(voice, text, speed=1.0) -> Path | None` — on a hit, best-effort `os.utime` bumps
+  the file's mtime so `prune`'s mtime-ordering is a true access-time LRU (IMP-038).
 - `cache.store(voice, text, source_wav, speed=1.0) -> Path`.
 - `cache.prune(max_bytes=TTS_CACHE_MAX_BYTES, *, keep=None) -> int` — LRU-evicts
   WAVs over 512 MB; never evicts `keep`; called at end of `synthesize` (kokoro_engine.py:101).

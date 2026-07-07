@@ -360,13 +360,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: `git mv` MORNING_REPORT.md → `specs/011-claude-code-engine/` and RETURN_REPORT.md → `specs/014-agent-context-overhaul/` (pure move, content unchanged). Root now holds only live docs (AI_CONTEXT, CHANGELOG, CLAUDE, README, bug.md, improvement.md). The immutable spec references to these reports ("at repo root") are historical task records, left untouched (a move ADDS to the spec dir, which the constraint permits); no code/test references them. Verified: path-portability audit passes.
 
-- [ ] **IMP-038 — Refresh clip mtime on cache hit so prune is true LRU, not LRU-by-creation**
+- [x] **IMP-038 — Refresh clip mtime on cache hit so prune is true LRU, not LRU-by-creation**
   - Impact: Low
   - Area: Performance
   - Where: `src/speakloop/tts/cache.py:34` (`lookup`) / `:74` (`prune`)
   - What & why: `prune()` evicts by `st_mtime` ("oldest mtime first"), but `lookup()` returns a hit without touching any timestamp and `store()` only sets mtime at creation — so eviction order is least-recently-**created**, not least-recently-**used**, contradicting the `:13` "Pruned LRU-by-mtime" comment. A frequently replayed prompt keeps its original synthesis mtime and can be evicted before recent one-off clips when the cap trips. (Payoff is modest — the 512 MB cap rarely trips — but it's a clean documented-intent fix.)
   - How to do it: In `lookup()`, on a hit best-effort bump mtime: `with contextlib.suppress(OSError): os.utime(p, None)`, turning `prune`'s mtime ordering into a real access-time LRU without changing the key formula or `store()`. Extend the prune test with a "use the oldest entry via lookup then assert it survives eviction" case.
   - Effort: Small
+  - Resolution: `lookup()` now does `with contextlib.suppress(OSError): os.utime(p, None)` on a hit, so `prune`'s "oldest mtime first" ordering is a true access-time LRU (a frequently replayed clip keeps its slot). Key formula + `store()` unchanged. Updated the `:13` comment + `tts/CLAUDE.md`. Test: `test_lookup_refreshes_mtime_so_used_entry_survives_eviction` (the creation-oldest entry, once accessed via lookup, survives while the never-accessed newer one is evicted — fails without the bump). Verified: cache suite 12 passed, full suite 919 (+1), ruff clean.
 
 - [ ] **IMP-039 — Avoid decoding the recording WAV twice on the Whisper VAD path**
   - Impact: Low
