@@ -46,13 +46,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Large
   - Resolution: Extracted (a) `_record_and_transcribe`, (b) `_run_analysis_phase` (the fragile three-strategy branch incl. the drills-concurrent daemon-thread orchestration), and (d) `_persist_store` as module-level helpers in `sessions/coordinator.py`; `run_session` now calls them, dropping ~90 lines and isolating its most fragile logic. (c) Session-assembly was consciously left INLINE — its ~25-field interface would make an extracted call wider and more error-prone than the single readable constructor. Documented the phase decomposition in `sessions/CLAUDE.md`. Verified byte-identical: all 70 session-path gates pass (analysis-equivalence, drills-additive-byte-identical, phase-b-abort/silent, followups, session-controls, cloud-coaching, phase-c-error, triage, artifact-consistency, daily-loop, sigint-restore), full suite 872 passed, ruff clean, `git diff HEAD` audited line-by-line by an independent fresh-context verifier subagent → EQUIVALENT.
 
-- [ ] **IMP-004 — Add a macOS-arm64 CI workflow that runs the default pytest suite**
+- [x] **IMP-004 — Add a macOS-arm64 CI workflow that runs the default pytest suite**
   - Impact: High
   - Area: Tooling
   - Where: `.github/` (absent — no directory); gate filter `pyproject.toml:102`; arm64-only deps `pyproject.toml:26-33`
   - What & why: There is zero automated regression protection for an 866-test suite whose entire purpose is guarding hard constitution invariants — offline default path, function-local engine imports, byte-identical serial-vs-concurrent reports, CLAUDE.md line budgets, no personal absolute paths. Those tests run only when a human remembers `uv run pytest`. CI would catch a module-level engine import, a report byte-diff, or a >200-line CLAUDE.md the instant it is pushed.
   - How to do it: Add `.github/workflows/ci.yml` on `macos-14` (arm64 required — the mlx/kokoro/parakeet wheels are Apple-Silicon-only and will not install on Ubuntu). Steps: `astral-sh/setup-uv`, `uv sync`, `uv run pytest`. The `addopts` filter already deselects `live_download`/`live_cloud`/`live_pron`, and `live_asr`/`live_llm` self-skip without models, so the ~866 mocked tests run with no model download and exercise the import-isolation, analysis-equivalence, context-budget, and path-portability guards. Runs on dev tooling, not the runtime path — no offline-constraint violation.
   - Effort: Medium
+  - Resolution: Added `.github/workflows/ci.yml` — `runs-on: macos-14` (arm64), steps `actions/checkout@v4` → `astral-sh/setup-uv@v5` (cache on) → `uv python install 3.12` → `uv sync` (uses committed `uv.lock`) → `uv run pytest`. Triggers on push + PR with a cancel-in-progress concurrency group. Verified: YAML parses (`yaml.safe_load`), no personal `/Users/` paths, path-portability + help-isolation gates pass; the commands are exactly the ones that pass locally. Note: end-to-end GitHub Actions execution can't be run from this environment, but every locally-verifiable aspect (syntax, runner, action versions, commands, lockfile) checks out.
 
 ---
 
