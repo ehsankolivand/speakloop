@@ -59,3 +59,27 @@ def test_empty_only_when_all_mastered():
     entries = {"m": _e("m", next_due="2026-07-01", last_grade="strong", mastered=True)}
     q = due_queue(entries, ["m"], today=TODAY, capacity=5)
     assert q.items == []
+
+
+def test_equal_overdue_same_grade_tiebreak_by_oldest_last_practiced():
+    """IMP-008 / FR-014: two questions equally overdue with the same grade are ordered
+    by OLDEST last-practiced first — independent of question-file order."""
+    def _ep(qid, *, last_practiced):
+        return ScheduleEntry(
+            question_id=qid, next_due="2026-06-05", last_grade="fair",
+            last_practiced=last_practiced, interval_days=2,
+        )
+
+    # `recent` was practiced yesterday; `stale` two weeks ago. Both same next_due/grade.
+    entries = {
+        "recent": _ep("recent", last_practiced="2026-06-09"),
+        "stale": _ep("stale", last_practiced="2026-05-27"),
+    }
+    # Pass question ids so that file order would put `recent` first if the tiebreak were inert.
+    q = due_queue(entries, ["recent", "stale"], today=TODAY, capacity=5)
+    ids = [it.question_id for it in q.items]
+    assert ids == ["stale", "recent"], "the longer-unpracticed question must win the slot"
+    # And the field is populated for callers.
+    assert {it.question_id: it.last_practiced for it in q.items} == {
+        "stale": "2026-05-27", "recent": "2026-06-09"
+    }

@@ -30,6 +30,7 @@ class DueItem:
     last_grade: str | None
     days_overdue: int
     is_new: bool
+    last_practiced: str | None = None  # ISO date; the specced tertiary tiebreak (FR-014)
 
 
 @dataclass(frozen=True)
@@ -49,9 +50,12 @@ def _parse_date(s: str | None) -> date | None:
 
 def _sort_key(item: DueItem):
     grade_rank = _NEW_GRADE_RANK if item.is_new else _GRADE_RANK.get(item.last_grade or "", 2)
-    # most overdue first (negate), then lower grade, then oldest last-practiced.
-    last = _parse_date(item.next_due) or date.min
-    return (-item.days_overdue, grade_rank, last.toordinal())
+    # most overdue first (negate), then lower grade, then OLDEST last-practiced first
+    # (FR-014 fairness). For two equally-overdue same-grade questions next_due is identical,
+    # so it was a no-op tiebreak that collapsed to question-file order; last_practiced is the
+    # specced key. Never-practiced (None) → date.min so it sorts oldest / most-deserving.
+    last_practiced = _parse_date(item.last_practiced) or date.min
+    return (-item.days_overdue, grade_rank, last_practiced.toordinal())
 
 
 def due_queue(
@@ -77,7 +81,7 @@ def due_queue(
         overdue = max(0, (today - nd).days) if nd else 0
         below_mastery.append(
             DueItem(question_id=qid, next_due=entry.next_due, last_grade=entry.last_grade,
-                    days_overdue=overdue, is_new=False)
+                    days_overdue=overdue, is_new=False, last_practiced=entry.last_practiced)
         )
 
     if not below_mastery:

@@ -86,13 +86,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Small
   - Resolution: `_score_against_canonical` now collects out-of-vocab targets into `unscored_targets`; if NO target survived the vocab map it returns `DrillResult(..., "error", detail="target phone(s) [...] not in model vocab")` instead of `scored`+empty flags (a false "clear ✓"). The existing `not canon_ids` guard (whole canonical unknown) still fires first; a drill with some targets surviving still scores those. Documented in `pronunciation/CLAUDE.md`. Test: `test_out_of_vocab_target_errors_instead_of_false_clear` (synthetic `_sym2id` lacking the target /w/, no model) asserts `status=="error"` and the phone is named. Verified: pronunciation suite 58 passed, full suite 876 passed (+1), ruff clean.
 
-- [ ] **IMP-008 — Implement the specced last-practiced tiebreak in the due queue**
+- [x] **IMP-008 — Implement the specced last-practiced tiebreak in the due queue**
   - Impact: Medium
   - Area: Correctness
   - Where: `src/speakloop/srs/queue.py:50-54` (`_sort_key`); `DueItem` at `queue.py:26-32`
   - What & why: The docstring, `srs/CLAUDE.md`, and the inline comment at `queue.py:52` all promise "most overdue → lower grade → oldest last-practiced", but the tertiary key is `_parse_date(item.next_due)`, not last-practiced. `DueItem` carries no `last_practiced` field, and for two below-mastery non-new questions with equal `days_overdue`, `next_due = today − days_overdue` is identical, so the third element is always equal and the stable sort collapses to input file order. When daily capacity truncates the list, a recently-practiced question can win a slot over one not practiced in far longer — daily selection ends up depending on question-file ordering (contradicts FR-014's fairness intent).
   - How to do it: Add `last_practiced: str | None = None` to `DueItem` (defaulted, so `cli/today.py` stays source-compatible), populate it from `entry.last_practiced` (`store/model.py:34`) for non-new items in `due_queue`, make the final `_sort_key` element the parsed `last_practiced` ordinal (oldest first; `None → date.min`), and drop the redundant `next_due` key. Add a test with two equally-overdue same-grade questions whose `last_practiced` differs.
   - Effort: Small
+  - Resolution: Added defaulted `DueItem.last_practiced`, populated from `entry.last_practiced` for non-new items; `_sort_key`'s tertiary element is now `_parse_date(last_practiced).toordinal()` (oldest first, `None → date.min`), replacing the redundant `next_due` key that always tied for equally-overdue same-grade questions. `cli/today.py` is source-compatible (default). Fixed a stale `queue.py:98`→`:102` line ref in `srs/CLAUDE.md` and documented the tiebreak. Test: `test_equal_overdue_same_grade_tiebreak_by_oldest_last_practiced` (would order by file order before; now oldest-practiced wins). Verified: srs suite 29 passed, full suite 877 passed (+1), ruff clean.
 
 - [ ] **IMP-009 — Align the grammar prompt's "minimal span" rule with the coherence filter's 2-token floor**
   - Impact: Medium

@@ -21,8 +21,11 @@ and builds the daily due queue. No LLM, no engine; stdlib only.
 - `queue.due_queue(entries, all_question_ids, *, today, capacity=5) -> DueQueue`
   — priority order: most overdue first, ties by lower grade, then oldest practiced.
   New questions use `_NEW_GRADE_RANK=2.5` (queue.py:23) — rank after overdue
-  poor/fair but before strong-overdue. Capacity floored at 1 (`max(1, capacity)`,
-  queue.py:98). Non-empty while any question is below mastery; overflow carried
+  poor/fair but before strong-overdue. The tertiary tiebreak is `DueItem.last_practiced`
+  (oldest first; `None`→`date.min`) — populated from `entry.last_practiced` — so equally-
+  overdue same-grade questions no longer collapse to question-file order (IMP-008/FR-014).
+  Capacity floored at 1 (`max(1, capacity)`,
+  queue.py:102). Non-empty while any question is below mastery; overflow carried
   forward, never dropped.
 
 ## Dependencies & consumers
