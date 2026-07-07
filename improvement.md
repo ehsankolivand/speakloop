@@ -378,13 +378,14 @@ review is forward-looking (structure, robustness gaps in untested branches, test
   - Effort: Medium
   - Deferred: The two decoders are NOT numerically identical — an empirical comparison on a real WAV showed `mlx_whisper.audio.load_audio` (ffmpeg) vs `silero_vad.read_audio` (torchaudio) differ by max abs ~0.04 / mean ~7e-4 per sample (same length/dtype). VAD stamps matched on that clean clip, but a borderline clip near the 0.5 speech threshold could segment differently if fed mlx's decode instead of silero's, which would change the transcribed regions/ASR output — and I can't verify identical segmentation across all inputs (only a few committed test WAVs; `-m live_asr` is a crash smoke, not an equivalence check). Combined with the entry's own "ROI is marginal — deprioritize" and the pinned `torchaudio<2.9`/silero trap, a safely-verifiable implementation isn't possible now. Needs: a curated corpus of borderline-VAD clips to prove byte-identical segmentation before feeding the shared decode to the VAD.
 
-- [ ] **IMP-040 — Stop printing every doctor check twice**
+- [x] **IMP-040 — Stop printing every doctor check twice**
   - Impact: Low
   - Area: UX
   - Where: `src/speakloop/cli/doctor.py:468-484` (`run`) + `:449` (`_render_rich`)
   - What & why: In the non-JSON path, `run()` first prints one plain `[STATUS] Section: label — detail → remediation` line per check (`:475-480`) and then immediately renders a full rich Table of the same rows via `_render_rich(rows, Console(width=200, force_terminal=False))`. A healthy environment has ~30 checks, so the user sees the same ~30 rows twice back-to-back — once as flat lines, once as a fixed-200-column table that wraps awkwardly in an 80-column terminal. It reads as a bug. (The `:474` comment documents this as intentional, so it's a judgment-call polish, not a defect.)
   - How to do it: Pick one representation per context: render the rich Table sized to the actual terminal (let rich fold the Remediation column) for interactive use, and emit the flat untruncated lines only when stdout is not a TTY (scripting) — or at minimum drop the hardcoded `width=200`. Leave `--json` untouched.
   - Effort: Small
+  - Resolution: `run()`'s non-JSON path now emits ONE representation: `if Console().is_terminal` → `_render_rich` (table sized to the actual terminal, dropping the hardcoded `width=200`); else → the flat untruncated `[STATUS] Section: label` lines (scripting/piped/tests). `--json` untouched. Chose flat lines for non-TTY because the rich table can wrap/truncate cells (e.g. the `speakloop practice` remediation the tests assert on). Documented in `cli/CLAUDE.md`. Verified: all 16 doctor tests pass (non-TTY → flat lines carry every asserted substring); a forced-terminal check confirms the TTY path renders one table and NO flat lines; full suite 919, ruff clean (1 pre-existing UP034 in `_pronunciation`, outside my edit).
 
 - [ ] **IMP-041 — Label the consent disk figures GiB (or divide by decimal units)**
   - Impact: Low

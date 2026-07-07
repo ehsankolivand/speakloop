@@ -471,14 +471,19 @@ def run(*, as_json: bool = False) -> None:
     if as_json:
         print(json.dumps([asdict(r) for r in rows], indent=2))
     else:
-        # Print one human-friendly line per check (no truncation) plus a rich table.
-        for r in rows:
-            print(
-                f"[{r.status}] {r.section}: {r.label}"
-                + (f" — {r.detail}" if r.detail else "")
-                + (f" → {r.remediation}" if r.remediation else "")
-            )
-        _render_rich(rows, Console(width=200, force_terminal=False))
+        # ONE representation per context (IMP-040): a rich table sized to the actual terminal
+        # for interactive use (rich folds the Remediation column), or flat, untruncated lines
+        # when stdout is not a TTY (scripting / piped / tests) — not both.
+        console = Console()
+        if console.is_terminal:
+            _render_rich(rows, console)
+        else:
+            for r in rows:
+                print(
+                    f"[{r.status}] {r.section}: {r.label}"
+                    + (f" — {r.detail}" if r.detail else "")
+                    + (f" → {r.remediation}" if r.remediation else "")
+                )
 
     if _any_fail(rows):
         raise typer.Exit(1)
