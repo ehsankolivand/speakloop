@@ -16,9 +16,9 @@
 
 ## Phase 1: Setup (shared)
 
-- [ ] T001 Add the two new pure-logic packages to the mypy gate: append `"src/speakloop/linecards"` and `"src/speakloop/shadowing"` to `[tool.mypy].files` in `pyproject.toml`.
-- [ ] T002 [P] Create the `linecards` package skeleton: `src/speakloop/linecards/__init__.py` (empty public-API stub) so imports resolve.
-- [ ] T003 [P] Create the `shadowing` package skeleton: `src/speakloop/shadowing/__init__.py` (empty public-API stub) so imports resolve.
+- [X] T001 Add the two new pure-logic packages to the mypy gate: append `"src/speakloop/linecards"` and `"src/speakloop/shadowing"` to `[tool.mypy].files` in `pyproject.toml`.
+- [X] T002 [P] Create the `linecards` package skeleton: `src/speakloop/linecards/__init__.py` (empty public-API stub) so imports resolve.
+- [X] T003 [P] Create the `shadowing` package skeleton: `src/speakloop/shadowing/__init__.py` (empty public-API stub) so imports resolve.
 
 **Checkpoint**: `uv run mypy` still green (empty packages); `uv run python -c "import speakloop.linecards, speakloop.shadowing"` works.
 
@@ -28,9 +28,9 @@
 
 > The two stories share almost no code. The only cross-cutting prerequisite is the shared SRS-ladder helper (US1 needs it; extracting it must keep the existing question scheduler byte-identical). No other foundational work blocks the stories.
 
-- [ ] T004 Extract the pure ladder recurrence into `srs.schedule.advance(prev_interval, consecutive_strong, mastered, grade) -> AdvanceResult` (returns `interval_days`, `consecutive_strong`, `mastered`) in `src/speakloop/srs/schedule.py`; refactor `next_due` to compute `prev`, call `advance`, and stamp the `ScheduleEntry` dates — **behavior-preserving**. Keep the ladder constants at the top as the single tuning surface.
-- [ ] T005 [P] Add a behavior-preserving test in `tests/unit/srs/test_schedule.py` (or new `test_advance.py`) asserting `advance(...)` reproduces `next_due`'s interval/mastery outcomes across poor/fair/good/strong, cap, and mastery-demotion cases; the existing `srs` tests MUST stay green.
-- [ ] T006 Update `src/speakloop/srs/CLAUDE.md` to document the shared `advance()` helper (public interface + that `next_due` and line-card scheduling both call it; O14 single-tuning-surface note).
+- [X] T004 Extract the pure ladder recurrence into `srs.schedule.advance(prev_interval, consecutive_strong, mastered, grade) -> AdvanceResult` (returns `interval_days`, `consecutive_strong`, `mastered`) in `src/speakloop/srs/schedule.py`; refactor `next_due` to compute `prev`, call `advance`, and stamp the `ScheduleEntry` dates — **behavior-preserving**. Keep the ladder constants at the top as the single tuning surface.
+- [X] T005 [P] Add a behavior-preserving test in `tests/unit/srs/test_schedule.py` (or new `test_advance.py`) asserting `advance(...)` reproduces `next_due`'s interval/mastery outcomes across poor/fair/good/strong, cap, and mastery-demotion cases; the existing `srs` tests MUST stay green.
+- [X] T006 Update `src/speakloop/srs/CLAUDE.md` to document the shared `advance()` helper (public interface + that `next_due` and line-card scheduling both call it; O14 single-tuning-surface note).
 
 **Checkpoint**: `uv run pytest tests/unit/srs -q` green; `uv run mypy` green.
 
@@ -44,34 +44,34 @@
 
 ### Store section (US1 data)
 
-- [ ] T007 [US1] Add the additive default-empty `line_cards: dict[str, dict]` section to `Store` in `src/speakloop/store/model.py` (field + `to_dict`/`from_dict` round-trip; `STORE_VERSION` stays 1) plus small upsert/read helpers for a card's content+state dict (per data-model.md).
-- [ ] T008 [P] [US1] Add `tests/unit/store/test_line_cards.py`: `line_cards` round-trips through `to_dict`/`from_dict`; a store JSON without the key loads it as `{}` (back-compat).
-- [ ] T009 [US1] Fold `line_cards` in `src/speakloop/store/rebuild.py`: per report, derive cards from `grammar_patterns[].evidence[]` (skip no-op / missing `corrected`) and insert **content with placeholder SRS state**; extend `tests/unit/store/test_rebuild.py` (or add one) proving a rebuild reproduces the card set with placeholder scheduling.
-- [ ] T010 [US1] Update `src/speakloop/store/CLAUDE.md`: document `line_cards` (contract, rebuildable-content / live-scheduling trade-off mirroring `pronunciation_contrasts` + `schedule.next_due`).
+- [X] T007 [US1] Add the additive default-empty `line_cards: dict[str, dict]` section to `Store` in `src/speakloop/store/model.py` (field + `to_dict`/`from_dict` round-trip; `STORE_VERSION` stays 1) plus small upsert/read helpers for a card's content+state dict (per data-model.md).
+- [X] T008 [P] [US1] Add `tests/unit/store/test_line_cards.py`: `line_cards` round-trips through `to_dict`/`from_dict`; a store JSON without the key loads it as `{}` (back-compat).
+- [X] T009 [US1] Fold `line_cards` in `src/speakloop/store/rebuild.py`: per report, derive cards from `grammar_patterns[].evidence[]` (skip no-op / missing `corrected`) and insert **content with placeholder SRS state**; extend `tests/unit/store/test_rebuild.py` (or add one) proving a rebuild reproduces the card set with placeholder scheduling.
+- [X] T010 [US1] Update `src/speakloop/store/CLAUDE.md`: document `line_cards` (contract, rebuildable-content / live-scheduling trade-off mirroring `pronunciation_contrasts` + `schedule.next_due`).
 
 ### `linecards/` pure logic (US1)
 
-- [ ] T011 [P] [US1] Implement `LineCard` dataclass + stable `card_id` (`sha1(question_id\x1fquote\x1fcorrected)[:12]`, or `starter:<slug>`) + `derive_cards(reports_dir) -> list[LineCard]` (mirror `trends/reader`: flat `glob("*.md")`, per-file try/except, `feedback.frontmatter.parse`; keep evidence with non-empty `corrected != quote`; dedupe by `card_id`) in `src/speakloop/linecards/cards.py`.
-- [ ] T012 [P] [US1] Add `tests/unit/linecards/test_cards.py`: derivation from a report fixture yields expected cards; no-op corrections skipped; identical corrections across two reports collapse to one `card_id` (stable identity).
-- [ ] T013 [P] [US1] Implement `cloze_from_correction(quote, corrected) -> str` (word-level `difflib.SequenceMatcher` diff → wrap changed span in `{{c1::…}}`; degenerate diff → cloze whole corrected) and `to_anki(cards) -> str` (one line per card, trailing `(rule)`) in `src/speakloop/linecards/cloze.py`.
-- [ ] T014 [P] [US1] Add `tests/unit/linecards/test_cloze.py`: article insertion (`"new instance of it"`→`"a new instance of it"` → `{{c1::a}} …`), verb change (`"system create"`→`"system creates"` → `{{c1::creates}}`), starter card cloze span, and whole-phrase fallback.
-- [ ] T015 [P] [US1] Implement starter cards: `src/speakloop/linecards/starter_cards.yaml` (≥ 8 English-only interview discourse chunks with `slug`/`text`/`cloze`/`rule`) + `load_starter_cards() -> list[LineCard]` in `src/speakloop/linecards/starter.py`.
-- [ ] T016 [P] [US1] Add `tests/unit/linecards/test_starter.py`: the bundled YAML loads, has ≥ 8 cards, each with a non-empty `cloze` that is a substring of `text` (so the exporter can wrap it), all English.
-- [ ] T017 [US1] Implement `advance_card(state, grade, *, today) -> dict` (calls `srs.schedule.advance`, stamps `next_due`/`last_practiced`/`total_reviews`) and `select_due(cards, *, today, capacity) -> list[LineCard]` (never-reviewed OR `next_due <= today`, most-overdue-first ties→lower grade→oldest-practiced, truncated to capacity) in `src/speakloop/linecards/deck.py`. Depends on T004, T011.
-- [ ] T018 [P] [US1] Add `tests/unit/linecards/test_deck.py`: `again`→due next run at shortest interval; two `easy` marks → mastered/maintenance; due-order priority; capacity truncation; practise-ahead selection when nothing is due.
-- [ ] T019 [US1] Wire `src/speakloop/linecards/__init__.py` public API (`LineCard`, `derive_cards`, `select_due`, `advance_card`, `to_anki`, `cloze_from_correction`, `load_starter_cards`, `merge_cards`) — no engine import; mypy-clean.
-- [ ] T020 [US1] Write `src/speakloop/linecards/CLAUDE.md` (purpose, public interface, deps [feedback.frontmatter, srs.schedule, store], consumers [cli/deck], file map, traps — rebuildable content / live scheduling).
+- [X] T011 [P] [US1] Implement `LineCard` dataclass + stable `card_id` (`sha1(question_id\x1fquote\x1fcorrected)[:12]`, or `starter:<slug>`) + `derive_cards(reports_dir) -> list[LineCard]` (mirror `trends/reader`: flat `glob("*.md")`, per-file try/except, `feedback.frontmatter.parse`; keep evidence with non-empty `corrected != quote`; dedupe by `card_id`) in `src/speakloop/linecards/cards.py`.
+- [X] T012 [P] [US1] Add `tests/unit/linecards/test_cards.py`: derivation from a report fixture yields expected cards; no-op corrections skipped; identical corrections across two reports collapse to one `card_id` (stable identity).
+- [X] T013 [P] [US1] Implement `cloze_from_correction(quote, corrected) -> str` (word-level `difflib.SequenceMatcher` diff → wrap changed span in `{{c1::…}}`; degenerate diff → cloze whole corrected) and `to_anki(cards) -> str` (one line per card, trailing `(rule)`) in `src/speakloop/linecards/cloze.py`.
+- [X] T014 [P] [US1] Add `tests/unit/linecards/test_cloze.py`: article insertion (`"new instance of it"`→`"a new instance of it"` → `{{c1::a}} …`), verb change (`"system create"`→`"system creates"` → `{{c1::creates}}`), starter card cloze span, and whole-phrase fallback.
+- [X] T015 [P] [US1] Implement starter cards: `src/speakloop/linecards/starter_cards.yaml` (≥ 8 English-only interview discourse chunks with `slug`/`text`/`cloze`/`rule`) + `load_starter_cards() -> list[LineCard]` in `src/speakloop/linecards/starter.py`.
+- [X] T016 [P] [US1] Add `tests/unit/linecards/test_starter.py`: the bundled YAML loads, has ≥ 8 cards, each with a non-empty `cloze` that is a substring of `text` (so the exporter can wrap it), all English.
+- [X] T017 [US1] Implement `advance_card(state, grade, *, today) -> dict` (calls `srs.schedule.advance`, stamps `next_due`/`last_practiced`/`total_reviews`) and `select_due(cards, *, today, capacity) -> list[LineCard]` (never-reviewed OR `next_due <= today`, most-overdue-first ties→lower grade→oldest-practiced, truncated to capacity) in `src/speakloop/linecards/deck.py`. Depends on T004, T011.
+- [X] T018 [P] [US1] Add `tests/unit/linecards/test_deck.py`: `again`→due next run at shortest interval; two `easy` marks → mastered/maintenance; due-order priority; capacity truncation; practise-ahead selection when nothing is due.
+- [X] T019 [US1] Wire `src/speakloop/linecards/__init__.py` public API (`LineCard`, `derive_cards`, `select_due`, `advance_card`, `to_anki`, `cloze_from_correction`, `load_starter_cards`, `merge_cards`) — no engine import; mypy-clean.
+- [X] T020 [US1] Write `src/speakloop/linecards/CLAUDE.md` (purpose, public interface, deps [feedback.frontmatter, srs.schedule, store], consumers [cli/deck], file map, traps — rebuildable content / live scheduling).
 
 ### Config (US1)
 
-- [ ] T021 [US1] Add optional `deck_daily_capacity` (default 20, floor 1) to `LoopConfig` + `load()` (via `_int`) in `src/speakloop/config/loop_config.py`; document the key in `src/speakloop/config/CLAUDE.md` loop.yaml table. Add a case to `tests/unit/config/test_loop_config.py` (default + clamp).
+- [X] T021 [US1] Add optional `deck_daily_capacity` (default 20, floor 1) to `LoopConfig` + `load()` (via `_int`) in `src/speakloop/config/loop_config.py`; document the key in `src/speakloop/config/CLAUDE.md` loop.yaml table. Add a case to `tests/unit/config/test_loop_config.py` (default + clamp).
 
 ### CLI (US1)
 
-- [ ] T022 [US1] Implement `src/speakloop/cli/deck.py` `run(*, limit, export_path, ahead, tts_engine, play_fn, key_reader, reports_dir, store_path, starter_cards, today, input_fn, console)` per contracts/deck-command.md: export path (derive+merge → `to_anki` → atomic write → exit); drill path (merge derived+starter+stored state → `select_due` → provision Phase A only when building real TTS → hear/say/see/self-mark → `advance_card` → persist store). All engine imports function-local; non-interactive skips the loop; no report, no recording.
-- [ ] T023 [US1] Register the `deck` command in `src/speakloop/cli/main.py` (`@app.command("deck")` with `--limit`/`--export`/`--ahead`, function-local import of `cli.deck`).
-- [ ] T024 [US1] Add `tests/unit/cli/test_deck_command.py` (mirror `test_pronounce_command.py`): inject fake TTS/play/key_reader/store + report fixtures; assert hear-before-see order, self-mark reschedules + persists, `--export` writes a `{{c1::` file and does not drill, non-interactive skips cleanly, and NO `.md` report is written.
-- [ ] T025 [US1] Document the `deck` command in `src/speakloop/cli/CLAUDE.md` (public interface + file-map entry for `deck.py`).
+- [X] T022 [US1] Implement `src/speakloop/cli/deck.py` `run(*, limit, export_path, ahead, tts_engine, play_fn, key_reader, reports_dir, store_path, starter_cards, today, input_fn, console)` per contracts/deck-command.md: export path (derive+merge → `to_anki` → atomic write → exit); drill path (merge derived+starter+stored state → `select_due` → provision Phase A only when building real TTS → hear/say/see/self-mark → `advance_card` → persist store). All engine imports function-local; non-interactive skips the loop; no report, no recording.
+- [X] T023 [US1] Register the `deck` command in `src/speakloop/cli/main.py` (`@app.command("deck")` with `--limit`/`--export`/`--ahead`, function-local import of `cli.deck`).
+- [X] T024 [US1] Add `tests/unit/cli/test_deck_command.py` (mirror `test_pronounce_command.py`): inject fake TTS/play/key_reader/store + report fixtures; assert hear-before-see order, self-mark reschedules + persists, `--export` writes a `{{c1::` file and does not drill, non-interactive skips cleanly, and NO `.md` report is written.
+- [X] T025 [US1] Document the `deck` command in `src/speakloop/cli/CLAUDE.md` (public interface + file-map entry for `deck.py`).
 
 **Checkpoint (US1 done / MVP)**: `uv run pytest tests/unit/linecards tests/unit/store tests/unit/cli/test_deck_command.py -q` green; `uv run speakloop deck --help` loads no engine; `uv run mypy` green.
 

@@ -18,6 +18,11 @@ and builds the daily due queue. No LLM, no engine; stdlib only.
   Interval-ladder constants (BASE_INTERVAL_DAYS, FAIR_INTERVAL_DAYS, GOOD_MULTIPLIER,
   STRONG_MULTIPLIER, CAP_DAYS, MAINTENANCE_DAYS, MASTERY_STREAK) are the single tuning
   surface — owned at the top of schedule.py (owner O14).
+- `schedule.advance(prev_interval, consecutive_strong, mastered, grade) -> AdvanceResult`
+  (018) — the PURE ladder recurrence (interval/streak/mastery only, no dates). Extracted from
+  `next_due`, which is now a thin date-stamping wrapper over it (behaviour byte-identical to
+  pre-018). `linecards` (018 rescue-lines deck) schedules per-card via the SAME `advance`, so the
+  constants above stay the one tuning surface for questions AND cards.
 - `queue.due_queue(entries, all_question_ids, *, today, capacity=5) -> DueQueue`
   — priority order: most overdue first, ties by lower grade, then oldest practiced.
   New questions use `_NEW_GRADE_RANK=2.5` (queue.py:23) — rank after overdue

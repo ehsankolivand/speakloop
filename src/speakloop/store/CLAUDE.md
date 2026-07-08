@@ -16,6 +16,10 @@ no engine imports.
   `patterns`) + `Store.weak_contrasts()` (most-weak-first, empty with no history → curated drill
   order) + `Store.record_contrasts(counts, *, date_iso)` (append today's flagged counts).
   `STORE_VERSION` stays 1 (default-empty section; old stores load it as `{}`; old code ignores it).
+  **018**: adds the additive default-empty `line_cards` section (`card_id -> {content + SRS-state}`
+  dict) for the `speakloop deck` trainer — round-trips via `to_dict`/`from_dict`; `STORE_VERSION`
+  stays 1. Card CONTENT is rebuildable from report grammar evidence; per-card SRS state is live.
+  Logic lives in the `linecards` module (store stays a dumb container, like `key_points`).
 - `io.load(path) -> Store` — returns empty `Store` on missing, corrupt, or
   newer-than-current `store_version` (caller rebuilds; io.py:20-33).
 - `io.save_atomic(path, store)` — `tempfile.mkstemp` + `os.fsync` + `os.replace`
@@ -26,10 +30,13 @@ no engine imports.
   `follow_ups` entries are NOT folded, rebuild.py:52; divergence — code fix pending);
   `key_points` (latest set per question + ideal-answer hash); `schedule` (observed
   `last_grade`/`last_practiced`/`total_reviews`); **`pronunciation_contrasts`** (017 — per
-  report, the count of items whose target sound was flagged, grouped by contrast). `next_due` is
+  report, the count of items whose target sound was flagged, grouped by contrast); **`line_cards`**
+  (018 — rescue-line card content derived from `grammar_patterns[].evidence[]{quote,corrected}`
+  via a function-local `linecards.cards_from_session`, deduped by `card_id`). `next_due` is
   set to the last-practiced date as a placeholder (rebuild.py) — `speakloop rebuild` does NOT
   restore the real SRS schedule. Schedule advance (interval ladder / next_due /
   mastery) happens at session end in `sessions/coordinator.py` and `cli/resume.py`, not in rebuild.
+  Line-card SRS state resets to a placeholder on rebuild too (content-only), same trade-off.
 
 ## Dependencies & consumers
 
@@ -59,6 +66,9 @@ no engine imports.
   Standalone `speakloop pronounce` runs write NO report, so their contribution is **live-only**
   and is dropped by a manual `rebuild` (recovered as the user practises) — the same accepted
   trade-off as the SRS `next_due` placeholder above. The store stays a recoverable cache.
+- **018**: `line_cards` card CONTENT is rebuildable from report grammar evidence; the per-card
+  SRS scheduling state is written live by `speakloop deck` and resets to a placeholder on a manual
+  `rebuild` (recovered as the user drills) — the same trade-off as the SRS `next_due` above.
 - Main-thread store-write rule: see `src/speakloop/sessions/CLAUDE.md` (owner O6).
 
 ## Common modification patterns

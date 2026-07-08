@@ -153,6 +153,35 @@ def pronounce_cmd(
     _pronounce.run(limit=limit, debug=debug)
 
 
+@app.command("deck")
+def deck_cmd(
+    limit: int = typer.Option(
+        None,
+        "--limit",
+        help="Max rescue-line cards to drill this run (default 20). Overrides deck_daily_capacity.",
+    ),
+    export: str = typer.Option(
+        None,
+        "--export",
+        help=(
+            "Export the whole deck as an Anki cloze-import file to this path, then exit "
+            "(no drilling, no models, offline)."
+        ),
+    ),
+    ahead: bool = typer.Option(
+        False,
+        "--ahead",
+        help="When nothing is due, drill the soonest-due cards anyway (practise ahead).",
+    ),
+) -> None:
+    """Drill your rescue-lines deck: hear → say → see → self-mark, on a spaced schedule."""
+    from pathlib import Path
+
+    from speakloop.cli import deck as _deck  # local import; engine touch is deferred.
+
+    _deck.run(limit=limit, export_path=Path(export) if export else None, ahead=ahead)
+
+
 @app.command("setup")
 def setup_cmd(
     engine: str = typer.Option(
