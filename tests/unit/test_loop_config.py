@@ -133,3 +133,19 @@ def test_017_teach_speed_is_a_step_slower_than_drill_speed():
     assert loop_config.teach_speed(0.85) < 0.85
     assert loop_config.teach_speed(0.85) == 0.68
     assert loop_config.teach_speed(0.5) >= loop_config.MIN_PRONUNCIATION_TTS_SPEED
+
+
+# --- 018: rescue-lines deck run cap ------------------------------------------------------
+
+
+def test_018_deck_capacity_default_is_twenty():
+    assert loop_config.load().deck_daily_capacity == 20
+
+
+def test_018_deck_capacity_read_and_floored():
+    _write("deck_daily_capacity: 8\n")
+    assert loop_config.load().deck_daily_capacity == 8
+    _write("deck_daily_capacity: 0\n")  # floored at 1
+    assert loop_config.load().deck_daily_capacity == 1
+    _write("deck_daily_capacity: lots\n")  # invalid → default
+    assert loop_config.load().deck_daily_capacity == 20

@@ -85,6 +85,8 @@ files = [
     "src/speakloop/metrics",
     "src/speakloop/pronunciation/gop.py",
     "src/speakloop/pronunciation/drill_runner.py",
+    "src/speakloop/linecards",
+    "src/speakloop/shadowing",
 ]
 
 [tool.ruff]

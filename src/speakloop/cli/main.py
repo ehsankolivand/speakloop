@@ -153,6 +153,53 @@ def pronounce_cmd(
     _pronounce.run(limit=limit, debug=debug)
 
 
+@app.command("deck")
+def deck_cmd(
+    limit: int = typer.Option(
+        None,
+        "--limit",
+        help="Max rescue-line cards to drill this run (default 20). Overrides deck_daily_capacity.",
+    ),
+    export: str = typer.Option(
+        None,
+        "--export",
+        help=(
+            "Export the whole deck as an Anki cloze-import file to this path, then exit "
+            "(no drilling, no models, offline)."
+        ),
+    ),
+    ahead: bool = typer.Option(
+        False,
+        "--ahead",
+        help="When nothing is due, drill the soonest-due cards anyway (practise ahead).",
+    ),
+) -> None:
+    """Drill your rescue-lines deck: hear → say → see → self-mark, on a spaced schedule."""
+    from pathlib import Path
+
+    from speakloop.cli import deck as _deck  # local import; engine touch is deferred.
+
+    _deck.run(limit=limit, export_path=Path(export) if export else None, ahead=ahead)
+
+
+@app.command("shadow")
+def shadow_cmd(
+    question: str = typer.Option(
+        None, "--question", help="Question id to shadow directly (omit to pick interactively)."
+    ),
+    limit: int = typer.Option(
+        None, "--limit", help="Max sentences to shadow this run (default: the whole answer)."
+    ),
+    slow: bool = typer.Option(
+        False, "--slow/--no-slow", help="Play a slower first read of each sentence."
+    ),
+) -> None:
+    """Shadow a question's ideal answer sentence-by-sentence: hear → repeat → content + pace feedback."""
+    from speakloop.cli import shadow as _shadow  # local import; engine touch is deferred.
+
+    _shadow.run(question_id=question, limit=limit, slow=slow)
+
+
 @app.command("setup")
 def setup_cmd(
     engine: str = typer.Option(

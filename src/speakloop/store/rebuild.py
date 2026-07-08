@@ -47,6 +47,10 @@ def rebuild(sessions_dir: Path, *, rebuilt_at: str | None = None) -> Store:
     """Fold every session report into a fresh Store (deterministic)."""
     store = Store(store_version=STORE_VERSION, rebuilt_at=rebuilt_at)
 
+    # 018: rescue-line-card CONTENT is rebuildable from grammar evidence. Function-local import
+    # so `store` stays free of the `linecards`/`srs` import graph at module load.
+    from speakloop.linecards.cards import cards_from_session, content_dict, new_state
+
     for session in _iter_sessions(sessions_dir):
         iso_date = session.started_at.date().isoformat()
         qid = session.question_id
@@ -86,6 +90,13 @@ def rebuild(sessions_dir: Path, *, rebuilt_at: str | None = None) -> Store:
                     cid = str(it["contrast_id"])
                     counts[cid] = counts.get(cid, 0) + 1
             store.record_contrasts(counts, date_iso=iso_date)
+
+        # --- line cards (018) — rescue-line content from grammar evidence, deduped by card_id.
+        # SRS scheduling state is a placeholder (never-reviewed); real scheduling is written by
+        # `speakloop deck` at runtime, live-only, the same trade-off as the SRS `next_due`.
+        for card in cards_from_session(session):
+            if card.card_id not in store.line_cards:
+                store.line_cards[card.card_id] = {**content_dict(card), **new_state()}
 
     # patterns are appended in chronological order already (sessions sorted), but
     # sort defensively so the series is always chronological.

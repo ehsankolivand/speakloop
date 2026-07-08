@@ -1,0 +1,47 @@
+# Bundled starter rescue-line cards (018, US1, FR-013).
+#
+# High-value interview discourse chunks that seed the deck when the learner has few or no
+# corrections of their own. English-only. Each `cloze` MUST be a substring of `text` (the
+# exporter wraps that span in {{c1::...}}). At least 8 cards ship.
+version: 1
+cards:
+  - slug: walk-you-through
+    text: "Let me walk you through my approach."
+    cloze: "walk you through"
+    rule: "signpost your structure before diving in"
+  - slug: trade-off-here
+    text: "The trade-off here is between latency and consistency."
+    cloze: "trade-off"
+    rule: "name the tension explicitly"
+  - slug: at-a-high-level
+    text: "At a high level, the system has three main components."
+    cloze: "At a high level"
+    rule: "start broad, then go deep"
+  - slug: the-way-i-see-it
+    text: "The way I see it, there are two reasonable options."
+    cloze: "The way I see it"
+    rule: "frame your opinion clearly"
+  - slug: to-give-context
+    text: "To give some context, this ran in production for two years."
+    cloze: "To give some context"
+    rule: "set the scene before the detail"
+  - slug: that-said
+    text: "That said, there is a simpler alternative worth considering."
+    cloze: "That said"
+    rule: "signal a contrast or caveat"
+  - slug: in-a-nutshell
+    text: "In a nutshell, we cache the result and invalidate it on write."
+    cloze: "In a nutshell"
+    rule: "summarize crisply"
+  - slug: make-sure-i-understand
+    text: "Let me make sure I understand the question correctly."
+    cloze: "make sure I understand"
+    rule: "buy time and confirm the ask before answering"
+  - slug: the-key-insight
+    text: "The key insight is that reads vastly outnumber writes."
+    cloze: "The key insight"
+    rule: "highlight the crux of your reasoning"
+  - slug: to-summarize
+    text: "To summarize, the bottleneck was the database, not the network."
+    cloze: "To summarize"
+    rule: "close with a clear takeaway"

@@ -66,6 +66,7 @@ Two files with different stdlib footprints — see File map.
 | `pronunciation_tts_playback` (017) | `True` | must be `bool` | load() |
 | `pronunciation_retries` (017) | 1 | int clamped to [0, 3] | load() |
 | `pronunciation_tts_speed` (017 P2) | 0.85 | float clamped to [0.5, 1.5] | load() |
+| `deck_daily_capacity` (018) | 20 | max(1, int) | load() |
 
 `loop_config.teach_speed(drill_speed) -> float` derives the slower per-sound teaching-beat speed
 (a step below the drill speed, clamped to the floor) — used by both `cli` and `sessions`.

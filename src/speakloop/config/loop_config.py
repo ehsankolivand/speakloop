@@ -59,6 +59,10 @@ DEFAULT_PRONUNCIATION_TTS_SPEED = 0.85
 MIN_PRONUNCIATION_TTS_SPEED = 0.5
 MAX_PRONUNCIATION_TTS_SPEED = 1.5
 
+# 018 (additive optional): max rescue-line cards drilled per `speakloop deck` run (the
+# per-run `--limit` flag overrides this). Mirrors `daily_capacity` for the deck trainer.
+DEFAULT_DECK_DAILY_CAPACITY = 20
+
 
 @dataclass(frozen=True)
 class LoopConfig:
@@ -83,6 +87,8 @@ class LoopConfig:
     pronunciation_tts_playback: bool = DEFAULT_PRONUNCIATION_TTS_PLAYBACK
     pronunciation_retries: int = DEFAULT_PRONUNCIATION_RETRIES
     pronunciation_tts_speed: float = DEFAULT_PRONUNCIATION_TTS_SPEED
+    # 018 (additive optional): rescue-lines deck run cap.
+    deck_daily_capacity: int = DEFAULT_DECK_DAILY_CAPACITY
 
 
 def _model(data: dict, key: str, default: str) -> str:
@@ -187,6 +193,9 @@ def load() -> LoopConfig:
         pronunciation_tts_speed=_float(
             data, "pronunciation_tts_speed", DEFAULT_PRONUNCIATION_TTS_SPEED,
             floor=MIN_PRONUNCIATION_TTS_SPEED, ceil=MAX_PRONUNCIATION_TTS_SPEED,
+        ),
+        deck_daily_capacity=_int(
+            data, "deck_daily_capacity", DEFAULT_DECK_DAILY_CAPACITY, floor=1
         ),
     )
 

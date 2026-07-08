@@ -56,6 +56,12 @@ class Store:
     # series (mirrors `patterns`). Feeds weak-sound drill prioritisation. Rebuildable from the
     # `pronunciation_drills` data in session reports; STORE_VERSION stays 1 (default-empty).
     pronunciation_contrasts: dict[str, list[list]] = field(default_factory=dict)
+    # 018 (additive): rescue-line-card id -> {content + SRS-state} dict (the `speakloop deck`
+    # trainer). Default-empty; STORE_VERSION stays 1 (old stores load it as `{}`, old code
+    # ignores it). Card CONTENT (corrected/quote/rule/question_id) is rebuildable from report
+    # grammar evidence; the per-card SRS scheduling state is the live part (placeholder on
+    # `rebuild`, the same accepted trade-off as `schedule.next_due`). Logic owned by `linecards`.
+    line_cards: dict[str, dict] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -65,6 +71,7 @@ class Store:
             "key_points": self.key_points,
             "patterns": self.patterns,
             "pronunciation_contrasts": self.pronunciation_contrasts,
+            "line_cards": self.line_cards,
         }
 
     @classmethod
@@ -84,6 +91,7 @@ class Store:
             key_points=d.get("key_points") or {},
             patterns=d.get("patterns") or {},
             pronunciation_contrasts=d.get("pronunciation_contrasts") or {},
+            line_cards=d.get("line_cards") or {},
         )
 
     def weak_contrasts(self) -> list[str]:
