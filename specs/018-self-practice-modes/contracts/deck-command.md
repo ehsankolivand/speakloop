@@ -23,7 +23,6 @@ def run(
     ahead: bool = False,
     tts_engine=None,          # injected fake in tests; else KokoroEngine(speed=cfg.pronunciation_tts_speed)
     play_fn=None,             # injected; else audio.playback.play
-    key_reader=None,          # injected FakeKeyReader/NullKeyReader; else sessions.keyboard.make_key_reader()
     reports_dir: Path | None = None,   # else config.paths.sessions_dir()
     store_path: Path | None = None,    # else config.paths.store_path()
     starter_cards=None,       # injected list[LineCard]; else linecards.load_starter_cards()

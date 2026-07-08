@@ -111,7 +111,6 @@ def run(
     ahead: bool = False,
     tts_engine=None,
     play_fn=None,
-    key_reader=None,
     reports_dir: Path | None = None,
     store_path: Path | None = None,
     starter_cards=None,
