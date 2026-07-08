@@ -1,20 +1,19 @@
 <!-- SPECKIT START -->
-Active feature: 017-pronunciation-trainer — turn 016's drills into a hear → say → see → retry
-  trainer. The pure `pronunciation/drill_runner.py` (run_drill_item/run_drill_block/select_drills)
-  plays the target first via the injected Kokoro TTS (replay with `r`), records, scores, then does
-  a bounded automatic retry on a flagged sound; the bank is SENTENCE-led (flat per-word canonical,
-  no separator token; words → follow-ons). New `speakloop pronounce` standalone command with a
-  RAM-only gate variant (`assess_standalone_safety`; no engine penalty), provisioning TTS + the
-  pronunciation model only (no ASR), no report. Weak-sound focus: rebuildable store section
-  `pronunciation_contrasts` biases `select_drills`. Live harness `tests/live_pron_test.py`
-  (`-m live_pron`) validates every bundled canonical (it is the CALIBRATION oracle). Post-ship fixes:
-  scorer loads ESPEAK-FREE (`Wav2Vec2FeatureExtractor`+`vocab.json`, never `Wav2Vec2Processor` — the
-  root cause of "could not score"); flag thresholds calibrated (COMP_MARGIN 0.5→1.5); false-flagging
-  drills replaced; P2 slower TTS (`pronunciation_tts_speed`) + per-sound teaching beat + `say_like`
-  respellings; `pronounce --debug` surfaces the swallowed failure reason. Additive: schema_version +
-  STORE_VERSION stay 1; offline + byte-identical-when-absent hold. Plan: specs/017-pronunciation-trainer/plan.md
+Active feature: 018-self-practice-modes — two additive OFFLINE standalone trainers modeled on
+  `speakloop pronounce` (provision only what's needed → user-paced → no report). Mode A `speakloop deck`
+  (P1): self-graded SRS of the learner's OWN corrected lines — cards derive from
+  grammar_patterns[].evidence[] {quote,corrected} in reports (+ ≥8 bundled starter chunks); hear→say→
+  see→self-mark reschedules on the shared ladder `srs.schedule.advance` (extracted from next_due,
+  behaviour-preserving), persisted in the additive default-empty store section `line_cards`; offline
+  Anki cloze export (`deck --export`, {{c1::…}}); TTS-only (no ASR/scorer/mic). Mode B `speakloop shadow`
+  (P2): abbreviation-aware sentence-split of a question's ideal_answer → TTS→repeat→ASR→deterministic
+  content-word completeness (`shadowing.judge`) + pace/fillers (`metrics.compute_all`); provisions Phase
+  B (TTS+ASR, NO scorer/LLM), ephemeral. New pure mypy-gated modules `linecards/`+`shadowing/`; thin
+  `cli/deck.py`+`cli/shadow.py` (function-local engine imports). Additive: schema_version + STORE_VERSION
+  stay 1; store rebuildable; --help model-free. Plan: specs/018-self-practice-modes/plan.md
 
 Prior features (one line each; details live in specs/NNN-*/):
+  017-pronunciation-trainer — hear→say→see→retry drills + standalone `pronounce`; espeak-free scorer, weak-sound `pronunciation_contrasts`, slower TTS + teaching beat · specs/017-pronunciation-trainer/
   016-pronunciation-drills — opt-in read-aloud pronunciation drill block, engine/RAM-gated, concurrent with feedback · specs/016-pronunciation-drills/
   015-engine-aware-onboarding — `setup` persists engine + engine-aware download/doctor; `questions` group · specs/015-engine-aware-onboarding/
   014-agent-context-overhaul — code-true rewrite of root + 19 module CLAUDE.md + `.claude/rules/`; anti-rot constitution amendment (v1.1.0) · specs/014-agent-context-overhaul/
