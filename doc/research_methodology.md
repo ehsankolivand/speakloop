@@ -71,6 +71,8 @@ The 13-session evidence profile is internally consistent and points to one struc
 - **Beats the obvious alternative (passive podcast listening).** Shadowing forces alignment of perception and articulation under time pressure; passive listening does not exercise the bottleneck.
 - **Metacognition leverage.** IPA-aware self-monitoring (Hamada, 2018, *Journal of Asia TEFL* 15(1)): learner reads the transcript, marks own segmental errors, re-shadows. The metalinguistic skill that powers Part-B accuracy is exactly what makes self-monitored shadowing effective for this learner.
 
+> **Implemented in feature 018.** Technique (2) shadowing ships as `speakloop shadow` — hear → repeat → deterministic content-word completeness + pace/fillers over a question's ideal answer, sentence by sentence. The productive-cloze prescription (§2.5) ships as `speakloop deck` — spaced repetition of the learner's OWN corrected lines (from report grammar evidence) with an offline Anki cloze export. Both are offline and English-only. See `specs/018-self-practice-modes/`.
+
 ### 2.3 For aural domain-fluency: narrow listening on Android/fintech content
 
 - **Source.** Krashen (1996); Rodrigo & Krashen (2013); Chang & Millett (2017) on narrow reading/listening; Renandya & Krashen (2018, *LEARN Journal*) on extensive viewing. Mechanism: repeated topic-bound input compounds lexical, schematic, and prosodic familiarity, making subsequent input within the topic immediately more comprehensible.

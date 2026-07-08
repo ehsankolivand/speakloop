@@ -182,6 +182,24 @@ def deck_cmd(
     _deck.run(limit=limit, export_path=Path(export) if export else None, ahead=ahead)
 
 
+@app.command("shadow")
+def shadow_cmd(
+    question: str = typer.Option(
+        None, "--question", help="Question id to shadow directly (omit to pick interactively)."
+    ),
+    limit: int = typer.Option(
+        None, "--limit", help="Max sentences to shadow this run (default: the whole answer)."
+    ),
+    slow: bool = typer.Option(
+        False, "--slow/--no-slow", help="Play a slower first read of each sentence."
+    ),
+) -> None:
+    """Shadow a question's ideal answer sentence-by-sentence: hear → repeat → content + pace feedback."""
+    from speakloop.cli import shadow as _shadow  # local import; engine touch is deferred.
+
+    _shadow.run(question_id=question, limit=limit, slow=slow)
+
+
 @app.command("setup")
 def setup_cmd(
     engine: str = typer.Option(

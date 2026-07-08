@@ -1,16 +1,14 @@
 <!-- SPECKIT START -->
 Active feature: 018-self-practice-modes — two additive OFFLINE standalone trainers modeled on
   `speakloop pronounce` (provision only what's needed → user-paced → no report). Mode A `speakloop deck`
-  (P1): self-graded SRS of the learner's OWN corrected lines — cards derive from
+  (P1, TTS-only): self-graded SRS of the learner's OWN corrected lines — cards derive from
   grammar_patterns[].evidence[] {quote,corrected} in reports (+ ≥8 bundled starter chunks); hear→say→
   see→self-mark reschedules on the shared ladder `srs.schedule.advance` (extracted from next_due,
-  behaviour-preserving), persisted in the additive default-empty store section `line_cards`; offline
-  Anki cloze export (`deck --export`, {{c1::…}}); TTS-only (no ASR/scorer/mic). Mode B `speakloop shadow`
-  (P2): abbreviation-aware sentence-split of a question's ideal_answer → TTS→repeat→ASR→deterministic
-  content-word completeness (`shadowing.judge`) + pace/fillers (`metrics.compute_all`); provisions Phase
-  B (TTS+ASR, NO scorer/LLM), ephemeral. New pure mypy-gated modules `linecards/`+`shadowing/`; thin
-  `cli/deck.py`+`cli/shadow.py` (function-local engine imports). Additive: schema_version + STORE_VERSION
-  stay 1; store rebuildable; --help model-free. Plan: specs/018-self-practice-modes/plan.md
+  behaviour-preserving), persisted in the additive default-empty store `line_cards`; offline Anki cloze
+  export (`deck --export`, {{c1::…}}). Mode B `speakloop shadow` (P2): abbreviation-aware sentence-split
+  of a question's ideal_answer → TTS→repeat→ASR→deterministic content-word completeness + pace/fillers
+  (`shadowing.judge` + `metrics.compute_all`); Phase B (TTS+ASR, NO scorer/LLM), ephemeral. New pure
+  mypy-gated `linecards/`+`shadowing/`; thin `cli/deck.py`+`cli/shadow.py` (fn-local). Additive: schema_version+STORE_VERSION stay 1; --help model-free. Plan: specs/018-self-practice-modes/plan.md
 
 Prior features (one line each; details live in specs/NNN-*/):
   017-pronunciation-trainer — hear→say→see→retry drills + standalone `pronounce`; espeak-free scorer, weak-sound `pronunciation_contrasts`, slower TTS + teaching beat · specs/017-pronunciation-trainer/
@@ -68,9 +66,9 @@ From `pyproject.toml`, confirmed against imports.
 
 ## Layout
 
-Twenty single-responsibility modules under `src/speakloop/`, each with its own
+Twenty-two single-responsibility modules under `src/speakloop/`, each with its own
 CLAUDE.md (constitution Principle IV). Edges below are from an import scan
-(`rg -o "from speakloop\.(\w+)" src/speakloop/<mod>/`), regenerated 2026-06-12.
+(`rg -o "from speakloop\.(\w+)" src/speakloop/<mod>/`); 018 added `linecards/` + `shadowing/`.
 
 | Module | Responsibility | Depends on (internal) |
 |--------|----------------|-----------------------|
@@ -90,10 +88,12 @@ CLAUDE.md (constitution Principle IV). Edges below are from an import scan
 | `interviewer/` | Grounded follow-up generation | asr, config, feedback, llm |
 | `warmup/` | Warm-up drill generation + deterministic judge | config, feedback, llm |
 | `srs/` | Grade + interval ladder + due queue (pure logic) | store |
-| `store/` | Derived JSON store, rebuildable cache | feedback |
+| `store/` | Derived JSON store, rebuildable cache (+ 018 `line_cards`) | feedback (+ `linecards` fold, fn-local) |
 | `pronunciation/` | Read-aloud scorer (owns `torch`+`transformers`), pure-numpy CTC GOP, engine/RAM gate + standalone RAM-only variant, sentence drill bank, pure hear→say→see→retry loop (`drill_runner`) (016/017) | installer |
+| `linecards/` | Rescue-lines deck: derive cards from report grammar evidence, shared SRS ladder, Anki cloze export (018, pure) | feedback, srs |
+| `shadowing/` | Answer shadowing: abbreviation-aware sentence split + content-word completeness judge (018, pure leaf) | — (leaf) |
 | `sessions/` | 4/3/2 coordinator, keyboard, session UI, analysis executor, timer, abort, drill block (016/017 hear-first+retry) | asr, audio, config, content, coverage, feedback, metrics, pronunciation, srs, store, trends, triage, warmup |
-| `cli/` | `practice`, `pronounce` (017), `setup`, `questions`, `doctor`, `trends`, `today`, `rebuild`, `resume` | all 17 others except debrief at module level (debrief + pronunciation imported function-local) |
+| `cli/` | `practice`, `pronounce` (017), `deck` + `shadow` (018), `setup`, `questions`, `doctor`, `trends`, `today`, `rebuild`, `resume` | all others except debrief at module level (debrief + pronunciation + linecards + shadowing imported function-local) |
 
 ## Commands
 
@@ -103,6 +103,8 @@ uv run speakloop setup [--engine local|openrouter|claude] [--no-download]  # per
 uv run speakloop doctor     # environment + model health, engine-aware (exit 0 when healthy)
 uv run speakloop practice [--listen-only] [--cloud] [--engine local|openrouter|claude] [--timings] [--drills/--no-drills]  # --drills: hear→say→see→retry pronunciation drills during the feedback wait, engine/RAM-gated (016/017)
 uv run speakloop pronounce [--limit N] [--debug]  # standalone hear→say→see→retry trainer; RAM-only gate; no report; --debug surfaces the real "could not score" reason (017)
+uv run speakloop deck [--limit N] [--export PATH] [--ahead]  # rescue-lines deck: self-graded SRS of your OWN corrected lines (from reports) + starter cards; TTS-only; Anki cloze export; no report (018)
+uv run speakloop shadow [--question ID] [--limit N] [--slow]  # shadow a question's ideal answer sentence-by-sentence: TTS+ASR, deterministic content-word completeness + pace/fillers; no report (018)
 uv run speakloop questions validate [PATH] | template | where  # author/validate your own Q&A (015)
 uv run speakloop today | resume | rebuild | trends
 uv run pytest               # full suite — re-measure pass count after each feature
@@ -192,7 +194,7 @@ commit (constitution v1.1.0). `tests/integration/test_context_file_budget.py` en
 - Per-module guidance: `src/speakloop/<module>/CLAUDE.md` (loads on demand).
 - Path-scoped rules: `.claude/rules/testing.md` (tests/**),
   `.claude/rules/llm-calls.md` (LLM-caller modules).
-- Specs: `specs/001`–`specs/016` (plan.md · spec.md per feature).
+- Specs: `specs/001`–`specs/018` (plan.md · spec.md per feature).
 - Engine research: `doc/research_{tts,asr,llm,methodology,pronunciation}.md`; context
   engineering: `doc/research_context_engineering.md`.
 - Governance: `.specify/memory/constitution.md` (v1.1.0) — wins on any conflict.

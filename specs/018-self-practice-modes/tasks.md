@@ -85,19 +85,19 @@
 
 ### `shadowing/` pure logic (US2)
 
-- [ ] T026 [P] [US2] Implement `split_sentences(text) -> list[str]` (paragraph split on blank lines; guarded `[.?!]` splitter that does NOT break on digit.digit, dotted/`camelCase` identifiers, or a small abbreviation set; merge sub-floor fragments) in `src/speakloop/shadowing/split.py`.
-- [ ] T027 [P] [US2] Add `tests/unit/shadowing/test_split.py`: real `ideal_answer` fixtures split into the expected sentences; `"API 28"`, a decimal, and a dotted identifier are NOT split; paragraph breaks are boundaries; single-sentence answer → one item.
-- [ ] T028 [P] [US2] Implement `judge_completeness(sentence, repeat_text) -> CompletenessResult` (content words = normalized tokens minus stopword set; covered/missed by normalized containment; `coverage`; `captured=False` on empty repeat) in `src/speakloop/shadowing/judge.py` (reuse `warmup`-style normalization).
-- [ ] T029 [P] [US2] Add `tests/unit/shadowing/test_judge.py`: covered/missed lists correct; function words excluded; `coverage` fraction; deterministic for a fixed transcript; empty transcript → `captured=False` (not a coverage failure).
-- [ ] T030 [US2] Wire `src/speakloop/shadowing/__init__.py` public API (`split_sentences`, `judge_completeness`, `CompletenessResult`) — no engine import; mypy-clean.
-- [ ] T031 [US2] Write `src/speakloop/shadowing/CLAUDE.md` (purpose, public interface, deps, consumers [cli/shadow], file map, determinism/offline traps).
+- [X] T026 [P] [US2] Implement `split_sentences(text) -> list[str]` (paragraph split on blank lines; guarded `[.?!]` splitter that does NOT break on digit.digit, dotted/`camelCase` identifiers, or a small abbreviation set; merge sub-floor fragments) in `src/speakloop/shadowing/split.py`.
+- [X] T027 [P] [US2] Add `tests/unit/shadowing/test_split.py`: real `ideal_answer` fixtures split into the expected sentences; `"API 28"`, a decimal, and a dotted identifier are NOT split; paragraph breaks are boundaries; single-sentence answer → one item.
+- [X] T028 [P] [US2] Implement `judge_completeness(sentence, repeat_text) -> CompletenessResult` (content words = normalized tokens minus stopword set; covered/missed by normalized containment; `coverage`; `captured=False` on empty repeat) in `src/speakloop/shadowing/judge.py` (reuse `warmup`-style normalization).
+- [X] T029 [P] [US2] Add `tests/unit/shadowing/test_judge.py`: covered/missed lists correct; function words excluded; `coverage` fraction; deterministic for a fixed transcript; empty transcript → `captured=False` (not a coverage failure).
+- [X] T030 [US2] Wire `src/speakloop/shadowing/__init__.py` public API (`split_sentences`, `judge_completeness`, `CompletenessResult`) — no engine import; mypy-clean.
+- [X] T031 [US2] Write `src/speakloop/shadowing/CLAUDE.md` (purpose, public interface, deps, consumers [cli/shadow], file map, determinism/offline traps).
 
 ### CLI (US2)
 
-- [ ] T032 [US2] Implement `src/speakloop/cli/shadow.py` `run(*, question_id, limit, slow, tts_engine, play_fn, record_fn, transcribe_fn, key_reader, qa_file, scratch_dir, input_fn, console)` per contracts/shadow-command.md: resolve+load Q&A, pick question, `split_sentences`, provision Phase B only when building real engines (NOT `ensure_pronunciation_model`/`build_scorer`), per-sentence hear (reuse `pronounce`'s `speak`/`teach_speak` closures + `--slow`) → record (`coordinator._record_stage`) → `transcribe_fn(wav)` → delete wav → `judge_completeness` + `metrics.compute_all`. Function-local engine imports; non-interactive skips; no report, no store write.
-- [ ] T033 [US2] Register the `shadow` command in `src/speakloop/cli/main.py` (`@app.command("shadow")` with `--question`/`--limit`/`--slow`, function-local import of `cli.shadow`).
-- [ ] T034 [US2] Add `tests/unit/cli/test_shadow_command.py` (mirror `test_pronounce_command.py`): inject fake TTS/play/record/`transcribe_fn`/key_reader + a Q&A fixture; assert speak-before-feedback per sentence, covered/missed reported, empty transcript → not-captured, scratch wav deleted, NO `.md` report written; determinism for a fixed injected transcript.
-- [ ] T035 [US2] Document the `shadow` command in `src/speakloop/cli/CLAUDE.md` (public interface + file-map entry for `shadow.py`).
+- [X] T032 [US2] Implement `src/speakloop/cli/shadow.py` `run(*, question_id, limit, slow, tts_engine, play_fn, record_fn, transcribe_fn, key_reader, qa_file, scratch_dir, input_fn, console)` per contracts/shadow-command.md: resolve+load Q&A, pick question, `split_sentences`, provision Phase B only when building real engines (NOT `ensure_pronunciation_model`/`build_scorer`), per-sentence hear (reuse `pronounce`'s `speak`/`teach_speak` closures + `--slow`) → record (`coordinator._record_stage`) → `transcribe_fn(wav)` → delete wav → `judge_completeness` + `metrics.compute_all`. Function-local engine imports; non-interactive skips; no report, no store write.
+- [X] T033 [US2] Register the `shadow` command in `src/speakloop/cli/main.py` (`@app.command("shadow")` with `--question`/`--limit`/`--slow`, function-local import of `cli.shadow`).
+- [X] T034 [US2] Add `tests/unit/cli/test_shadow_command.py` (mirror `test_pronounce_command.py`): inject fake TTS/play/record/`transcribe_fn`/key_reader + a Q&A fixture; assert speak-before-feedback per sentence, covered/missed reported, empty transcript → not-captured, scratch wav deleted, NO `.md` report written; determinism for a fixed injected transcript.
+- [X] T035 [US2] Document the `shadow` command in `src/speakloop/cli/CLAUDE.md` (public interface + file-map entry for `shadow.py`).
 
 **Checkpoint (US2 done)**: `uv run pytest tests/unit/shadowing tests/unit/cli/test_shadow_command.py -q` green; `uv run speakloop shadow --help` loads no engine; `uv run mypy` green.
 
@@ -105,11 +105,11 @@
 
 ## Phase 5: Polish & Cross-Cutting
 
-- [ ] T036 Extend `tests/integration/test_help_without_models.py` and/or `tests/unit/asr/test_engine_import_isolation.py` to assert importing `speakloop.cli.deck` and `speakloop.cli.shadow` (and the whole CLI) loads no engine package (`kokoro_mlx`, `mlx_whisper`, `parakeet_mlx`, `torch`, `transformers`, …).
-- [ ] T037 Update the root `CLAUDE.md` module table + Commands section + Pointers: add `deck`/`shadow` to the `cli/` row and Commands block; add `linecards`/`shadowing` module rows; add a `specs/018` pointer. Re-check the 200-line budget (`tests/integration/test_context_file_budget.py`).
-- [ ] T038 [P] Append a one-paragraph pointer in `doc/research_methodology.md` linking §2.2 (shadowing) and §3.4 (productive-cloze) to feature 018 (non-gating; keeps Principle X current).
-- [ ] T039 Run the full gates and fix any regression: `uv run pytest` (expect ≥ 926 + new tests, all green), `uv run mypy` (green), `uv run ruff check src/speakloop/linecards src/speakloop/shadowing src/speakloop/cli/deck.py src/speakloop/cli/shadow.py` (no new findings; add a `cli/deck.py`/`cli/shadow.py` `B904` per-file-ignore in `pyproject.toml` only if typer `Exit` re-raises require it).
-- [ ] T040 Verify the byte-identical / additive invariants hold: a store without `line_cards` loads unchanged; no report is written by either command (grep the run output dir in the CLI tests); `schema_version`/`STORE_VERSION` unchanged.
+- [X] T036 Extend `tests/integration/test_help_without_models.py` and/or `tests/unit/asr/test_engine_import_isolation.py` to assert importing `speakloop.cli.deck` and `speakloop.cli.shadow` (and the whole CLI) loads no engine package (`kokoro_mlx`, `mlx_whisper`, `parakeet_mlx`, `torch`, `transformers`, …).
+- [X] T037 Update the root `CLAUDE.md` module table + Commands section + Pointers: add `deck`/`shadow` to the `cli/` row and Commands block; add `linecards`/`shadowing` module rows; add a `specs/018` pointer. Re-check the 200-line budget (`tests/integration/test_context_file_budget.py`).
+- [X] T038 [P] Append a one-paragraph pointer in `doc/research_methodology.md` linking §2.2 (shadowing) and §3.4 (productive-cloze) to feature 018 (non-gating; keeps Principle X current).
+- [X] T039 Run the full gates and fix any regression: `uv run pytest` (expect ≥ 926 + new tests, all green), `uv run mypy` (green), `uv run ruff check src/speakloop/linecards src/speakloop/shadowing src/speakloop/cli/deck.py src/speakloop/cli/shadow.py` (no new findings; add a `cli/deck.py`/`cli/shadow.py` `B904` per-file-ignore in `pyproject.toml` only if typer `Exit` re-raises require it).
+- [X] T040 Verify the byte-identical / additive invariants hold: a store without `line_cards` loads unchanged; no report is written by either command (grep the run output dir in the CLI tests); `schema_version`/`STORE_VERSION` unchanged.
 
 ---
 

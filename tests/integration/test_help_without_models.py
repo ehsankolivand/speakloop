@@ -70,6 +70,34 @@ def test_practice_help_lists_timings_flag():
     assert "--timings" in result.output
 
 
+def test_help_lists_deck_and_shadow():
+    """018: the two self-practice modes are discoverable from the top-level help."""
+    result = CliRunner().invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "deck" in result.output and "shadow" in result.output
+
+
+def test_deck_and_shadow_help_stay_model_free():
+    for cmd in ("deck", "shadow"):
+        result = CliRunner().invoke(app, [cmd, "--help"])
+        assert result.exit_code == 0, result.output
+
+
+def test_importing_deck_and_shadow_modules_loads_no_engine_packages():
+    """018: the thin `cli/deck.py` + `cli/shadow.py` modules import engines function-local,
+    so importing them (and the pure `linecards`/`shadowing`) pulls in no engine package."""
+    code = (
+        "import sys; import speakloop.cli.deck, speakloop.cli.shadow; "
+        "import speakloop.linecards, speakloop.shadowing; "
+        "engine = {'mlx_whisper', 'silero_vad', 'parakeet_mlx', 'mlx_lm', 'kokoro_mlx', 'torch', 'transformers'}; "
+        "leaked = engine & set(sys.modules); "
+        "print('LEAKED', sorted(leaked)); "
+        "sys.exit(1 if leaked else 0)"
+    )
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert proc.returncode == 0, f"engine packages imported via deck/shadow: {proc.stdout}{proc.stderr}"
+
+
 def test_importing_openrouter_engine_loads_no_engine_packages():
     """008: the cloud engine is stdlib-only (urllib) — importing it must pull in
     none of the local engine packages, so the `--help` model-free guarantee holds
