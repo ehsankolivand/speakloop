@@ -251,6 +251,55 @@ encouragingly, never as a grade. Scoring is **read-aloud only** — your spontan
 scored. `speakloop resume` and `--listen-only` do not run drills. (Future: stress/intonation
 scoring; scoring your actual answers.)
 
+## Self-practice modes (optional)
+
+Two more **standalone, offline** trainers. Like the pronunciation trainer they run outside an
+interview session, are **user-paced**, and **write no report** — and both reuse material the app
+already has, so there is nothing new to author.
+
+### Rescue-lines deck — `speakloop deck`
+
+Spaced repetition of **your own corrected lines**. After a few sessions the analyzer has recorded,
+for each grammar slip, what you said and the **"Better:"** correction. `deck` turns those into
+flashcards and drills the ones due today:
+
+```bash
+uv run speakloop deck                       # drill the cards due today
+uv run speakloop deck --limit 10            # cap this run to 10 cards
+uv run speakloop deck --export cards.txt    # export to an Anki cloze file (offline), then exit
+```
+
+Each due card runs **hear → say → see → self-mark**: it **speaks the corrected line** (local TTS,
+press **`r`** to replay), you say it aloud, it reveals the target (*You said* / *Better* / the
+rule), and you **self-mark** *again / hard / good / easy* — which reschedules the card on the same
+spaced-repetition ladder used for whole questions, until it sticks. Progress persists between runs.
+A brand-new user with no history still gets a **bundled starter set** of high-value interview
+phrases ("let me walk you through…", "the trade-off here is…").
+
+`deck --export` writes an **Anki cloze-import file** — the changed word wrapped in `{{c1::…}}` with
+a short rule hint — bringing a previously cloud-only convenience to the fully-local path. The deck
+is **TTS-only** (no microphone, no recognition model) and cards are always rebuildable from your
+session reports. Cap the daily run in `~/.speakloop/loop.yaml` with `deck_daily_capacity: 20` (or
+per run with `--limit`).
+
+### Answer shadowing — `speakloop shadow`
+
+Shadowing over the **real interview material**. Pick a question and `shadow` splits its ideal
+answer into sentences; for each it **speaks the sentence**, you **repeat it**, and it gives
+**deterministic, offline** feedback — how many of the sentence's **key words** you covered (and
+which you missed), plus your **pace** (words/minute) and **filler** count:
+
+```bash
+uv run speakloop shadow                                     # pick a question interactively
+uv run speakloop shadow --question activity-rotation-callbacks
+uv run speakloop shadow --slow --limit 5                    # slower first read; first 5 sentences
+```
+
+It provisions the speech + speech-recognition models (no feedback model, no pronunciation scorer),
+and — like the other trainers — is **offline after the one-time download**, **English-only**, and
+leaves **no recording on disk** and **no report**. (Future: pronunciation scoring of arbitrary
+sentences; a cross-session tally of the sentences you keep mangling.)
+
 ## What you get: an example report
 
 Every session writes a Markdown file with a YAML frontmatter block. Here is a
